@@ -235,7 +235,7 @@ public final class ZstdDictionary {
     private static int toBufferLength(ZstdByteSize maxDictBytes) {
         try {
             return maxDictBytes.toIntExact();
-        } catch (ArithmeticException e) {
+        } catch (ArithmeticException _) {
             throw new ZstdException("maxDictBytes " + maxDictBytes.value() + " exceeds the maximum array length");
         }
     }

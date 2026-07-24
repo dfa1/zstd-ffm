@@ -76,7 +76,7 @@ public final class Zstd {
     private static int toArrayLength(ZstdByteSize size) {
         try {
             return size.toIntExact();
-        } catch (ArithmeticException e) {
+        } catch (ArithmeticException _) {
             throw new ZstdException("decompressed size " + size.value()
                     + " exceeds the maximum array length");
         }
