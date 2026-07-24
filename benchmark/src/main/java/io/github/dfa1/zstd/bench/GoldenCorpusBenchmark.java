@@ -92,7 +92,7 @@ public class GoldenCorpusBenchmark {
 
         cctx = new ZstdCompressContext().level(new ZstdCompressionLevel(level));
         dctx = new ZstdDecompressContext();
-        bound = Zstd.compressBound(new ZstdByteSize(srcSize)).toIntExact();
+        bound = Zstd.compressBound(new ZstdByteSize(srcSize)).toArraySize();
         compressDst = new byte[bound];
 
         arena = Arena.ofConfined();

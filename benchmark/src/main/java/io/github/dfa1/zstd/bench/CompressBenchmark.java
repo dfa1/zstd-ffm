@@ -60,7 +60,7 @@ public class CompressBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         src = BenchData.generate(size);
-        int bound = Zstd.compressBound(new ZstdByteSize(size)).toIntExact();
+        int bound = Zstd.compressBound(new ZstdByteSize(size)).toArraySize();
 
         ffmCtx = new ZstdCompressContext().level(new ZstdCompressionLevel(level));
         ffmDst = new byte[bound];
