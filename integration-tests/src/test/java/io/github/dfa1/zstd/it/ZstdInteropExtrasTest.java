@@ -180,8 +180,8 @@ class ZstdInteropExtrasTest {
         void jniFramesConcatReadByJavaStream() {
             // Given
             byte[] joined = concat(
-                    com.github.luben.zstd.Zstd.compress(a, Zstd.defaultCompressionLevel()),
-                    com.github.luben.zstd.Zstd.compress(b, Zstd.defaultCompressionLevel()));
+                    com.github.luben.zstd.Zstd.compress(a, ZstdCompressionLevel.DEFAULT.value()),
+                    com.github.luben.zstd.Zstd.compress(b, ZstdCompressionLevel.DEFAULT.value()));
 
             // When
             byte[] restored = javaStreamDecode(joined);
@@ -219,7 +219,7 @@ class ZstdInteropExtrasTest {
             // Given
             ZstdDictionary dict = trainDict();
             var jniDict = new com.github.luben.zstd.ZstdDictCompress(
-                    dict.toByteArray(), Zstd.defaultCompressionLevel());
+                    dict.toByteArray(), ZstdCompressionLevel.DEFAULT.value());
             byte[] frame = com.github.luben.zstd.Zstd.compress(sample(7), jniDict);
 
             // When

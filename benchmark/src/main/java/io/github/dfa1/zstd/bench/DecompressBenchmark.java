@@ -4,6 +4,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
 import io.airlift.compress.v3.zstd.ZstdJavaDecompressor;
 import io.github.dfa1.zstd.Zstd;
+import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -76,7 +77,7 @@ public class DecompressBenchmark {
 
     @Benchmark
     public byte[] zstdJavaBytes() {
-        return ffmCtx.decompress(frame, originalSize);
+        return ffmCtx.decompress(frame, new ZstdByteSize(originalSize));
     }
 
     @Benchmark

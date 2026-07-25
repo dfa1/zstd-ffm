@@ -83,8 +83,8 @@ class ZstdParameterTest {
         @Test
         void compressionLevelBoundsMatchTheLibrary() {
             ZstdBounds bounds = ZstdCompressParameter.COMPRESSION_LEVEL.bounds();
-            assertThat(bounds.lowerBound()).isEqualTo(Zstd.minCompressionLevel());
-            assertThat(bounds.upperBound()).isEqualTo(Zstd.maxCompressionLevel());
+            assertThat(bounds.lowerBound()).isEqualTo(ZstdCompressionLevel.minCompressionLevel());
+            assertThat(bounds.upperBound()).isEqualTo(ZstdCompressionLevel.maxCompressionLevel());
         }
 
         @ParameterizedTest
@@ -129,7 +129,7 @@ class ZstdParameterTest {
             byte[] frame = Zstd.compress(PAYLOAD);
             try (ZstdDecompressContext ctx = new ZstdDecompressContext().windowLogMax(31)) {
                 // Then normal frames still decode
-                assertThat(ctx.decompress(frame, PAYLOAD.length)).isEqualTo(PAYLOAD);
+                assertThat(ctx.decompress(frame, new ZstdByteSize(PAYLOAD.length))).isEqualTo(PAYLOAD);
             }
         }
 
@@ -202,7 +202,7 @@ class ZstdParameterTest {
 
             // Then the frame still round-trips through the same dictionary
             try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-                assertThat(dctx.decompress(frame, PAYLOAD.length, dict)).isEqualTo(PAYLOAD);
+                assertThat(dctx.decompress(frame, new ZstdByteSize(PAYLOAD.length), dict)).isEqualTo(PAYLOAD);
             }
         }
 
@@ -211,11 +211,11 @@ class ZstdParameterTest {
             // Given a decompression context reset between frames
             byte[] frame = Zstd.compress(PAYLOAD);
             try (ZstdDecompressContext sut = new ZstdDecompressContext()) {
-                sut.decompress(frame, PAYLOAD.length);
+                sut.decompress(frame, new ZstdByteSize(PAYLOAD.length));
                 sut.reset(ZstdResetDirective.SESSION_AND_PARAMETERS);
 
                 // Then the next frame still decodes
-                assertThat(sut.decompress(frame, PAYLOAD.length)).isEqualTo(PAYLOAD);
+                assertThat(sut.decompress(frame, new ZstdByteSize(PAYLOAD.length))).isEqualTo(PAYLOAD);
             }
         }
 

@@ -6,6 +6,18 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Changed
+- **Breaking:** the compression-level bound queries `Zstd.maxCompressionLevel()`,
+  `minCompressionLevel()`, and `defaultCompressionLevel()` are no longer public.
+  The naked-`int` queries now live internally on `ZstdCompressionLevel`; get the
+  levels as value objects via the `ZstdCompressionLevel.MAX`/`FASTEST`/`DEFAULT`
+  constants (call `.value()` for the raw `int` when handing one to a native or
+  third-party API that takes `int`).
+- **Breaking:** renamed `ZstdByteSize.toIntExact()` to `toArraySize()`, which now
+  throws `ZstdException` (was `ArithmeticException`) when the size exceeds the
+  maximum array length — the narrowing happens at the API boundary, so callers
+  no longer catch a raw `ArithmeticException`.
+
 ## [0.11] - 2026-07-24
 
 ### Changed

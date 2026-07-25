@@ -98,7 +98,7 @@ public final class ZstdDictionary {
     public static ZstdDictionary train(List<byte[]> samples, ZstdByteSize maxDictBytes) {
         Objects.requireNonNull(samples, SAMPLES);
         requireNonEmpty(samples, "train");
-        int maxDictBytesLength = toBufferLength(maxDictBytes);
+        int maxDictBytesLength = maxDictBytes.toArraySize();
         try (Arena arena = Arena.ofConfined()) {
             FlatSamples in = flatten(arena, samples);
             MemorySegment dictBuf = arena.allocate(maxDictBytesLength);
@@ -171,7 +171,7 @@ public final class ZstdDictionary {
                                            int compressionLevel, boolean fast) {
         Objects.requireNonNull(samples, SAMPLES);
         requireNonEmpty(samples, "train");
-        int maxDictBytesLength = toBufferLength(maxDictBytes);
+        int maxDictBytesLength = maxDictBytes.toArraySize();
         try (Arena arena = Arena.ofConfined()) {
             FlatSamples in = flatten(arena, samples);
             // zeroed params (auto-tune k/d/steps); set single-threaded + target level.
@@ -210,7 +210,7 @@ public final class ZstdDictionary {
         Objects.requireNonNull(content, "content");
         Objects.requireNonNull(samples, SAMPLES);
         requireNonEmpty(samples, "finalize");
-        int maxDictBytesLength = toBufferLength(maxDictBytes);
+        int maxDictBytesLength = maxDictBytes.toArraySize();
         try (Arena arena = Arena.ofConfined()) {
             FlatSamples in = flatten(arena, samples);
             MemorySegment contentSeg = Zstd.copyIn(arena, content);
@@ -226,17 +226,6 @@ public final class ZstdDictionary {
                 throw NativeCall.rethrow(t);
             }
             return toDictionary(dictBuf, produced, "dictionary finalization");
-        }
-    }
-
-    /// Narrows a dictionary-size bound to a buffer length, rejecting sizes that
-    /// exceed what a Java array can hold, with a [ZstdException] rather than a
-    /// raw `ArithmeticException` escaping [ZstdByteSize#toIntExact()].
-    private static int toBufferLength(ZstdByteSize maxDictBytes) {
-        try {
-            return maxDictBytes.toIntExact();
-        } catch (ArithmeticException _) {
-            throw new ZstdException("maxDictBytes " + maxDictBytes.value() + " exceeds the maximum array length");
         }
     }
 

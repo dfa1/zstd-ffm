@@ -151,7 +151,7 @@ class GoldenCorpusTest {
             byte[] data = read(file);
 
             // When
-            byte[] frame = com.github.luben.zstd.Zstd.compress(data, Zstd.maxCompressionLevel());
+            byte[] frame = com.github.luben.zstd.Zstd.compress(data, ZstdCompressionLevel.MAX.value());
 
             // Then
             assertThat(Zstd.decompress(frame, new ZstdByteSize(data.length))).isEqualTo(data);
@@ -228,13 +228,13 @@ class GoldenCorpusTest {
             // Given
             byte[] raw = read(file);
             byte[] data = payload();
-            ZstdDictCompress jniDict = new ZstdDictCompress(raw, Zstd.defaultCompressionLevel());
+            ZstdDictCompress jniDict = new ZstdDictCompress(raw, ZstdCompressionLevel.DEFAULT.value());
             byte[] frame = com.github.luben.zstd.Zstd.compress(data, jniDict);
 
             // When
             byte[] restored;
             try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
-                restored = ctx.decompress(frame, data.length, ZstdDictionary.of(raw));
+                restored = ctx.decompress(frame, new ZstdByteSize(data.length), ZstdDictionary.of(raw));
             }
 
             // Then

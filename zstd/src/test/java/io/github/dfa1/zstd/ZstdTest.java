@@ -77,9 +77,9 @@ class ZstdTest {
         @Test
         void exposesLevelOrdering() {
             // Given the advertised level bounds
-            int min = Zstd.minCompressionLevel();
-            int def = Zstd.defaultCompressionLevel();
-            int max = Zstd.maxCompressionLevel();
+            int min = ZstdCompressionLevel.minCompressionLevel();
+            int def = ZstdCompressionLevel.defaultCompressionLevel();
+            int max = ZstdCompressionLevel.maxCompressionLevel();
 
             // Then they are ordered min <= default <= max
             assertThat(min).isLessThanOrEqualTo(def);
@@ -89,7 +89,7 @@ class ZstdTest {
         @Test
         void defaultLevelIsThree() {
             // Then the library default level is zstd's documented ZSTD_CLEVEL_DEFAULT
-            assertThat(Zstd.defaultCompressionLevel()).isEqualTo(3);
+            assertThat(ZstdCompressionLevel.defaultCompressionLevel()).isEqualTo(3);
         }
     }
 

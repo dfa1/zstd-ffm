@@ -141,7 +141,7 @@ class ZstdStreamTest {
 
             // Then the one-shot context decodes it with the same dictionary
             try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
-                assertThat(ctx.decompress(sink.toByteArray(), sample.length, dict)).isEqualTo(sample);
+                assertThat(ctx.decompress(sink.toByteArray(), new ZstdByteSize(sample.length), dict)).isEqualTo(sample);
             }
         }
 
@@ -214,6 +214,45 @@ class ZstdStreamTest {
                         .isInstanceOf(ZstdException.class)
                         .hasMessageContaining("not stored");
             }
+        }
+
+        @Test
+        void contextDecompressReadsTheStoredSizeWithoutABound() throws IOException {
+            // Given a frame that records its decompressed size
+            byte[] original = "sized frame ".repeat(300).getBytes(StandardCharsets.UTF_8);
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            try (ZstdOutputStream zout = ZstdOutputStream.withPledgedSize(sink, new ZstdCompressionLevel(6), new ZstdByteSize(original.length))) {
+                zout.write(original);
+            }
+            byte[] frame = sink.toByteArray();
+
+            // When decompressed through a context with no explicit bound
+            byte[] restored;
+            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                restored = dctx.decompress(frame);
+            }
+
+            // Then the stored size sizes the output and the bytes round-trip
+            assertThat(restored).isEqualTo(original);
+        }
+
+        @Test
+        void contextDecompressWithoutABoundNeedsAStoredSize() throws IOException {
+            // Given a streamed frame with no pledged size
+            byte[] original = "no pledge ".repeat(500).getBytes(StandardCharsets.UTF_8);
+            byte[] frame = streamCompress(original, new ZstdCompressionLevel(6));
+
+            // When decompressed through a context with no explicit bound
+            ThrowingCallable result = () -> {
+                try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                    dctx.decompress(frame);
+                }
+            };
+
+            // Then it fails: the frame never recorded a size to allocate from
+            assertThatThrownBy(result)
+                    .isInstanceOf(ZstdException.class)
+                    .hasMessageContaining("not stored");
         }
 
         @Test

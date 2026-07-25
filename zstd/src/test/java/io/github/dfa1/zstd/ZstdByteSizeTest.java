@@ -45,7 +45,7 @@ class ZstdByteSizeTest {
     }
 
     @Nested
-    class ToIntExact {
+    class ToArraySize {
 
         @ParameterizedTest
         @ValueSource(longs = {0L, 1L, 1024L, Integer.MAX_VALUE})
@@ -54,7 +54,7 @@ class ZstdByteSizeTest {
             ZstdByteSize sut = new ZstdByteSize(value);
 
             // When narrowed
-            int narrowed = sut.toIntExact();
+            int narrowed = sut.toArraySize();
 
             // Then it is the same value as an int
             assertThat(narrowed).isEqualTo((int) value);
@@ -66,10 +66,12 @@ class ZstdByteSizeTest {
             ZstdByteSize sut = new ZstdByteSize((long) Integer.MAX_VALUE + 1);
 
             // When narrowed
-            ThrowingCallable result = sut::toIntExact;
+            ThrowingCallable result = sut::toArraySize;
 
-            // Then it overflows, matching Math.toIntExact's own contract
-            assertThatThrownBy(result).isInstanceOf(ArithmeticException.class);
+            // Then it is rejected as too large for an array
+            assertThatThrownBy(result)
+                    .isInstanceOf(ZstdException.class)
+                    .hasMessageContaining("exceeds the maximum array length");
         }
     }
 

@@ -10,7 +10,7 @@ import java.util.Optional;
 /// [ZstdOutputStream#withPledgedSize(java.io.OutputStream, ZstdCompressionLevel, ZstdByteSize)]),
 /// while others end up sizing a `byte[]` and so must additionally fit an `int`
 /// (e.g. [Zstd#decompress(byte[], ZstdByteSize)]). The latter narrow with
-/// [#toIntExact()] rather than silently truncating.
+/// [#toArraySize()] rather than silently truncating.
 ///
 /// @param value the byte size or count, non-negative
 public record ZstdByteSize(long value) {
@@ -31,9 +31,13 @@ public record ZstdByteSize(long value) {
     /// Narrows this size to an `int`, for callers that must size a `byte[]`.
     ///
     /// @return this size as an `int`
-    /// @throws ArithmeticException if the size exceeds [Integer#MAX_VALUE]
-    public int toIntExact() {
-        return Math.toIntExact(value);
+    /// @throws ZstdException if the size exceeds the maximum array length
+    public int toArraySize() {
+        try {
+            return Math.toIntExact(value);
+        } catch (ArithmeticException _) {
+            throw new ZstdException("size " + value + " exceeds the maximum array length");
+        }
     }
 
     /// `value` KiB (1024 bytes each) — e.g. `ZstdByteSize.ofKiB(8)` for an 8 KiB
@@ -42,7 +46,7 @@ public record ZstdByteSize(long value) {
     /// @param value the count of KiB
     /// @return a size of `value * 1024` bytes
     /// @throws IllegalArgumentException if `value` is negative
-    /// @throws ArithmeticException if `value * 1024` overflows a `long`
+    /// @throws ArithmeticException      if `value * 1024` overflows a `long`
     public static ZstdByteSize ofKiB(long value) {
         return new ZstdByteSize(Math.multiplyExact(value, 1024L));
     }
@@ -52,7 +56,7 @@ public record ZstdByteSize(long value) {
     /// @param value the count of MiB
     /// @return a size of `value * 1024 * 1024` bytes
     /// @throws IllegalArgumentException if `value` is negative
-    /// @throws ArithmeticException if `value * 1024 * 1024` overflows a `long`
+    /// @throws ArithmeticException      if `value * 1024 * 1024` overflows a `long`
     public static ZstdByteSize ofMiB(long value) {
         return new ZstdByteSize(Math.multiplyExact(value, 1024L * 1024L));
     }

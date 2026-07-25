@@ -23,8 +23,6 @@ final class ZstdStreamBuffer {
             JAVA_LONG.withName("size"),
             JAVA_LONG.withName("pos"));
 
-    static final long BYTES = LAYOUT.byteSize();
-
     // Layout VarHandles have coordinates (MemorySegment, long base); we always pass base 0.
     private static final VarHandle PTR_HANDLE = LAYOUT.varHandle(PTR);
     private static final VarHandle SIZE_HANDLE = LAYOUT.varHandle(SIZE);

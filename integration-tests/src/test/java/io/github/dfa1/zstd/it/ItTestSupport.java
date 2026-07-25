@@ -1,13 +1,14 @@
 package io.github.dfa1.zstd.it;
 
-import io.github.dfa1.zstd.Zstd;
+import io.github.dfa1.zstd.ZstdCompressionLevel;
 
 import java.util.Random;
 
 final class ItTestSupport {
 
     static final int[] LEVELS = {
-        Zstd.minCompressionLevel(), 1, Zstd.defaultCompressionLevel(), Zstd.maxCompressionLevel()
+        ZstdCompressionLevel.FASTEST.value(), 1,
+        ZstdCompressionLevel.DEFAULT.value(), ZstdCompressionLevel.MAX.value()
     };
 
     static byte[] random(Random r, int size) {

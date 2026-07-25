@@ -97,7 +97,7 @@ public final class ZstdCompressContext extends NativeObject {
     /// - [ZstdResetDirective#PARAMETERS] and
     ///   [ZstdResetDirective#SESSION_AND_PARAMETERS] also restore every
     ///   parameter to its default and clear the dictionary; the level returns to
-    ///   [Zstd#defaultCompressionLevel()]. A parameter reset is valid only
+    ///   [ZstdCompressionLevel#DEFAULT]. A parameter reset is valid only
     ///   between frames — one-shot [#compress(byte[])] always finishes its frame,
     ///   so this constraint only bites advanced multi-frame reuse.
     ///

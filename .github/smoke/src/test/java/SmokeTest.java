@@ -77,11 +77,11 @@ class SmokeTest {
         check(!Zstd.version().isBlank(), "version() returned blank");
         check(Zstd.versionNumber() > 0, "versionNumber() not positive");
 
-        int min = Zstd.minCompressionLevel();
-        int max = Zstd.maxCompressionLevel();
-        int def = Zstd.defaultCompressionLevel();
-        check(min < max, "minCompressionLevel() >= maxCompressionLevel()");
-        check(def >= min && def <= max, "defaultCompressionLevel() out of [min,max]");
+        int min = ZstdCompressionLevel.FASTEST.value();
+        int max = ZstdCompressionLevel.MAX.value();
+        int def = ZstdCompressionLevel.DEFAULT.value();
+        check(min < max, "FASTEST >= MAX");
+        check(def >= min && def <= max, "DEFAULT out of [FASTEST, MAX]");
 
         check(Zstd.compressBound(new ZstdByteSize(1000)).value() >= 1000, "compressBound() below input size");
         check(Zstd.estimateCompressContextSize(ZstdCompressionLevel.DEFAULT).value() > 0,
@@ -254,7 +254,7 @@ class SmokeTest {
             check(delta.length < newVersion.length, "prefix-compressed delta not smaller than the input");
 
             dctx.refPrefix(prefix);
-            byte[] restored = dctx.decompress(delta, newVersion.length);
+            byte[] restored = dctx.decompress(delta, new ZstdByteSize(newVersion.length));
             checkArrayEquals(newVersion, restored, "prefix compression round-trip mismatch");
         }
     }
@@ -280,7 +280,7 @@ class SmokeTest {
         try (ZstdCompressContext cctx = new ZstdCompressContext();
              ZstdDecompressContext dctx = new ZstdDecompressContext()) {
             byte[] compressed = cctx.compress(message, dict);
-            byte[] restored = dctx.decompress(compressed, message.length, dict);
+            byte[] restored = dctx.decompress(compressed, new ZstdByteSize(message.length), dict);
             checkArrayEquals(message, restored, "per-call dictionary round-trip mismatch");
         }
     }
@@ -292,7 +292,7 @@ class SmokeTest {
              ZstdCompressContext cctx = new ZstdCompressContext();
              ZstdDecompressContext dctx = new ZstdDecompressContext()) {
             byte[] compressed = cctx.compress(message, cdict);
-            byte[] restored = dctx.decompress(compressed, message.length, ddict);
+            byte[] restored = dctx.decompress(compressed, new ZstdByteSize(message.length), ddict);
             checkArrayEquals(message, restored, "digested-dictionary round-trip mismatch");
             check(cdict.sizeOf().value() > 0, "ZstdCompressDictionary.sizeOf() not positive");
             check(ddict.sizeOf().value() > 0, "ZstdDecompressDictionary.sizeOf() not positive");
@@ -324,7 +324,7 @@ class SmokeTest {
 
         byte[] original = sampleText();
         try (Arena arena = Arena.ofConfined();
-             ZstdCompressStream cs = new ZstdCompressStream(Zstd.defaultCompressionLevel())) {
+             ZstdCompressStream cs = new ZstdCompressStream(ZstdCompressionLevel.DEFAULT)) {
             MemorySegment src = toNative(arena, original);
             MemorySegment dst = arena.allocate(Zstd.compressBound(new ZstdByteSize(src.byteSize())).value());
             ZstdStreamResult result = cs.compress(dst, src, ZstdEndDirective.END);

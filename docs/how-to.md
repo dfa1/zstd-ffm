@@ -15,8 +15,8 @@ try (ZstdCompressContext cctx = new ZstdCompressContext().level(new ZstdCompress
 }
 ```
 
-Pick the level explicitly with `Zstd.maxCompressionLevel()` /
-`minCompressionLevel()` when you need the extreme ends.
+Pick the level explicitly with `ZstdCompressionLevel.MAX` /
+`ZstdCompressionLevel.FASTEST` when you need the extreme ends.
 
 ## Reset a context to recycle it
 
@@ -34,7 +34,7 @@ try (ZstdCompressContext cctx = new ZstdCompressContext().level(new ZstdCompress
     byte[] b = cctx.compress(second);
 
     // Full wipe: parameters back to default, dictionary cleared, level reset to
-    // Zstd.defaultCompressionLevel(). Only valid between frames, not mid-frame.
+    // ZstdCompressionLevel.DEFAULT. Only valid between frames, not mid-frame.
     cctx.reset(ZstdResetDirective.SESSION_AND_PARAMETERS);
 }
 ```

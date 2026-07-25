@@ -61,25 +61,7 @@ public final class Zstd {
     ///                       declared size exceeds the maximum array length
     public static byte[] decompress(byte[] compressed) {
         Objects.requireNonNull(compressed, "compressed");
-        return decompressInternal(compressed, toArrayLength(frameContentSize(compressed)));
-    }
-
-    /// Narrows a size to a `byte[]` length, rejecting sizes that exceed what a
-    /// Java array can hold. Used at both `decompress` entry points — where the
-    /// size comes from an (untrusted) frame header, or from a caller-supplied
-    /// bound — so this fails with a [ZstdException] rather than letting a raw
-    /// `ArithmeticException` escape [ZstdByteSize#toIntExact()].
-    ///
-    /// @param size a decompressed-size bound, declared or caller-supplied
-    /// @return `size` as an `int`
-    /// @throws ZstdException if `size` exceeds [Integer#MAX_VALUE]
-    private static int toArrayLength(ZstdByteSize size) {
-        try {
-            return size.toIntExact();
-        } catch (ArithmeticException _) {
-            throw new ZstdException("decompressed size " + size.value()
-                    + " exceeds the maximum array length");
-        }
+        return decompressInternal(compressed, frameContentSize(compressed));
     }
 
     /// Decompresses a zstd frame into a buffer of at most `maxSizeBound` bytes.
@@ -97,15 +79,15 @@ public final class Zstd {
     ///                       `maxSizeBound` exceeds the maximum array length
     public static byte[] decompress(byte[] compressed, ZstdByteSize maxSizeBound) {
         Objects.requireNonNull(compressed, "compressed");
-        return decompressInternal(compressed, toArrayLength(maxSizeBound));
+        return decompressInternal(compressed, maxSizeBound);
     }
 
-    private static byte[] decompressInternal(byte[] compressed, int maxSize) {
+    private static byte[] decompressInternal(byte[] compressed, ZstdByteSize maxSize) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = copyIn(arena, compressed);
-            MemorySegment out = arena.allocate(Math.max(maxSize, 1));
+            MemorySegment out = arena.allocate(maxSize.toArraySize());
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS.invokeExact(
-                    out, (long) maxSize, in, (long) compressed.length));
+                    out, maxSize.value(), in, (long) compressed.length));
             return copyOut(out, written);
         }
     }
@@ -119,13 +101,12 @@ public final class Zstd {
     /// @throws ZstdException if the frame is invalid or does not store its size
     public static ZstdByteSize decompressedSize(MemorySegment frame) {
         NativeCall.requireNative(frame, "frame");
-        long size;
         try {
-            size = (long) Bindings.GET_FRAME_CONTENT_SIZE.invokeExact(frame, frame.byteSize());
+            long size = (long) Bindings.GET_FRAME_CONTENT_SIZE.invokeExact(frame, frame.byteSize());
+            return ZstdByteSize.fromFrameContentSize(size);
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
-        return ZstdByteSize.fromFrameContentSize(size);
     }
 
     /// Dictionary id stamped in raw dictionary `bytes`, read with the core
@@ -179,45 +160,11 @@ public final class Zstd {
 
     /// Decompressed size stored in the frame header, validated via
     /// [ZstdByteSize#fromFrameContentSize(long)].
-    private static ZstdByteSize frameContentSize(byte[] compressed) {
-        long raw;
+    static ZstdByteSize frameContentSize(byte[] compressed) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = copyIn(arena, compressed);
-            raw = (long) Bindings.GET_FRAME_CONTENT_SIZE.invokeExact(in, (long) compressed.length);
-        } catch (Throwable t) {
-            throw NativeCall.rethrow(t);
-        }
-        return ZstdByteSize.fromFrameContentSize(raw);
-    }
-
-    /// Highest supported compression level.
-    ///
-    /// @return the maximum valid compression level
-    public static int maxCompressionLevel() {
-        try {
-            return (int) Bindings.MAX_C_LEVEL.invokeExact();
-        } catch (Throwable t) {
-            throw NativeCall.rethrow(t);
-        }
-    }
-
-    /// Lowest supported compression level (negative levels trade ratio for speed).
-    ///
-    /// @return the minimum valid compression level
-    public static int minCompressionLevel() {
-        try {
-            return (int) Bindings.MIN_C_LEVEL.invokeExact();
-        } catch (Throwable t) {
-            throw NativeCall.rethrow(t);
-        }
-    }
-
-    /// The level used by [#compress(byte[])].
-    ///
-    /// @return the default compression level
-    public static int defaultCompressionLevel() {
-        try {
-            return (int) Bindings.DEFAULT_C_LEVEL.invokeExact();
+            long raw = (long) Bindings.GET_FRAME_CONTENT_SIZE.invokeExact(in, (long) compressed.length);
+            return ZstdByteSize.fromFrameContentSize(raw);
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }

@@ -165,12 +165,12 @@ class ZstdJniInteropTest {
             ZstdDictionary dict = trainDict();
             byte[] sample = sample(22);
 
-            ZstdDictCompress jniDict = new ZstdDictCompress(dict.toByteArray(), Zstd.defaultCompressionLevel());
+            ZstdDictCompress jniDict = new ZstdDictCompress(dict.toByteArray(), ZstdCompressionLevel.DEFAULT.value());
             byte[] frame = com.github.luben.zstd.Zstd.compress(sample, jniDict);
 
             byte[] restored;
             try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
-                restored = ctx.decompress(frame, sample.length, dict);
+                restored = ctx.decompress(frame, new ZstdByteSize(sample.length), dict);
             }
             assertThat(restored).isEqualTo(sample);
         }

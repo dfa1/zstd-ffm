@@ -35,19 +35,19 @@ class ZstdCompressionLevelTest {
         @Test
         void defaultMatchesTheLibraryDefault() {
             // Then DEFAULT wraps the library's default level
-            assertThat(ZstdCompressionLevel.DEFAULT.value()).isEqualTo(Zstd.defaultCompressionLevel());
+            assertThat(ZstdCompressionLevel.DEFAULT.value()).isEqualTo(ZstdCompressionLevel.defaultCompressionLevel());
         }
 
         @Test
         void fastestMatchesTheLibraryMinimum() {
             // Then FASTEST wraps the library's minimum level
-            assertThat(ZstdCompressionLevel.FASTEST.value()).isEqualTo(Zstd.minCompressionLevel());
+            assertThat(ZstdCompressionLevel.FASTEST.value()).isEqualTo(ZstdCompressionLevel.minCompressionLevel());
         }
 
         @Test
         void maxMatchesTheLibraryMaximum() {
             // Then MAX wraps the library's maximum level
-            assertThat(ZstdCompressionLevel.MAX.value()).isEqualTo(Zstd.maxCompressionLevel());
+            assertThat(ZstdCompressionLevel.MAX.value()).isEqualTo(ZstdCompressionLevel.maxCompressionLevel());
         }
     }
 
@@ -57,7 +57,7 @@ class ZstdCompressionLevelTest {
         @Test
         void rejectsOneBelowTheMinimum() {
             // Given a level one below the accepted minimum
-            int belowMin = Zstd.minCompressionLevel() - 1;
+            int belowMin = ZstdCompressionLevel.minCompressionLevel() - 1;
 
             // When wrapped
             ThrowingCallable result = () -> new ZstdCompressionLevel(belowMin);
@@ -71,7 +71,7 @@ class ZstdCompressionLevelTest {
         @Test
         void rejectsOneAboveTheMaximum() {
             // Given a level one above the accepted maximum
-            int aboveMax = Zstd.maxCompressionLevel() + 1;
+            int aboveMax = ZstdCompressionLevel.maxCompressionLevel() + 1;
 
             // When wrapped
             ThrowingCallable result = () -> new ZstdCompressionLevel(aboveMax);
@@ -85,11 +85,11 @@ class ZstdCompressionLevelTest {
 
     private static Stream<Integer> inRangeLevels() {
         return IntStream.of(
-                        Zstd.minCompressionLevel(),
+                        ZstdCompressionLevel.minCompressionLevel(),
                         0,
                         1,
-                        Zstd.defaultCompressionLevel(),
-                        Zstd.maxCompressionLevel())
+                        ZstdCompressionLevel.defaultCompressionLevel(),
+                        ZstdCompressionLevel.maxCompressionLevel())
                 .boxed();
     }
 }

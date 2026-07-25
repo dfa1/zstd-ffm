@@ -156,18 +156,40 @@ public final class ZstdDecompressContext extends NativeObject {
         return this;
     }
 
+    /// Decompresses a frame, sizing the output from the decompressed length
+    /// stored in its header — no bound to supply when the frame already records
+    /// its own size.
+    ///
+    /// Use this for frames you produced or otherwise trust. For **untrusted**
+    /// input prefer [#decompress(byte[], ZstdByteSize)], whose explicit bound
+    /// caps the allocation a hostile frame could otherwise demand.
+    ///
+    /// @param compressed a complete zstd frame that stores its decompressed size
+    /// @return the original bytes
+    /// @throws ZstdException if the frame is invalid or does not store its size
+    public byte[] decompress(byte[] compressed) {
+        Objects.requireNonNull(compressed, COMPRESSED);
+        return decompress(compressed, Zstd.frameContentSize(compressed));
+    }
+
     /// Decompresses a frame into a buffer of at most `maxSize` bytes.
+    ///
+    /// This is the safe entry point for **untrusted** input: `maxSize` caps the
+    /// allocation and decode independently of the frame, so a hostile frame that
+    /// declares — or omits — an oversized content size cannot drive an oversized
+    /// allocation the way the size-reading [#decompress(byte[])] can. Pick a bound
+    /// your caller can afford; the frame is rejected if its content exceeds it.
     ///
     /// @param compressed a complete zstd frame
     /// @param maxSize    upper bound on the decompressed length
-    /// @return the original bytes
-    public byte[] decompress(byte[] compressed, int maxSize) {
+    /// @return the original bytes (length ≤ `maxSize`)
+    public byte[] decompress(byte[] compressed, ZstdByteSize maxSize) {
         Objects.requireNonNull(compressed, COMPRESSED);
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = Zstd.copyIn(arena, compressed);
-            MemorySegment out = arena.allocate(Math.max(maxSize, 1));
+            MemorySegment out = arena.allocate(maxSize.toArraySize());
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_DCTX.invokeExact(
-                    ptr(), out, (long) maxSize, in, (long) compressed.length));
+                    ptr(), out, maxSize.value(), in, (long) compressed.length));
             return Zstd.copyOut(out, written);
         }
     }
@@ -176,22 +198,22 @@ public final class ZstdDecompressContext extends NativeObject {
     ///
     /// The dictionary is re-digested on every call; for repeated use digest it
     /// once into a [ZstdDecompressDictionary] and use
-    /// [#decompress(byte[], int, ZstdDecompressDictionary)].
+    /// [#decompress(byte[], ZstdByteSize, ZstdDecompressDictionary)].
     ///
     /// @param compressed a complete zstd frame
     /// @param maxSize    upper bound on the decompressed length
     /// @param dict       the dictionary the frame was compressed against
     /// @return the original bytes
-    public byte[] decompress(byte[] compressed, int maxSize, ZstdDictionary dict) {
+    public byte[] decompress(byte[] compressed, ZstdByteSize maxSize, ZstdDictionary dict) {
         Objects.requireNonNull(compressed, COMPRESSED);
         Objects.requireNonNull(dict, "dict");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = Zstd.copyIn(arena, compressed);
             byte[] d = dict.raw();
             MemorySegment dseg = Zstd.copyIn(arena, d);
-            MemorySegment out = arena.allocate(Math.max(maxSize, 1));
+            MemorySegment out = arena.allocate(maxSize.toArraySize());
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_USING_DICT.invokeExact(
-                    ptr(), out, (long) maxSize, in, (long) compressed.length, dseg, (long) d.length));
+                    ptr(), out, maxSize.value(), in, (long) compressed.length, dseg, (long) d.length));
             return Zstd.copyOut(out, written);
         }
     }
@@ -202,15 +224,15 @@ public final class ZstdDecompressContext extends NativeObject {
     /// @param maxSize    upper bound on the decompressed length
     /// @param dict       the pre-digested decompression dictionary
     /// @return the original bytes
-    public byte[] decompress(byte[] compressed, int maxSize, ZstdDecompressDictionary dict) {
+    public byte[] decompress(byte[] compressed, ZstdByteSize maxSize, ZstdDecompressDictionary dict) {
         Objects.requireNonNull(compressed, COMPRESSED);
         Objects.requireNonNull(dict, "dict");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = Zstd.copyIn(arena, compressed);
-            MemorySegment out = arena.allocate(Math.max(maxSize, 1));
+            MemorySegment out = arena.allocate(maxSize.toArraySize());
             MemorySegment ddict = dict.ptr();
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_USING_DDICT.invokeExact(
-                    ptr(), out, (long) maxSize, in, (long) compressed.length, ddict));
+                    ptr(), out, maxSize.value(), in, (long) compressed.length, ddict));
             return Zstd.copyOut(out, written);
         }
     }
