@@ -122,10 +122,6 @@ final class Bindings {
     static final MethodHandle VERSION_NUMBER =
             NativeLibrary.lookup("ZSTD_versionNumber", FunctionDescriptor.of(JAVA_INT));
 
-    // const char* ZSTD_versionString(void)
-    static final MethodHandle VERSION_STRING =
-            NativeLibrary.lookup("ZSTD_versionString", FunctionDescriptor.of(ADDRESS));
-
     // --- reusable contexts ---
 
     // ZSTD_CCtx* ZSTD_createCCtx(void)

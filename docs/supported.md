@@ -46,7 +46,7 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 |---|---|
 | `ZSTD_compress`, `ZSTD_decompress`, `ZSTD_compressBound` | `Zstd.compress` / `decompress` / `compressBound` |
 | `ZSTD_maxCLevel`, `ZSTD_minCLevel`, `ZSTD_defaultCLevel` | `ZstdCompressionLevel.MAX` / `FASTEST` / `DEFAULT` |
-| `ZSTD_versionNumber`, `ZSTD_versionString` | `Zstd.version` |
+| `ZSTD_versionNumber`, `ZSTD_versionString` | `Zstd.version` (returns `ZstdVersion`) |
 | `ZSTD_isError`, `ZSTD_getErrorName` | internal error mapping in `Zstd` |
 | `ZSTD_getFrameContentSize` | `Zstd.decompress(byte[])`, `Zstd.decompressedSize` |
 | `ZSTD_createCCtx`, `ZSTD_freeCCtx`, `ZSTD_compressCCtx` | `ZstdCompressContext` |

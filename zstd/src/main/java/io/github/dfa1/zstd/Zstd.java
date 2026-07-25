@@ -2,7 +2,6 @@ package io.github.dfa1.zstd;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
@@ -222,26 +221,16 @@ public final class Zstd {
         }
     }
 
-    /// Runtime zstd version, e.g. `"1.6.0"`.
+    /// Runtime version of the linked zstd library, e.g. `1.6.0`.
     ///
-    /// @return the linked zstd library version as an `x.y.z` string
-    @SuppressWarnings("restricted") // reinterpret needed to read a C string of unknown length
-    public static String version() {
-        try {
-            MemorySegment p = (MemorySegment) Bindings.VERSION_STRING.invokeExact();
-            return p.reinterpret(Long.MAX_VALUE).getString(0, StandardCharsets.US_ASCII);
-        } catch (Throwable t) {
-            throw NativeCall.rethrow(t);
-        }
-    }
-
-    /// Runtime zstd version as a single number for programmatic comparison,
-    /// encoded `MAJOR * 10000 + MINOR * 100 + PATCH` — e.g. `10507` for `1.5.7`.
+    /// Read [ZstdVersion#toString()] for the `x.y.z` string, [ZstdVersion#number()]
+    /// for the packed number, or compare it (e.g. [ZstdVersion#isAtLeast(int, int, int)])
+    /// to feature-gate against the runtime library.
     ///
-    /// @return the linked zstd library version number
-    public static int versionNumber() {
+    /// @return the linked zstd library version
+    public static ZstdVersion version() {
         try {
-            return (int) Bindings.VERSION_NUMBER.invokeExact();
+            return ZstdVersion.ofNumber((int) Bindings.VERSION_NUMBER.invokeExact());
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }

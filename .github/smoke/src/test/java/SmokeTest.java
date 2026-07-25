@@ -76,8 +76,8 @@ class SmokeTest {
 
     @Test
     void versionAndSizing() {
-        check(!Zstd.version().isBlank(), "version() returned blank");
-        check(Zstd.versionNumber() > 0, "versionNumber() not positive");
+        check(!Zstd.version().toString().isBlank(), "version() returned blank");
+        check(Zstd.version().number() > 0, "version().number() not positive");
 
         int min = ZstdCompressionLevel.FASTEST.value();
         int max = ZstdCompressionLevel.MAX.value();

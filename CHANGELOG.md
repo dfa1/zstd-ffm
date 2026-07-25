@@ -15,6 +15,9 @@ git tags, which trigger publication to Maven Central.
 - `ZstdWindowLog` and `ZstdMagicVariant` value types, validated at construction —
   the window log against the linked libzstd's accepted range (with `0` /
   `ZstdWindowLog.AUTO` for "library chooses"), the magic variant to `0..15`.
+- `ZstdVersion` value type — a comparable `(major, minor, patch)` with `number()`
+  (the packed form) and `toString()` (`x.y.z`), plus `isAtLeast(int, int, int)`
+  for feature-gating against the linked libzstd.
 
 ### Changed
 - **Breaking:** the compression-level bound queries `Zstd.maxCompressionLevel()`,
@@ -42,6 +45,10 @@ git tags, which trigger publication to Maven Central.
   `ZstdFrame.writeSkippableFrame` / `ZstdSkippableContent.magicVariant()` now use
   `ZstdMagicVariant`. Wrap the raw `int` (`new ZstdWindowLog(n)` /
   `new ZstdMagicVariant(n)`), or use `ZstdWindowLog.AUTO`.
+- **Breaking:** `Zstd.version()` now returns a `ZstdVersion` instead of a
+  `String`, and `Zstd.versionNumber()` is removed. Use
+  `Zstd.version().toString()` for the `x.y.z` string and
+  `Zstd.version().number()` for the packed number.
 
 ## [0.11] - 2026-07-24
 

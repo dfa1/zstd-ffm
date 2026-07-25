@@ -155,23 +155,14 @@ class ZstdTest {
 
         @Test
         void reportsSemanticVersion() {
-            // When the runtime version is read / Then it is an x.y.z string
-            assertThat(Zstd.version()).matches("\\d+\\.\\d+\\.\\d+");
+            // When the runtime version is read / Then it renders as an x.y.z string
+            assertThat(Zstd.version().toString()).matches("\\d+\\.\\d+\\.\\d+");
         }
 
         @Test
-        void reportsVersionNumberConsistentWithTheString() {
-            // Given the x.y.z version string split into its parts
-            String[] parts = Zstd.version().split("\\.");
-            int expected = Integer.parseInt(parts[0]) * 10000
-                    + Integer.parseInt(parts[1]) * 100
-                    + Integer.parseInt(parts[2]);
-
-            // When the numeric version is read
-            int number = Zstd.versionNumber();
-
-            // Then it encodes MAJOR * 10000 + MINOR * 100 + PATCH
-            assertThat(number).isEqualTo(expected);
+        void reportsAVersionAtLeastOne() {
+            // Then the linked library is at least 1.0.0 (zstd has been 1.x for years)
+            assertThat(Zstd.version().isAtLeast(1, 0, 0)).isTrue();
         }
     }
 
