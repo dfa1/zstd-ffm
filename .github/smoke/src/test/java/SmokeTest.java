@@ -184,7 +184,7 @@ class SmokeTest {
         check(header.contentSize().isPresent() && header.contentSize().get().value() == original.length,
                 "header(byte[]).contentSize() mismatch");
         check(header.frameType() == ZstdFrameType.STANDARD, "header(byte[]).frameType() expected STANDARD");
-        check(header.headerSize() == headerSize, "header(byte[]).headerSize() disagreed with headerSize(byte[])");
+        check(header.headerSize().value() == headerSize, "header(byte[]).headerSize() disagreed with headerSize(byte[])");
         check(!header.hasChecksum(), "header(byte[]).hasChecksum() expected false (checksum not enabled)");
     }
 

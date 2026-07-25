@@ -49,6 +49,14 @@ git tags, which trigger publication to Maven Central.
   `String`, and `Zstd.versionNumber()` is removed. Use
   `Zstd.version().toString()` for the `x.y.z` string and
   `Zstd.version().number()` for the packed number.
+- **Breaking:** `ZstdFrameHeader` no longer exposes any naked numeric field.
+  `blockSizeMax()` and `headerSize()` now return `ZstdByteSize` (were `long`/
+  `int`; call `.value()` for the raw number). The raw `long frameContentSize`
+  component is gone — `contentSize()` is now a real `Optional<ZstdByteSize>`
+  record component — and `windowSize()` likewise returns `Optional<ZstdByteSize>`.
+  Both are `Optional` because a hostile header can declare either as an
+  unrepresentable value at or above `2^63`, which maps to empty rather than
+  throwing while the header is parsed.
 
 ## [0.11] - 2026-07-24
 

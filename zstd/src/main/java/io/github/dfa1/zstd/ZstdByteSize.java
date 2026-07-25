@@ -84,22 +84,24 @@ public record ZstdByteSize(long value) {
         return new ZstdByteSize(raw);
     }
 
-    /// Wraps a `ZSTD_getFrameHeader`-parsed content size, returning empty instead
-    /// of throwing when the frame does not record a usable one — unlike
-    /// [#fromFrameContentSize(long)], a [ZstdFrameHeader] was already validated
-    /// by the time this runs, so nothing here is an error.
+    /// Wraps a `ZSTD_getFrameHeader`-parsed size field — the content size or the
+    /// window size — returning empty instead of throwing when the field holds no
+    /// representable size, unlike [#fromFrameContentSize(long)]: a
+    /// [ZstdFrameHeader] was already validated by the time this runs, so nothing
+    /// here is an error.
     ///
     /// Any negative reading maps to empty, not just the "not stored" sentinel:
-    /// `ZSTD_getFrameHeader` copies the 8-byte Frame_Content_Size field verbatim
-    /// without validating its magnitude, so a hostile header can declare an
-    /// unsigned value at or above `2^63` that wraps negative in a signed `long` —
-    /// no such size is representable in any buffer this library can produce, so
+    /// `ZSTD_getFrameHeader` copies these 8-byte fields verbatim without
+    /// validating their magnitude, so a hostile header can declare an unsigned
+    /// value at or above `2^63` that wraps negative in a signed `long` (and a
+    /// single-segment frame sets `windowSize` equal to the content size) — no
+    /// such size is representable in any buffer this library can produce, so
     /// "absent" is the honest answer rather than an exception.
     ///
-    /// @param raw a content size, the "not stored" sentinel, or an unrepresentable
-    ///            declared value read as a negative `long`
-    /// @return the wrapped size, or empty if the frame does not store a usable one
-    static Optional<ZstdByteSize> fromFrameHeaderContentSize(long raw) {
+    /// @param raw a size field reading, the "not stored" sentinel, or an
+    ///            unrepresentable declared value read as a negative `long`
+    /// @return the wrapped size, or empty if the field holds no representable size
+    static Optional<ZstdByteSize> fromUnsignedFrameHeaderField(long raw) {
         return raw < 0 ? Optional.empty() : Optional.of(new ZstdByteSize(raw));
     }
 }

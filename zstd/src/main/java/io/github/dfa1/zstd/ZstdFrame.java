@@ -259,13 +259,13 @@ public final class ZstdFrame {
                 throw new ZstdException("incomplete frame header: need " + remaining + " more bytes");
             }
             return new ZstdFrameHeader(
-                    zfh.get(JAVA_LONG, 0),                       // frameContentSize
-                    zfh.get(JAVA_LONG, 8),                       // windowSize
-                    zfh.get(JAVA_INT, 16) & 0xFFFFFFFFL,         // blockSizeMax
-                    ZstdFrameType.of(zfh.get(JAVA_INT, 20)),     // frameType
-                    zfh.get(JAVA_INT, 24),                       // headerSize
-                    ZstdDictionaryId.of(zfh.get(JAVA_INT, 28)),            // dictID
-                    zfh.get(JAVA_INT, 32) != 0);                 // checksumFlag
+                    ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 0)), // contentSize
+                    ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 8)), // windowSize
+                    new ZstdByteSize(zfh.get(JAVA_INT, 16) & 0xFFFFFFFFL),            // blockSizeMax
+                    ZstdFrameType.of(zfh.get(JAVA_INT, 20)),                          // frameType
+                    new ZstdByteSize(zfh.get(JAVA_INT, 24)),                          // headerSize
+                    ZstdDictionaryId.of(zfh.get(JAVA_INT, 28)),                       // dictID
+                    zfh.get(JAVA_INT, 32) != 0);                                      // checksumFlag
         }
     }
 

@@ -172,7 +172,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
 
             // Then the light probe agrees with the fully parsed header
-            assertThat(ZstdFrame.headerSize(frame)).isEqualTo(new ZstdByteSize(ZstdFrame.header(frame).headerSize()));
+            assertThat(ZstdFrame.headerSize(frame)).isEqualTo(ZstdFrame.header(frame).headerSize());
         }
 
         @Test
@@ -278,7 +278,7 @@ class ZstdFrameTest {
             assertThat(header.contentSize()).hasValue(new ZstdByteSize(PAYLOAD.length));
             assertThat(header.hasChecksum()).isFalse();
             assertThat(header.dictId()).isEqualTo(ZstdDictionaryId.NONE);
-            assertThat(header.windowSize()).isPositive();
+            assertThat(header.windowSize()).hasValueSatisfying(w -> assertThat(w.value()).isPositive());
         }
 
         @Test
@@ -297,7 +297,7 @@ class ZstdFrameTest {
 
             // Then blockSizeMax is the masked 32-bit field — a real block size, never
             // the all-ones value a sign-extension or wrong mask would produce
-            assertThat(header.blockSizeMax()).isPositive().isLessThanOrEqualTo(128 * 1024L);
+            assertThat(header.blockSizeMax().value()).isPositive().isLessThanOrEqualTo(128 * 1024L);
         }
 
         @Test
@@ -323,8 +323,10 @@ class ZstdFrameTest {
             ZstdFrameHeader header = ZstdFrame.header(frame);
 
             // Then contentSize() reports absent instead of leaking an
-            // IllegalArgumentException out of ZstdByteSize's non-negative guard
+            // IllegalArgumentException out of ZstdByteSize's non-negative guard —
+            // and windowSize(), which a single-segment frame mirrors from it, too
             assertThat(header.contentSize()).isEmpty();
+            assertThat(header.windowSize()).isEmpty();
         }
 
         // A minimal single-segment zstd frame header (magic + descriptor + 8-byte
