@@ -20,7 +20,12 @@ import java.util.Optional;
 /// @param headerSize   the size of the frame header in bytes
 /// @param dictId       the dictionary id, or [ZstdDictionaryId#NONE] if none (for a
 ///                     skippable frame, [ZstdDictionaryId#raw()] is the magic variant 0..15)
-/// @param hasChecksum  whether a 4-byte content checksum follows the frame
+/// @param hasChecksum  whether the frame descriptor sets the content-checksum
+///                     flag — a 4-byte XXH64 checksum of the decompressed content
+///                     then trails the frame, which the decoder verifies on
+///                     decompress. Only this flag is header data; the checksum
+///                     value itself lives in the frame trailer and is not exposed
+///                     here. Gate on it to require integrity before decompressing.
 public record ZstdFrameHeader(
         Optional<ZstdByteSize> contentSize,
         Optional<ZstdByteSize> windowSize,
