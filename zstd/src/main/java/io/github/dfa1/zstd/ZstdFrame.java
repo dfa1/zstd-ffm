@@ -2,6 +2,7 @@ package io.github.dfa1.zstd;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
@@ -37,9 +38,9 @@ public final class ZstdFrame {
     /// @param data one or more concatenated zstd frames
     /// @return the byte length of the first frame
     /// @throws ZstdException if the input is not a valid frame
-    public static long compressedSize(byte[] data) {
+    public static ZstdByteSize compressedSize(byte[] data) {
         try (Arena arena = Arena.ofConfined()) {
-            return compressedSize(Zstd.copyIn(arena, data), data.length);
+            return new ZstdByteSize(compressedSize(Zstd.copyIn(arena, data), data.length));
         }
     }
 
@@ -48,8 +49,8 @@ public final class ZstdFrame {
     /// @param data one or more concatenated zstd frames
     /// @return the byte length of the first frame
     /// @throws ZstdException if the input is not a valid frame
-    public static long compressedSize(MemorySegment data) {
-        return compressedSize(data, data.byteSize());
+    public static ZstdByteSize compressedSize(MemorySegment data) {
+        return new ZstdByteSize(compressedSize(data, data.byteSize()));
     }
 
     /// Upper bound on the total decompressed size of all frames in `data`,
@@ -114,9 +115,9 @@ public final class ZstdFrame {
     /// @param data one or more concatenated zstd frames
     /// @return the in-place decompression margin in bytes
     /// @throws ZstdException if the input is not valid zstd data
-    public static long decompressionMargin(byte[] data) {
+    public static ZstdByteSize decompressionMargin(byte[] data) {
         try (Arena arena = Arena.ofConfined()) {
-            return decompressionMargin(Zstd.copyIn(arena, data), data.length);
+            return new ZstdByteSize(decompressionMargin(Zstd.copyIn(arena, data), data.length));
         }
     }
 
@@ -126,8 +127,8 @@ public final class ZstdFrame {
     /// @param data one or more concatenated zstd frames
     /// @return the in-place decompression margin in bytes
     /// @throws ZstdException if the input is not valid zstd data
-    public static long decompressionMargin(MemorySegment data) {
-        return decompressionMargin(data, data.byteSize());
+    public static ZstdByteSize decompressionMargin(MemorySegment data) {
+        return new ZstdByteSize(decompressionMargin(data, data.byteSize()));
     }
 
     /// Dictionary id recorded in the first frame's header.
@@ -160,9 +161,9 @@ public final class ZstdFrame {
     /// @return the header size in bytes
     /// @throws ZstdException if `data` is too short to determine the header size, or
     ///                       is not a valid zstd frame
-    public static long headerSize(byte[] data) {
+    public static ZstdByteSize headerSize(byte[] data) {
         try (Arena arena = Arena.ofConfined()) {
-            return headerSize(Zstd.copyIn(arena, data), data.length);
+            return new ZstdByteSize(headerSize(Zstd.copyIn(arena, data), data.length));
         }
     }
 
@@ -173,8 +174,8 @@ public final class ZstdFrame {
     /// @return the header size in bytes
     /// @throws ZstdException if `data` is too short to determine the header size, or
     ///                       is not a valid zstd frame
-    public static long headerSize(MemorySegment data) {
-        return headerSize(data, data.byteSize());
+    public static ZstdByteSize headerSize(MemorySegment data) {
+        return new ZstdByteSize(headerSize(data, data.byteSize()));
     }
 
     /// Parses the header of the first frame in `data` without decompressing it.
@@ -219,22 +220,22 @@ public final class ZstdFrame {
     /// decoder skips over, letting you interleave it with compressed frames.
     ///
     /// @param content      the user bytes to embed
-    /// @param magicVariant the variant 0..15 selecting one of the skippable magic numbers
+    /// @param magicVariant the variant selecting one of the skippable magic numbers
     /// @return the skippable frame bytes
-    /// @throws ZstdException if `magicVariant` is out of range
-    public static byte[] writeSkippableFrame(byte[] content, int magicVariant) {
+    public static byte[] writeSkippableFrame(byte[] content, ZstdMagicVariant magicVariant) {
+        Objects.requireNonNull(magicVariant, "magicVariant");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment src = Zstd.copyIn(arena, content);
             long cap = content.length + 8L;
             MemorySegment dst = arena.allocate(cap);
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.WRITE_SKIPPABLE_FRAME.invokeExact(
-                    dst, cap, src, (long) content.length, magicVariant));
+                    dst, cap, src, (long) content.length, magicVariant.value()));
             return Zstd.copyOut(dst, written);
         }
     }
 
     /// Reads the content of a skippable frame produced by
-    /// [#writeSkippableFrame(byte[], int)].
+    /// [#writeSkippableFrame(byte[], ZstdMagicVariant)].
     ///
     /// @param frame a skippable frame
     /// @return the embedded content and its magic variant
@@ -246,7 +247,7 @@ public final class ZstdFrame {
             MemorySegment dst = arena.allocate(Math.max(frame.length, 1));
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.READ_SKIPPABLE_FRAME.invokeExact(
                     dst, (long) frame.length, magic, src, (long) frame.length));
-            return new ZstdSkippableContent(Zstd.copyOut(dst, written), magic.get(JAVA_INT, 0));
+            return new ZstdSkippableContent(Zstd.copyOut(dst, written), new ZstdMagicVariant(magic.get(JAVA_INT, 0)));
         }
     }
 

@@ -70,7 +70,7 @@ class ZstdParameterTest {
         @Test
         void explicitWindowLogRoundTrips() {
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext().windowLog(24)) {
+            try (ZstdCompressContext ctx = new ZstdCompressContext().windowLog(new ZstdWindowLog(24))) {
                 frame = ctx.compress(PAYLOAD);
             }
             assertThat(Zstd.decompress(frame)).isEqualTo(PAYLOAD);
@@ -127,7 +127,7 @@ class ZstdParameterTest {
         void windowLogMaxIsAccepted() {
             // Given a decompressor configured with a raised window limit
             byte[] frame = Zstd.compress(PAYLOAD);
-            try (ZstdDecompressContext ctx = new ZstdDecompressContext().windowLogMax(31)) {
+            try (ZstdDecompressContext ctx = new ZstdDecompressContext().windowLogMax(new ZstdWindowLog(31))) {
                 // Then normal frames still decode
                 assertThat(ctx.decompress(frame, new ZstdByteSize(PAYLOAD.length))).isEqualTo(PAYLOAD);
             }

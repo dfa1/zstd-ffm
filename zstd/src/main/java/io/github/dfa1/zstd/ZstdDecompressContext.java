@@ -37,8 +37,9 @@ public final class ZstdDecompressContext extends NativeObject {
     ///
     /// @param windowLogMax the base-2 log of the maximum accepted window size
     /// @return `this`, for chaining
-    public ZstdDecompressContext windowLogMax(int windowLogMax) {
-        return parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, windowLogMax);
+    public ZstdDecompressContext windowLogMax(ZstdWindowLog windowLogMax) {
+        Objects.requireNonNull(windowLogMax, "windowLogMax");
+        return parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, windowLogMax.value());
     }
 
     /// Resets this context so it can be reused for the next frame without the
@@ -246,6 +247,11 @@ public final class ZstdDecompressContext extends NativeObject {
     ///
     /// Size `dst` to the decompressed length (read it from the frame with
     /// [Zstd#decompress(byte[])]'s header logic, or known out-of-band).
+    ///
+    /// Returns a raw `long` rather than a [ZstdByteSize]: on this zero-copy path
+    /// the byte count feeds straight into [MemorySegment#asSlice(long, long)], so
+    /// it is left unboxed by design to keep the fast path allocation-free. The
+    /// heap `byte[]` overloads, which size an array, return richer types.
     ///
     /// @param dst the native destination buffer to write the result into
     /// @param src the native source frame to decompress

@@ -42,7 +42,7 @@ class ZstdDictionaryTest {
         void fastCoverRoundTrips() {
             // Given a fast-COVER-trained dictionary
             ZstdDictionary dict = ZstdDictionary.trainFastCover(samples, ZstdByteSize.ofKiB(16));
-            assertThat(dict.size()).isGreaterThan(0);
+            assertThat(dict.size().value()).isGreaterThan(0);
 
             // Then records round-trip and compress smaller than dictionaryless
             byte[] sample = samples.get(321);
@@ -63,7 +63,7 @@ class ZstdDictionaryTest {
         void coverRoundTrips() {
             // COVER is slower, so train on a subset to keep the test quick
             ZstdDictionary dict = ZstdDictionary.trainCover(samples.subList(0, 1000), ZstdByteSize.ofKiB(8));
-            assertThat(dict.size()).isGreaterThan(0);
+            assertThat(dict.size().value()).isGreaterThan(0);
 
             byte[] sample = samples.get(5);
             try (ZstdCompressContext cctx = new ZstdCompressContext();
@@ -109,8 +109,8 @@ class ZstdDictionaryTest {
                     ZstdDictionary.finalizeFrom(content, samples, ZstdByteSize.ofKiB(16), new ZstdCompressionLevel(0));
 
             // Then it carries a header and round-trips a sample
-            assertThat(dict.size()).isGreaterThan(0);
-            assertThat(dict.headerSize()).isPositive();
+            assertThat(dict.size().value()).isGreaterThan(0);
+            assertThat(dict.headerSize().value()).isPositive();
 
             byte[] sample = samples.get(3);
             try (ZstdCompressContext cctx = new ZstdCompressContext();
@@ -122,8 +122,8 @@ class ZstdDictionaryTest {
 
         @Test
         void trainedDictionaryHasHeader() {
-            assertThat(sut.headerSize()).isPositive();
-            assertThat(sut.headerSize()).isLessThanOrEqualTo(sut.size());
+            assertThat(sut.headerSize().value()).isPositive();
+            assertThat(sut.headerSize().value()).isLessThanOrEqualTo(sut.size().value());
         }
 
         @Test
@@ -145,8 +145,8 @@ class ZstdDictionaryTest {
         @Test
         void producesNonEmptyDictionary() {
             // Then the trained dictionary has content matching its reported size
-            assertThat(sut.size()).isGreaterThan(0);
-            assertThat(sut.toByteArray()).hasSize(sut.size());
+            assertThat(sut.size().value()).isGreaterThan(0);
+            assertThat(sut.toByteArray()).hasSize(sut.size().toArraySize());
         }
 
         @Test

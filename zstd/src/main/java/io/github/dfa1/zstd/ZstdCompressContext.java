@@ -85,8 +85,9 @@ public final class ZstdCompressContext extends NativeObject {
     ///
     /// @param windowLog the base-2 log of the window size
     /// @return `this`, for chaining
-    public ZstdCompressContext windowLog(int windowLog) {
-        return parameter(ZstdCompressParameter.WINDOW_LOG, windowLog);
+    public ZstdCompressContext windowLog(ZstdWindowLog windowLog) {
+        Objects.requireNonNull(windowLog, "windowLog");
+        return parameter(ZstdCompressParameter.WINDOW_LOG, windowLog.value());
     }
 
     /// Resets this context so it can be reused for the next frame without the
@@ -287,6 +288,11 @@ public final class ZstdCompressContext extends NativeObject {
     /// an arena-allocated output); see `docs/zero-copy.md`.
     ///
     /// Size `dst` with [Zstd#compressBound(ZstdByteSize)] to guarantee it fits.
+    ///
+    /// Returns a raw `long` rather than a [ZstdByteSize]: on this zero-copy path
+    /// the byte count feeds straight into [MemorySegment#asSlice(long, long)], so
+    /// it is left unboxed by design to keep the fast path allocation-free. The
+    /// heap `byte[]` overloads, which size an array, return richer types.
     ///
     /// @param dst the native destination buffer to write the frame into
     /// @param src the native source bytes to compress

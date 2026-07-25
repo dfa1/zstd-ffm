@@ -284,14 +284,14 @@ public final class ZstdDictionary {
     ///
     /// @return the header size in bytes
     /// @throws ZstdException if this is not a valid zstd dictionary
-    public int headerSize() {
+    public ZstdByteSize headerSize() {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment seg = Zstd.copyIn(arena, bytes);
             long size = (long) Bindings.ZDICT_GET_DICT_HEADER_SIZE.invokeExact(seg, (long) bytes.length);
             if (zdictIsError(size)) {
                 throw new ZstdException("not a valid dictionary: " + zdictErrorName(size));
             }
-            return Math.toIntExact(size);
+            return new ZstdByteSize(size);
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -307,8 +307,8 @@ public final class ZstdDictionary {
     /// The size of this dictionary.
     ///
     /// @return the dictionary size in bytes
-    public int size() {
-        return bytes.length;
+    public ZstdByteSize size() {
+        return new ZstdByteSize(bytes.length);
     }
 
     /// Digests this dictionary once for compression at `level`, ready to share by

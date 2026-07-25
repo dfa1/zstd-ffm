@@ -11,6 +11,7 @@ import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.ZstdFrameHeader;
 import io.github.dfa1.zstd.ZstdFrameType;
 import io.github.dfa1.zstd.ZstdInputStream;
+import io.github.dfa1.zstd.ZstdMagicVariant;
 import io.github.dfa1.zstd.ZstdOutputStream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
@@ -128,7 +129,7 @@ class ZstdInteropExtrasTest {
             // Given
             byte[] payload = "after the skippable frame ".repeat(1000).getBytes(StandardCharsets.UTF_8);
             byte[] meta = "sidecar-metadata".getBytes(StandardCharsets.UTF_8);
-            byte[] skippable = ZstdFrame.writeSkippableFrame(meta, 0);
+            byte[] skippable = ZstdFrame.writeSkippableFrame(meta, new ZstdMagicVariant(0));
             byte[] real = Zstd.compress(payload, ZstdCompressionLevel.DEFAULT);
 
             // When
@@ -142,7 +143,7 @@ class ZstdInteropExtrasTest {
         void javaParsesItsOwnSkippableFrameHeader() {
             // Given
             byte[] meta = "sidecar".getBytes(StandardCharsets.UTF_8);
-            byte[] skippable = ZstdFrame.writeSkippableFrame(meta, 5);
+            byte[] skippable = ZstdFrame.writeSkippableFrame(meta, new ZstdMagicVariant(5));
 
             // When
             ZstdFrameHeader header = ZstdFrame.header(skippable);

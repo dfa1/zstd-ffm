@@ -50,7 +50,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
 
             // Then its compressed size is the whole buffer
-            assertThat(ZstdFrame.compressedSize(frame)).isEqualTo(frame.length);
+            assertThat(ZstdFrame.compressedSize(frame)).isEqualTo(new ZstdByteSize(frame.length));
         }
 
         @Test
@@ -63,7 +63,7 @@ class ZstdFrameTest {
             both.write(second);
 
             // Then compressedSize reports where the second frame begins
-            assertThat(ZstdFrame.compressedSize(both.toByteArray())).isEqualTo(first.length);
+            assertThat(ZstdFrame.compressedSize(both.toByteArray())).isEqualTo(new ZstdByteSize(first.length));
         }
 
         @Test
@@ -172,7 +172,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
 
             // Then the light probe agrees with the fully parsed header
-            assertThat(ZstdFrame.headerSize(frame)).isEqualTo(ZstdFrame.header(frame).headerSize());
+            assertThat(ZstdFrame.headerSize(frame)).isEqualTo(new ZstdByteSize(ZstdFrame.header(frame).headerSize()));
         }
 
         @Test
@@ -219,7 +219,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
 
             // Then its in-place margin is a real, positive size
-            assertThat(ZstdFrame.decompressionMargin(frame)).isPositive();
+            assertThat(ZstdFrame.decompressionMargin(frame).value()).isPositive();
         }
 
         @Test
@@ -235,7 +235,7 @@ class ZstdFrameTest {
         void enablesInPlaceDecompression() {
             // Given a frame and a single buffer sized output + margin
             byte[] frame = Zstd.compress(PAYLOAD);
-            long margin = ZstdFrame.decompressionMargin(frame);
+            long margin = ZstdFrame.decompressionMargin(frame).value();
             try (Arena arena = Arena.ofConfined();
                  ZstdDecompressContext dctx = new ZstdDecompressContext()) {
                 MemorySegment buf = arena.allocate(PAYLOAD.length + margin);
@@ -351,7 +351,7 @@ class ZstdFrameTest {
         void roundTripsContentAndMagicVariant() {
             // Given user metadata wrapped in a skippable frame
             byte[] meta = "sidecar metadata".getBytes(StandardCharsets.UTF_8);
-            byte[] frame = ZstdFrame.writeSkippableFrame(meta, 7);
+            byte[] frame = ZstdFrame.writeSkippableFrame(meta, new ZstdMagicVariant(7));
 
             // Then it is recognized as skippable and decodes back with its variant
             assertThat(ZstdFrame.isSkippableFrame(frame)).isTrue();
@@ -359,7 +359,7 @@ class ZstdFrameTest {
 
             ZstdSkippableContent read = ZstdFrame.readSkippableFrame(frame);
             assertThat(read.content()).isEqualTo(meta);
-            assertThat(read.magicVariant()).isEqualTo(7);
+            assertThat(read.magicVariant()).isEqualTo(new ZstdMagicVariant(7));
         }
 
         @Test
@@ -371,7 +371,7 @@ class ZstdFrameTest {
         void defensivelyCopiesContentInAndOut() {
             // Given a backing array wrapped in a skippable-content value
             byte[] backing = "metadata".getBytes(StandardCharsets.UTF_8);
-            ZstdSkippableContent content = new ZstdSkippableContent(backing, 2);
+            ZstdSkippableContent content = new ZstdSkippableContent(backing, new ZstdMagicVariant(2));
 
             // When the source array and a value returned by the accessor are mutated
             backing[0] = 'X';
@@ -384,9 +384,9 @@ class ZstdFrameTest {
         @Test
         void contentHasValueEqualityOverTheBytesNotArrayIdentity() {
             // Given two separately built payloads with the same bytes and variant, and one differing
-            ZstdSkippableContent a = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), 3);
-            ZstdSkippableContent b = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), 3);
-            ZstdSkippableContent differentVariant = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), 4);
+            ZstdSkippableContent a = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), new ZstdMagicVariant(3));
+            ZstdSkippableContent b = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), new ZstdMagicVariant(3));
+            ZstdSkippableContent differentVariant = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), new ZstdMagicVariant(4));
 
             // When compared by value and rendered as text
             boolean sameBytesEqual = a.equals(b);
@@ -462,7 +462,7 @@ class ZstdFrameTest {
         @Test
         void recognizesASkippableNativeFrame() {
             // Given a skippable frame in a native segment
-            byte[] frame = ZstdFrame.writeSkippableFrame("meta".getBytes(StandardCharsets.UTF_8), 5);
+            byte[] frame = ZstdFrame.writeSkippableFrame("meta".getBytes(StandardCharsets.UTF_8), new ZstdMagicVariant(5));
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment seg = Zstd.copyIn(arena, frame);
 

@@ -22,10 +22,12 @@ import io.github.dfa1.zstd.ZstdFrameHeader;
 import io.github.dfa1.zstd.ZstdFrameProgression;
 import io.github.dfa1.zstd.ZstdFrameType;
 import io.github.dfa1.zstd.ZstdInputStream;
+import io.github.dfa1.zstd.ZstdMagicVariant;
 import io.github.dfa1.zstd.ZstdOutputStream;
 import io.github.dfa1.zstd.ZstdResetDirective;
 import io.github.dfa1.zstd.ZstdSkippableContent;
 import io.github.dfa1.zstd.ZstdStreamResult;
+import io.github.dfa1.zstd.ZstdWindowLog;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -168,14 +170,14 @@ class SmokeTest {
         check(ZstdFrame.isZstdFrame(compressed), "isZstdFrame(byte[]) false for a real frame");
         check(!ZstdFrame.isZstdFrame("plain text, not zstd".getBytes(StandardCharsets.UTF_8)),
                 "isZstdFrame(byte[]) true for non-zstd data");
-        check(ZstdFrame.compressedSize(compressed) == compressed.length, "compressedSize(byte[]) mismatch");
+        check(ZstdFrame.compressedSize(compressed).value() == compressed.length, "compressedSize(byte[]) mismatch");
         check(ZstdFrame.decompressedSize(compressed).value() == original.length, "decompressedSize(byte[]) mismatch");
         check(ZstdFrame.decompressedBound(compressed).value() >= original.length, "decompressedBound(byte[]) too small");
-        check(ZstdFrame.decompressionMargin(compressed) >= 0, "decompressionMargin(byte[]) negative");
+        check(ZstdFrame.decompressionMargin(compressed).value() >= 0, "decompressionMargin(byte[]) negative");
         check(!ZstdFrame.dictId(compressed).isPresent(), "dictId(byte[]) expected NONE for a non-dictionary frame");
         check(!ZstdFrame.isSkippableFrame(compressed), "isSkippableFrame(byte[]) true for a standard frame");
 
-        long headerSize = ZstdFrame.headerSize(compressed);
+        long headerSize = ZstdFrame.headerSize(compressed).value();
         check(headerSize > 0 && headerSize <= compressed.length, "headerSize(byte[]) out of range");
 
         ZstdFrameHeader header = ZstdFrame.header(compressed);
@@ -189,14 +191,14 @@ class SmokeTest {
     @Test
     void skippableFrames() {
         byte[] payload = "smoke-test skippable payload".getBytes(StandardCharsets.UTF_8);
-        byte[] frame = ZstdFrame.writeSkippableFrame(payload, 3);
+        byte[] frame = ZstdFrame.writeSkippableFrame(payload, new ZstdMagicVariant(3));
 
         check(ZstdFrame.isSkippableFrame(frame), "isSkippableFrame(byte[]) false for a written skippable frame");
         check(ZstdFrame.isZstdFrame(frame), "isZstdFrame(byte[]) should be true for a skippable frame too");
 
         ZstdSkippableContent read = ZstdFrame.readSkippableFrame(frame);
         checkArrayEquals(read.content(), payload, "readSkippableFrame() content mismatch");
-        check(read.magicVariant() == 3, "readSkippableFrame() magicVariant mismatch");
+        check(read.magicVariant().value() == 3, "readSkippableFrame() magicVariant mismatch");
     }
 
     @Test
@@ -206,7 +208,7 @@ class SmokeTest {
             cctx.level(new ZstdCompressionLevel(5))
                     .checksum(true)
                     .longDistanceMatching(true)
-                    .windowLog(20)
+                    .windowLog(new ZstdWindowLog(20))
                     .parameter(ZstdCompressParameter.STRATEGY, 3);
 
             byte[] compressed = cctx.compress(original);
@@ -224,10 +226,10 @@ class SmokeTest {
     @Test
     void decompressContextAdvanced() {
         byte[] original = sampleText();
-        try (ZstdCompressContext cctx = new ZstdCompressContext().windowLog(23);
+        try (ZstdCompressContext cctx = new ZstdCompressContext().windowLog(new ZstdWindowLog(23));
              ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-            dctx.windowLogMax(24);
-            byte[] restored = dctx.decompress(cctx.compress(original), original.length);
+            dctx.windowLogMax(new ZstdWindowLog(24));
+            byte[] restored = dctx.decompress(cctx.compress(original), new ZstdByteSize(original.length));
             checkArrayEquals(original, restored, "windowLogMax() decompress round-trip mismatch");
             check(dctx.sizeOf().value() > 0, "dctx.sizeOf() not positive");
 

@@ -6,6 +6,16 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Added
+- `ZstdDecompressContext.decompress(byte[])` — decompresses a trusted frame using
+  the decompressed size stored in its header, mirroring the static
+  `Zstd.decompress(byte[])`. For untrusted input keep the bounded
+  `decompress(byte[], ZstdByteSize)` overload, now documented as the safe entry
+  point.
+- `ZstdWindowLog` and `ZstdMagicVariant` value types, validated at construction —
+  the window log against the linked libzstd's accepted range (with `0` /
+  `ZstdWindowLog.AUTO` for "library chooses"), the magic variant to `0..15`.
+
 ### Changed
 - **Breaking:** the compression-level bound queries `Zstd.maxCompressionLevel()`,
   `minCompressionLevel()`, and `defaultCompressionLevel()` are no longer public.
@@ -17,6 +27,21 @@ git tags, which trigger publication to Maven Central.
   throws `ZstdException` (was `ArithmeticException`) when the size exceeds the
   maximum array length — the narrowing happens at the API boundary, so callers
   no longer catch a raw `ArithmeticException`.
+- **Breaking:** `ZstdDecompressContext.decompress` now takes a `ZstdByteSize`
+  bound instead of a naked `int` (all three overloads: plain, `+ ZstdDictionary`,
+  `+ ZstdDecompressDictionary`), completing the `ZstdByteSize` migration. Wrap the
+  bound in `new ZstdByteSize(n)`.
+- **Breaking:** the frame-size probes `ZstdFrame.compressedSize`, `headerSize`,
+  and `decompressionMargin` now return `ZstdByteSize` instead of `long`, and
+  `ZstdDictionary.size()`/`headerSize()` return `ZstdByteSize` instead of `int`,
+  matching the other size accessors — call `.value()` for the raw number. The
+  zero-copy segment `compress`/`decompress` overloads still return a raw `long`
+  by design (the count feeds straight into `MemorySegment.asSlice`).
+- **Breaking:** `ZstdCompressContext.windowLog` and
+  `ZstdDecompressContext.windowLogMax` now take a `ZstdWindowLog`, and
+  `ZstdFrame.writeSkippableFrame` / `ZstdSkippableContent.magicVariant()` now use
+  `ZstdMagicVariant`. Wrap the raw `int` (`new ZstdWindowLog(n)` /
+  `new ZstdMagicVariant(n)`), or use `ZstdWindowLog.AUTO`.
 
 ## [0.11] - 2026-07-24
 
