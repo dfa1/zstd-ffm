@@ -48,7 +48,6 @@ public class CompressBenchmark {
     private byte[] src;
 
     private ZstdCompressContext ffmCtx;
-    private byte[] ffmDst;
 
     private Arena arena;
     private MemorySegment srcSeg;
@@ -63,7 +62,6 @@ public class CompressBenchmark {
         int bound = Zstd.compressBound(new ZstdByteSize(size)).toArraySize();
 
         ffmCtx = new ZstdCompressContext().level(new ZstdCompressionLevel(level));
-        ffmDst = new byte[bound];
 
         arena = Arena.ofConfined();
         srcSeg = arena.allocate(size);
