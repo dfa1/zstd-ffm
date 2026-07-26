@@ -224,8 +224,8 @@ public final class Zstd {
     /// Runtime version of the linked zstd library, e.g. `1.6.0`.
     ///
     /// Read [ZstdVersion#toString()] for the `x.y.z` string, [ZstdVersion#number()]
-    /// for the packed number, or compare it (e.g. [ZstdVersion#isAtLeast(int, int, int)])
-    /// to feature-gate against the runtime library.
+    /// for the packed number, or compare it (it is [Comparable]) to feature-gate
+    /// against the runtime library.
     ///
     /// @return the linked zstd library version
     public static ZstdVersion version() {

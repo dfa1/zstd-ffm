@@ -162,7 +162,7 @@ class ZstdTest {
         @Test
         void reportsAVersionAtLeastOne() {
             // Then the linked library is at least 1.0.0 (zstd has been 1.x for years)
-            assertThat(Zstd.version().isAtLeast(1, 0, 0)).isTrue();
+            assertThat(Zstd.version()).isGreaterThanOrEqualTo(new ZstdVersion(1, 0, 0));
         }
     }
 

@@ -6,9 +6,8 @@ package io.github.dfa1.zstd;
 /// zstd encodes its version two ways — a `"MAJOR.MINOR.PATCH"` string and a
 /// packed `MAJOR * 10000 + MINOR * 100 + PATCH` number. This type carries both:
 /// the components directly, [#number()] for the packed form, and [#toString()]
-/// for the string. Being [Comparable] (and via [#isAtLeast(int, int, int)]), it
-/// lets callers feature-gate against the runtime library, e.g.
-/// `Zstd.version().isAtLeast(1, 5, 0)`.
+/// for the string. Being [Comparable], it lets callers feature-gate against the
+/// runtime library, e.g. `Zstd.version().compareTo(new ZstdVersion(1, 5, 0)) >= 0`.
 ///
 /// @param major the major version component
 /// @param minor the minor version component
@@ -36,17 +35,6 @@ public record ZstdVersion(int major, int minor, int patch) implements Comparable
     /// @return the packed version number
     public int number() {
         return major * 10000 + minor * 100 + patch;
-    }
-
-    /// Whether this version is at least `major.minor.patch`, for feature-gating
-    /// against the linked libzstd.
-    ///
-    /// @param major the minimum major version
-    /// @param minor the minimum minor version
-    /// @param patch the minimum patch version
-    /// @return `true` if this version is greater than or equal to `major.minor.patch`
-    public boolean isAtLeast(int major, int minor, int patch) {
-        return compareTo(new ZstdVersion(major, minor, patch)) >= 0;
     }
 
     /// Orders by `major`, then `minor`, then `patch`.

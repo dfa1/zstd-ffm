@@ -26,8 +26,8 @@ first line of defense — is laid out in
   the window log against the linked libzstd's accepted range (with `0` /
   `ZstdWindowLog.AUTO` for "library chooses"), the magic variant to `0..15`.
 - `ZstdVersion` value type — a comparable `(major, minor, patch)` with `number()`
-  (the packed form) and `toString()` (`x.y.z`), plus `isAtLeast(int, int, int)`
-  for feature-gating against the linked libzstd.
+  (the packed form) and `toString()` (`x.y.z`), for feature-gating against the
+  linked libzstd.
 
 ### Changed
 - **Breaking:** the compression-level bound queries `Zstd.maxCompressionLevel()`,

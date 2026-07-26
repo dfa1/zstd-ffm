@@ -51,17 +51,6 @@ class ZstdVersionTest {
             assertThat(new ZstdVersion(1, 6, 0)).isGreaterThan(new ZstdVersion(1, 5, 9));
             assertThat(new ZstdVersion(2, 0, 0)).isGreaterThan(new ZstdVersion(1, 9, 9));
         }
-
-        @Test
-        void isAtLeastIsInclusiveOfTheBound() {
-            // Given a version
-            ZstdVersion sut = new ZstdVersion(1, 5, 7);
-
-            // Then isAtLeast holds at and below the version, not above
-            assertThat(sut.isAtLeast(1, 5, 7)).isTrue();
-            assertThat(sut.isAtLeast(1, 5, 0)).isTrue();
-            assertThat(sut.isAtLeast(1, 6, 0)).isFalse();
-        }
     }
 
     @Nested
