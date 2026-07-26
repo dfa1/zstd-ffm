@@ -48,6 +48,19 @@ Built `.dylib/.so/.dll` are git-ignored; they are regenerated from the submodule
   overloads** for heap callers. Never allocate a `byte[]` for decode output on a
   hot path — see [docs/zero-copy.md](docs/zero-copy.md).
 - Run with `--enable-native-access=ALL-UNNAMED`.
+- **Wrap naked `int`/`long`/`String` at public boundaries** when the value has a
+  validity constraint, unit, or semantic identity — sizes (`ZstdByteSize`),
+  levels (`ZstdCompressionLevel`), versions (`ZstdVersion`), window logs
+  (`ZstdWindowLog`), magic variants (`ZstdMagicVariant`), dictionary ids
+  (`ZstdDictionaryId`). Validate once at construction so illegal states are
+  unrepresentable rather than guarded by scattered runtime checks; for
+  hostile/unrepresentable input return `Optional<VO>` instead of throwing. This
+  sweep is considered done — see CHANGELOG.md's Unreleased section. Exception:
+  heterogeneous native passthroughs like
+  `ZstdCompressContext#parameter(ZstdCompressParameter, int)` stay raw `int`,
+  since the value's meaning depends on which enum constant is passed and native
+  bounds-checking already validates it; the common cases have typed convenience
+  methods (`level()`, `windowLog(ZstdWindowLog)`, `checksum(boolean)`).
 
 ## Testing
 
