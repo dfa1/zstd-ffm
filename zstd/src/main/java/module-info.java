@@ -4,10 +4,7 @@
 /// runtime from the platform `zstd-native-<classifier>` artifact on the path.
 /// Requires `--enable-native-access=io.github.dfa1.zstd` (or `ALL-UNNAMED` on
 /// the classpath) since FFM downcalls are a restricted operation.
-// The "dfa1" component ends in a digit, which the module-name lint flags as
-// possibly version-like. It mirrors the Sonatype-verified io.github.dfa1
-// namespace and the package name, so suppress the advisory rather than diverge.
-@SuppressWarnings("module")
+@SuppressWarnings("module") // dfa1 is my username in github
 module io.github.dfa1.zstd {
     exports io.github.dfa1.zstd;
 }
