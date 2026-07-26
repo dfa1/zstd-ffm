@@ -7,6 +7,12 @@ name: Benchmark LTO impact
 # instead of a manual claim. Not part of ci.yml: this is throughput
 # exploration, not a correctness gate, and JMH runs are too slow to run on
 # every push/PR.
+#
+# Results are consumable two ways: the comparison table is both printed to
+# the job log (no sign-in needed, unlike the Step Summary UI) and uploaded
+# as a per-classifier artifact - `gh run download <run-id>` gets the raw JMH
+# JSON (baseline-results.json/lto-results.json) plus the rendered
+# comparison.md for offline diffing or archiving across runs.
 
 on:
   workflow_dispatch:
@@ -75,6 +81,7 @@ jobs:
             -f 1 -wi 2 -i 5 -p size=65536 -rf json -rff ../lto-results.json
 
       - name: Summarize
+        if: always()
         shell: bash
         run: |
           {
@@ -83,4 +90,16 @@ jobs:
             python3 baseline/.github/scripts/compare-benchmarks.py \
               baseline-results.json lto-results.json
             echo
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee comparison.md | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ matrix.classifier }}
+          path: |
+            baseline-results.json
+            lto-results.json
+            comparison.md
+          if-no-files-found: ignore
+          retention-days: 30
