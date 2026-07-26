@@ -7,7 +7,16 @@ import java.util.Objects;
 /// A reusable decompression context.
 ///
 /// Reusing one context across many [#decompress] calls amortizes native
-/// state allocation. Not thread-safe: confine an instance to one thread or pool it.
+/// state allocation, making it cheaper than the stateless [Zstd#decompress]
+/// on hot paths. Not thread-safe: confine an instance to one thread or pool it.
+///
+/// {@snippet :
+/// try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
+///     for (byte[] frame : frames) {
+///         sink.accept(ctx.decompress(frame));
+///     }
+/// }
+/// }
 public final class ZstdDecompressContext extends NativeObject {
 
     private static final String COMPRESSED = "compressed";
