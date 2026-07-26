@@ -6,6 +6,16 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+This cycle completes a sweep replacing naked primitives at the public API with
+validated **domain primitives** — `ZstdByteSize`, `ZstdCompressionLevel`,
+`ZstdWindowLog`, `ZstdMagicVariant`, `ZstdVersion`, and `ZstdFrameHeader`'s size
+fields. Each validates once, at construction, so a value is proof of its own
+validity and illegal states are unrepresentable rather than guarded by scattered
+runtime checks (a hostile frame field that cannot be a real size parses to an
+empty `Optional<ZstdByteSize>` instead of throwing). The rationale — types as the
+first line of defense — is laid out in
+[Your compiler is already part of your security team](https://dfa1.github.io/articles/your-compiler-is-already-part-of-your-security-team.html).
+
 ### Added
 - `ZstdDecompressContext.decompress(byte[])` — decompresses a trusted frame using
   the decompressed size stored in its header, mirroring the static
