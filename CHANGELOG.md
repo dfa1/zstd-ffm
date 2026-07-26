@@ -6,6 +6,8 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+## [0.12] - 2026-07-26
+
 This cycle completes a sweep replacing naked primitives at the public API with
 validated **domain primitives** — `ZstdByteSize`, `ZstdCompressionLevel`,
 `ZstdWindowLog`, `ZstdMagicVariant`, `ZstdVersion`, and `ZstdFrameHeader`'s size
