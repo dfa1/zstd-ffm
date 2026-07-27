@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Format one JMH JSON result file into contestant-comparison tables.
 
-Used by benchmark-lto.yml to report zstd-java (byte[] and MemorySegment)
+Used by benchmark.yml to report zstd-java (byte[] and MemorySegment)
 against zstd-jni and aircompressor on the same build, plus the cost of
 creating a fresh native context per call versus reusing one across calls.
 
