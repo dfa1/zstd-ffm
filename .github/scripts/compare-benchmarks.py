@@ -7,6 +7,10 @@ compare-benchmarks.py <baseline.json> <variant.json>
 import json
 import sys
 
+# Windows' default console code page isn't UTF-8, so stdout would otherwise
+# mangle the '±' in the table below (garbles to '?').
+sys.stdout.reconfigure(encoding="utf-8")
+
 
 def load(path):
     with open(path) as f:
