@@ -1,18 +1,21 @@
-name: Benchmark LTO impact
+name: Benchmark
 
-# Manual, exploratory: compares JMH throughput between main and an LTO
-# variant branch (see scripts/build-zstd.sh - currently -flto is Linux-only,
-# zig's Mach-O backend doesn't support it) on every runner OS the repo
-# supports, so the real-vs-no-op split shows up as CI evidence per platform
-# instead of a manual claim. Not part of ci.yml: this is throughput
-# exploration, not a correctness gate, and JMH runs are too slow to run on
-# every push/PR.
+# Manual, exploratory, on every runner OS the repo supports. Not part of
+# ci.yml: JMH runs are too slow to gate every push/PR. Two reports come out
+# of the same baseline (main) build:
 #
-# Results are consumable two ways: the comparison table is both printed to
-# the job log (no sign-in needed, unlike the Step Summary UI) and uploaded
-# as a per-classifier artifact - `gh run download <run-id>` gets the raw JMH
-# JSON (baseline-results.json/lto-results.json) plus the rendered
-# comparison.md for offline diffing or archiving across runs.
+#   - Contestants: zstd-java (byte[] and MemorySegment) vs zstd-jni vs
+#     aircompressor on identical input, plus reused-vs-fresh-per-call native
+#     context overhead - the "is this library actually fast" evidence.
+#   - LTO impact: baseline (main) vs an LTO variant branch (see
+#     scripts/build-zstd.sh - currently -flto is Linux-only, zig's Mach-O
+#     backend doesn't support it), so the real-vs-no-op split shows up as CI
+#     evidence per platform instead of a manual claim.
+#
+# Results are consumable two ways: every table is both printed to the job log
+# (no sign-in needed, unlike the Step Summary UI) and uploaded as a
+# per-classifier artifact - `gh run download <run-id>` gets the raw JMH JSON
+# plus the rendered tables for offline diffing or archiving across runs.
 
 on:
   workflow_dispatch:
@@ -60,16 +63,18 @@ jobs:
         with:
           version: 0.16.0
 
-      # `ompressBenchmark` matches both CompressBenchmark and
-      # DecompressBenchmark method FQNs (JMH's filter is a substring/regex
-      # search), but not GoldenCorpusBenchmark - keeps this to the quick
+      # Anchored on the package-separator dot so `CompressBenchmark` doesn't
+      # also match `MultiThreadCompressBenchmark` (JMH's filter is a
+      # substring/regex search) - that class has no zstdJni/aircompressor
+      # peers, so it only pollutes the contestants table with empty cells.
+      # GoldenCorpusBenchmark stays excluded - keeps this to the quick
       # synthetic-payload suite, not the slower real-corpus one.
       - name: Build + run baseline benchmark
         shell: bash
         working-directory: baseline
         run: |
           ./mvnw -B -ntp -q -pl benchmark -am package -DskipTests
-          java -jar benchmark/target/benchmarks.jar ompressBenchmark \
+          java -jar benchmark/target/benchmarks.jar '\.CompressBenchmark\.' '\.DecompressBenchmark\.' \
             -f 1 -wi 2 -i 5 -p size=65536 -rf json -rff ../baseline-results.json
 
       - name: Build + run LTO-variant benchmark
@@ -77,10 +82,20 @@ jobs:
         working-directory: lto
         run: |
           ./mvnw -B -ntp -q -pl benchmark -am package -DskipTests
-          java -jar benchmark/target/benchmarks.jar ompressBenchmark \
+          java -jar benchmark/target/benchmarks.jar '\.CompressBenchmark\.' '\.DecompressBenchmark\.' \
             -f 1 -wi 2 -i 5 -p size=65536 -rf json -rff ../lto-results.json
 
-      - name: Summarize
+      - name: Report contestants (zstd-java vs zstd-jni vs aircompressor)
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### ${{ matrix.classifier }}"
+            echo
+            python3 baseline/.github/scripts/format-contestants.py baseline-results.json
+          } | tee contestants.md | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Report LTO impact (baseline vs variant)
         if: always()
         shell: bash
         run: |
@@ -100,6 +115,7 @@ jobs:
           path: |
             baseline-results.json
             lto-results.json
+            contestants.md
             comparison.md
           if-no-files-found: ignore
           retention-days: 30

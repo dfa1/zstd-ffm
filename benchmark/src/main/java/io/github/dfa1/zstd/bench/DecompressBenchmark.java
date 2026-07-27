@@ -85,6 +85,22 @@ public class DecompressBenchmark {
         return ffmCtx.decompress(dstSeg, frameSeg);
     }
 
+    // Fresh context per call (vs ffmCtx, reused above) isolates the native
+    // ZSTD_createDCtx/ZSTD_freeDCtx cost that context reuse avoids.
+    @Benchmark
+    public byte[] zstdJavaBytesFreshContext() {
+        try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
+            return ctx.decompress(frame, new ZstdByteSize(originalSize));
+        }
+    }
+
+    @Benchmark
+    public long zstdJavaSegmentFreshContext() {
+        try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
+            return ctx.decompress(dstSeg, frameSeg);
+        }
+    }
+
     @Benchmark
     public byte[] zstdJni() {
         return com.github.luben.zstd.Zstd.decompress(frame, originalSize);
