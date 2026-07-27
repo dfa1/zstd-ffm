@@ -3,6 +3,7 @@ package io.github.dfa1.zstd.bench;
 import io.github.dfa1.zstd.ZstdCompressStream;
 import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdEndDirective;
+import io.github.dfa1.zstd.ZstdOutputStream;
 import io.github.dfa1.zstd.ZstdStreamResult;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -39,9 +40,11 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 /// Whole-file compression: this library's `mmap` + `MemorySegment` path
-/// (with and without a `posix_madvise(WILLNEED)` readahead hint) against
-/// zstd-jni's classic `ZstdOutputStream` over a buffered `FileInputStream` —
-/// the comparison behind the numbers in `docs/zero-copy.md`.
+/// (with and without a `posix_madvise(WILLNEED)` readahead hint) against two
+/// conventional buffered-stream paths - this library's own [ZstdOutputStream]
+/// and zstd-jni's classic `ZstdOutputStream`, both over a buffered
+/// `FileInputStream` - the comparison behind the numbers in
+/// `docs/zero-copy.md`.
 ///
 /// Sizes run from 4 MiB up to 10 GiB, so each `@Benchmark` invocation is one
 /// full-file compression (seconds to tens of seconds), not a tight throughput
@@ -49,12 +52,12 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 /// counting iterations in a fixed window.
 ///
 /// The source file is generated once per size and cached under the system
-/// temp directory, reused across all three variants' trials rather than
+/// temp directory, reused across all four variants' trials rather than
 /// regenerated per (variant, size) — each variant's JMH fork otherwise
 /// rewrites an identical multi-gigabyte file for no reason. Only the timed
-/// compress-and-write work is measured. Both the mmap path and zstd-jni's
-/// stream path write their compressed output to a real file, matching real
-/// usage rather than discarding output to a null sink.
+/// compress-and-write work is measured. Every variant writes its compressed
+/// output to a real file, matching real usage rather than discarding output
+/// to a null sink.
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Thread)
@@ -103,6 +106,24 @@ public class LargeFileBenchmark {
     @Benchmark
     public long mmapWithAdvise() throws IOException {
         return mmapCompress(true);
+    }
+
+    // Same buffered-read/heap-write shape as zstdJniStream below, but through
+    // this library's own ZstdOutputStream - isolates the mmap+MemorySegment
+    // path's gain over our own conventional stream API, not just zstd-jni's.
+    @Benchmark
+    public long zstdJavaStream() throws IOException {
+        try (InputStream in = new BufferedInputStream(Files.newInputStream(sourceFile), CHUNK);
+             ZstdOutputStream out = new ZstdOutputStream(Files.newOutputStream(destFile), new ZstdCompressionLevel(level))) {
+            byte[] buffer = new byte[CHUNK];
+            long total = 0;
+            int n;
+            while ((n = in.read(buffer)) != -1) {
+                out.write(buffer, 0, n);
+                total += n;
+            }
+            return total;
+        }
     }
 
     @Benchmark
