@@ -235,7 +235,7 @@ class SmokeTest {
 
             dctx.reset(ZstdResetDirective.PARAMETERS);
             dctx.parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, 24);
-            byte[] restoredAfterReset = dctx.decompress(cctx.compress(original), original.length);
+            byte[] restoredAfterReset = dctx.decompress(cctx.compress(original), new ZstdByteSize(original.length));
             checkArrayEquals(original, restoredAfterReset, "decompress after PARAMETERS reset + parameter() mismatch");
         }
     }

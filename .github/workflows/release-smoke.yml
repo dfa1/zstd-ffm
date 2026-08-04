@@ -3,7 +3,8 @@ name: Release smoke test
 # Verifies a PUBLISHED release on Maven Central actually loads and runs on every
 # supported OS/arch — one runner per native classifier. Pulls the release jars
 # from Central (no source build, no submodule, no zig), so it tests exactly what
-# users consume. Trigger manually and pass the version to check.
+# users consume. Runs automatically after every publish (see #107), weekly as a
+# standing check, and can also be triggered manually with an explicit version.
 
 on:
   workflow_dispatch:
@@ -12,6 +13,9 @@ on:
         description: Version to smoke-test. Leave blank to use the latest release on Maven Central.
         required: false
         default: ""
+  workflow_run:
+    workflows: ["Publish to Maven Central"]
+    types: [completed]
   schedule:
     # Weekly, Mondays 06:00 UTC. No input on scheduled runs, so the resolve job
     # picks the latest release on Maven Central — catches Central / runner-image
@@ -21,11 +25,19 @@ on:
 jobs:
   resolve:
     name: resolve version
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
       version: ${{ steps.pick.outputs.version }}
     steps:
+      # Central sync isn't instantaneous after the publish job finishes, so a
+      # run triggered right after a publish gives it a few minutes before
+      # asking maven-metadata.xml for the "latest" release below.
+      - name: Wait for Maven Central sync
+        if: ${{ github.event_name == 'workflow_run' }}
+        run: sleep 300
+
       - name: Resolve version (input, else latest on Maven Central)
         id: pick
         shell: bash
