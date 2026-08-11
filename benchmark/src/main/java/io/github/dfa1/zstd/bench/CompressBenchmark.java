@@ -88,6 +88,22 @@ public class CompressBenchmark {
         return ffmCtx.compress(dstSeg, srcSeg);
     }
 
+    // Fresh context per call (vs ffmCtx, reused above) isolates the native
+    // ZSTD_createCCtx/ZSTD_freeCCtx cost that context reuse avoids.
+    @Benchmark
+    public byte[] zstdJavaBytesFreshContext() {
+        try (ZstdCompressContext ctx = new ZstdCompressContext().level(new ZstdCompressionLevel(level))) {
+            return ctx.compress(src);
+        }
+    }
+
+    @Benchmark
+    public long zstdJavaSegmentFreshContext() {
+        try (ZstdCompressContext ctx = new ZstdCompressContext().level(new ZstdCompressionLevel(level))) {
+            return ctx.compress(dstSeg, srcSeg);
+        }
+    }
+
     @Benchmark
     public byte[] zstdJni() {
         return com.github.luben.zstd.Zstd.compress(src, level);
