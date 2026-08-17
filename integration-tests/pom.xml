@@ -18,7 +18,7 @@
 		module, which stays dependency-free. Not published.
 	-->
 	<properties>
-		<zstd-jni.version>1.5.7-12</zstd-jni.version>
+		<zstd-jni.version>1.5.7-13</zstd-jni.version>
 		<maven.deploy.skip>true</maven.deploy.skip>
 	</properties>
 
