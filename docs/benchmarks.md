@@ -1,13 +1,13 @@
 # Benchmarks
 
-JMH microbenchmarks comparing **zstd-java** against the common JVM zstd options,
+JMH microbenchmarks comparing **zstd-ffm** against the common JVM zstd options,
 in both heap (`byte[]`) and zero-copy (`MemorySegment`) modes. Source lives in
 the [`benchmark/`](../benchmark) module; see its
 [README](../benchmark/README.md) to reproduce.
 
 | Contestant | Binding | Modes |
 |------------|---------|-------|
-| **zstd-java** (this project) | FFM (no JNI) | `byte[]` and zero-copy `MemorySegment` |
+| **zstd-ffm** (this project) | FFM (no JNI) | `byte[]` and zero-copy `MemorySegment` |
 | **zstd-jni** (`com.github.luben`) | JNI | `byte[]` **and** zero-copy direct `ByteBuffer` |
 | **aircompressor** (`io.airlift:aircompressor-v3`) | pure Java | caller-buffer `byte[]` |
 

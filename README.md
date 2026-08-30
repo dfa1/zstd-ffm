@@ -1,14 +1,14 @@
-# zstd-java
+# zstd-ffm
 
-[![CI](https://github.com/dfa1/zstd-java/actions/workflows/ci.yml/badge.svg)](https://github.com/dfa1/zstd-java/actions/workflows/ci.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dfa1_zstd-java&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dfa1_zstd-java)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dfa1_zstd-java&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dfa1_zstd-java)
+[![CI](https://github.com/dfa1/zstd-ffm/actions/workflows/ci.yml/badge.svg)](https://github.com/dfa1/zstd-ffm/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dfa1_zstd-ffm&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dfa1_zstd-ffm)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dfa1_zstd-ffm&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dfa1_zstd-ffm)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.dfa1.zstd/zstd.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.dfa1.zstd/zstd)
 ![zstd](https://img.shields.io/badge/zstd-1.5.7-green.svg)
 ![Java](https://img.shields.io/badge/Java-25%2B-orange.svg)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 
-**zstd-java** is an **FFM-based alternative to the excellent
+**zstd-ffm** is an **FFM-based alternative to the excellent
 [zstd-jni](https://github.com/luben/zstd-jni)** for early adopters on **JDK 25+**.
 It wraps [Zstandard](https://github.com/facebook/zstd) through the **Foreign
 Function & Memory (FFM) API** — no JNI, no `sun.misc.Unsafe`, no hand-written C
@@ -80,7 +80,7 @@ linking the same zstd 1.5.7). Full methodology and tables in
 **Best vs best** — our zero-copy `MemorySegment` path vs **zstd-jni's own**
 zero-copy direct-`ByteBuffer` path (golden-corpus fixtures, publication-grade run):
 
-| operation (payload) | zstd-java `MemorySegment` | zstd-jni `ByteBuffer` | edge |
+| operation (payload) | zstd-ffm `MemorySegment` | zstd-jni `ByteBuffer` | edge |
 |---|---:|---:|---:|
 | compress `http` (1.2 KiB) | **353.6** | 322.1 | +9.8% |
 | decompress `http` | **922.7** | 750.8 | +22.9% |

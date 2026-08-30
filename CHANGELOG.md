@@ -6,6 +6,11 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+- Project renamed `zstd-java` → `zstd-ffm` (GitHub repo, parent POM
+  `artifactId`, SonarCloud project key). Published Maven coordinates
+  (`io.github.dfa1.zstd:zstd`, `:zstd-platform`, `:bom`, native classifiers)
+  are unaffected — only the internal parent-aggregator `artifactId` changed.
+
 ## [0.12] - 2026-07-26
 
 This cycle completes a sweep replacing naked primitives at the public API with
@@ -101,7 +106,7 @@ first line of defense — is laid out in
   `ZstdDecompressStream`/`ZstdCompressDictionary`/`ZstdDecompressDictionary`.
   Use `new ZstdByteSize(n)`, or `ZstdByteSize.ofKiB(n)`/`ofMiB(n)` for a size
   expressed in KiB/MiB.
-  ([#96](https://github.com/dfa1/zstd-java/issues/96))
+  ([#96](https://github.com/dfa1/zstd-ffm/issues/96))
 - **Breaking:** every public API that took a raw `int` compression level now
   takes a `ZstdCompressionLevel` value type, which validates the level against
   the linked libzstd's accepted range at construction (throwing
@@ -112,7 +117,7 @@ first line of defense — is laid out in
   `ZstdDictionary.compressDict`/`trainCover`/`trainFastCover`/`finalizeFrom`.
   Use `new ZstdCompressionLevel(19)` or the `DEFAULT`/`FASTEST`/`MAX` constants.
   The `Zstd.min/max/defaultCompressionLevel()` bound queries still return `int`.
-  ([#93](https://github.com/dfa1/zstd-java/issues/93))
+  ([#93](https://github.com/dfa1/zstd-ffm/issues/93))
 
 ## [0.10] - 2026-07-18
 
@@ -126,7 +131,7 @@ first line of defense — is laid out in
   not release them, so give such contexts a dedicated owner (never pool
   them). See [ADR 0015](adr/0015-enable-zstd-multithread.md), which
   supersedes ADR 0014.
-  ([#80](https://github.com/dfa1/zstd-java/issues/80))
+  ([#80](https://github.com/dfa1/zstd-ffm/issues/80))
 
 ## [0.9] - 2026-07-18
 
@@ -135,7 +140,7 @@ first line of defense — is laid out in
   (`ZSTD_LEGACY_SUPPORT=4`, matching zstd-jni's default). v0.1-v0.3 stay
   unsupported — they predate zstd's 1.0 stabilization and are essentially
   never seen in practice. Verified against a real fixture of five concatenated
-  legacy frames extracted from zstd's own test suite. ([#73](https://github.com/dfa1/zstd-java/pull/73))
+  legacy frames extracted from zstd's own test suite. ([#73](https://github.com/dfa1/zstd-ffm/pull/73))
 
 ### Changed
 - `linux-x86_64`/`osx-x86_64`/`windows-x86_64` native builds now include
@@ -143,24 +148,24 @@ first line of defense — is laid out in
   is a no-op on non-x86_64 targets and only activates via zstd's own runtime
   CPU detection; benchmarked as throughput-neutral on this project's
   synthetic workload but carries no measured downside either.
-  ([#71](https://github.com/dfa1/zstd-java/pull/71))
+  ([#71](https://github.com/dfa1/zstd-ffm/pull/71))
 - `aarch64` native builds now target an ARMv8-A + CRC baseline
   (`-mcpu=generic+crc`, zig's spelling of `-march=armv8-a+crc`), instead of
   the fully generic baseline. Measured +6.9% compress / +12-14% decompress
-  throughput on Apple Silicon. ([#71](https://github.com/dfa1/zstd-java/pull/71))
+  throughput on Apple Silicon. ([#71](https://github.com/dfa1/zstd-ffm/pull/71))
 
 ### Security
 - `linux-x86_64`/`linux-aarch64` native builds now link with full RELRO and
   immediate binding (`-Wl,-z,relro,-z,now`), closing off the classic
   GOT-overwrite exploit primitive. Verified with `llvm-readelf`.
-  ([#71](https://github.com/dfa1/zstd-java/pull/71))
+  ([#71](https://github.com/dfa1/zstd-ffm/pull/71))
 - `windows-x86_64`/`windows-aarch64` native builds now export only zstd's
   public API (`ZSTD_*`/`ZDICT_*`) from the DLL, via `-DZSTD_DLL_EXPORT=1`
   (the PE analogue of the `-fvisibility=hidden` surface already used on
   ELF/Mach-O), instead of dumping every internal symbol
   (`FSE_*`/`HUF_*`/`COVER_*`/...) into the export table via
   `--export-all-symbols`. Cut the windows-x86_64 export table from 576 to
-  185 symbols. ([#79](https://github.com/dfa1/zstd-java/pull/79))
+  185 symbols. ([#79](https://github.com/dfa1/zstd-ffm/pull/79))
 
 ### Fixed
 - Building the native library from source on Windows was silently broken:
@@ -168,20 +173,20 @@ first line of defense — is laid out in
   works via a shebang on macOS/Linux. Windows builds now invoke it through
   `bash` explicitly. A second latent bug this surfaced — unrecognized/Windows
   host OS detection crashed the build script under `set -u` — is fixed
-  alongside it. ([#75](https://github.com/dfa1/zstd-java/pull/75))
+  alongside it. ([#75](https://github.com/dfa1/zstd-ffm/pull/75))
 - Native library compilation now runs every translation unit through a real
   parallel work queue (`xargs -P`) instead of a fixed-size batch-then-wait
   loop, and aborts immediately if any `zig cc` invocation fails. Previously a
   failed compile under `&`/`wait` was invisible to `set -e` — it could
   silently produce no `.o` and only surface later as a cryptic link error, or
   worse, a link that "succeeded" against a stale `.o` left over from a
-  previous run. ([#78](https://github.com/dfa1/zstd-java/pull/78))
+  previous run. ([#78](https://github.com/dfa1/zstd-ffm/pull/78))
 
 Investigated and **rejected** as part of the same effort (see
-[#70](https://github.com/dfa1/zstd-java/issues/70) for full benchmark data):
+[#70](https://github.com/dfa1/zstd-ffm/issues/70) for full benchmark data):
 LTO (real compress regression on x86_64, unsupported on macOS entirely — zig's
 Mach-O linker has no LTO support, tracked in
-[#77](https://github.com/dfa1/zstd-java/issues/77)) and an `x86-64-v3`
+[#77](https://github.com/dfa1/zstd-ffm/issues/77)) and an `x86-64-v3`
 baseline (mixed result, hurts compress more than it helps decompress). Both
 would have traded away this project's existing compress-side edge over
 zstd-jni for a smaller decompress-side gain.
@@ -255,7 +260,7 @@ zstd-jni for a smaller decompress-side gain.
   it. `SESSION_ONLY` keeps the level, parameters, and dictionary; `PARAMETERS` /
   `SESSION_AND_PARAMETERS` restore the defaults. Binds `ZSTD_CCtx_reset` /
   `ZSTD_DCtx_reset`.
-  ([3dfd5b8](https://github.com/dfa1/zstd-java/commit/3dfd5b8))
+  ([3dfd5b8](https://github.com/dfa1/zstd-ffm/commit/3dfd5b8))
 - `ZstdCompressCtx.loadDictionary(...)` / `ZstdDecompressCtx.loadDictionary(...)`
   (a `ZstdDictionary` or a native `MemorySegment`) and `refDictionary(...)` (a
   pre-digested `ZstdCompressDict` / `ZstdDecompressDict`, attached by reference,
@@ -265,14 +270,14 @@ zstd-jni for a smaller decompress-side gain.
   which route the legacy dictionary path. A parameter `reset(...)` clears it.
   Binds `ZSTD_CCtx_loadDictionary` / `ZSTD_DCtx_loadDictionary` (now on contexts,
   not just streams), `ZSTD_CCtx_refCDict`, `ZSTD_DCtx_refDDict`.
-  ([3dfd5b8](https://github.com/dfa1/zstd-java/commit/3dfd5b8))
+  ([3dfd5b8](https://github.com/dfa1/zstd-ffm/commit/3dfd5b8))
 
 ### Changed
 - `NativeLibrary.classifier()` now throws a clear `UnsatisfiedLinkError` naming
   the unsupported CPU arch instead of silently mapping it to x86_64 (which
   deferred failure to a cryptic `dlopen` error). Added an explicit `amd64`
   branch so Linux JVMs (which report `os.arch=amd64`) still resolve x86_64.
-  ([ea1ac84](https://github.com/dfa1/zstd-java/commit/ea1ac84))
+  ([ea1ac84](https://github.com/dfa1/zstd-ffm/commit/ea1ac84))
 
 ### Fixed
 - Native JARs are much smaller. The ELF shared library is now stripped at link
@@ -280,7 +285,7 @@ zstd-jni for a smaller decompress-side gain.
   multi-MB `.pdb` debug database and `.lib` import library that lld emits next
   to the Windows `.dll` are no longer bundled (neither is needed at runtime).
   Net: linux-x86_64 native jar 1.2M -> 285K, windows-x86_64 1.2M -> 372K.
-  ([ea1ac84](https://github.com/dfa1/zstd-java/commit/ea1ac84))
+  ([ea1ac84](https://github.com/dfa1/zstd-ffm/commit/ea1ac84))
 
 ## [0.4]
 
@@ -310,14 +315,14 @@ zstd-jni for a smaller decompress-side gain.
 
 ## [0.3]
 
-- [`zstd-platform` is now an empty convenience jar (not a `pom`)](https://github.com/dfa1/zstd-java/commit/ba5593a)
-- [Bundled-only native loader; fix Sonar vulnerability + bug](https://github.com/dfa1/zstd-java/commit/8d0ea6a)
-- [`ByteBuffer` interop + pledged-size zero-copy decode](https://github.com/dfa1/zstd-java/commit/8bfe272)
+- [`zstd-platform` is now an empty convenience jar (not a `pom`)](https://github.com/dfa1/zstd-ffm/commit/ba5593a)
+- [Bundled-only native loader; fix Sonar vulnerability + bug](https://github.com/dfa1/zstd-ffm/commit/8d0ea6a)
+- [`ByteBuffer` interop + pledged-size zero-copy decode](https://github.com/dfa1/zstd-ffm/commit/8bfe272)
 
 ## [0.2]
 
-- [`zstd-platform` aggregator; off-heap `MemorySegment` dictionary constructors](https://github.com/dfa1/zstd-java/releases/tag/v0.2)
+- [`zstd-platform` aggregator; off-heap `MemorySegment` dictionary constructors](https://github.com/dfa1/zstd-ffm/releases/tag/v0.2)
 
 ## [0.1]
 
-- [First release: JDK 25 FFM bindings for Zstandard 1.5.7, built with `zig cc`](https://github.com/dfa1/zstd-java/releases/tag/v0.1)
+- [First release: JDK 25 FFM bindings for Zstandard 1.5.7, built with `zig cc`](https://github.com/dfa1/zstd-ffm/releases/tag/v0.1)

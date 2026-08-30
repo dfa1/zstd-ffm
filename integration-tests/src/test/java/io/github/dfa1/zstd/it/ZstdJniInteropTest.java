@@ -33,7 +33,7 @@ import static io.github.dfa1.zstd.it.ItTestSupport.random;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /// Format-compatibility tests: frames produced by the reference zstd-jni binding
-/// must decode with zstd-java and vice versa. zstd-jni bundles a different zstd
+/// must decode with zstd-ffm and vice versa. zstd-jni bundles a different zstd
 /// version (1.5.x) than this library (1.6.0); the frame format is compatible, so
 /// these prove real interop, not just internal round-trips.
 class ZstdJniInteropTest {

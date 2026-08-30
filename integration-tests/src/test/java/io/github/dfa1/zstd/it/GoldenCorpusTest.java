@@ -99,7 +99,7 @@ class GoldenCorpusTest {
         }
     }
 
-    /// Valid frames the C project guarantees decode. Decode with both zstd-java
+    /// Valid frames the C project guarantees decode. Decode with both zstd-ffm
     /// and the zstd-jni reference; both must succeed and agree byte-for-byte.
     @Nested
     class GoldenDecompression {
@@ -158,7 +158,7 @@ class GoldenCorpusTest {
         }
     }
 
-    /// Malformed frames the C project guarantees fail to decode. zstd-java must
+    /// Malformed frames the C project guarantees fail to decode. zstd-ffm must
     /// reject every one rather than return garbage.
     @Nested
     class GoldenDecompressionErrors {

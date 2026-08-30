@@ -12,7 +12,7 @@ punish a codec unfairly.
 
 ## Decision
 
-Benchmarks live in the `benchmark/` module (JMH), comparing zstd-java
+Benchmarks live in the `benchmark/` module (JMH), comparing zstd-ffm
 (`byte[]` and `MemorySegment`) against `zstd-jni` (JNI) and aircompressor
 (pure Java), on both throughput and allocation (`gc.alloc.rate.norm`).
 

@@ -3,7 +3,7 @@ name: Benchmark
 # Manual, exploratory, on every runner OS the repo supports. Not part of
 # ci.yml: JMH runs are too slow to gate every push/PR.
 #
-# Reports zstd-java (byte[] and MemorySegment) against zstd-jni and
+# Reports zstd-ffm (byte[] and MemorySegment) against zstd-jni and
 # aircompressor on identical input, plus reused-vs-fresh-per-call native
 # context overhead - the "is this library actually fast" evidence.
 #
@@ -58,7 +58,7 @@ jobs:
           java -jar benchmark/target/benchmarks.jar '\.CompressBenchmark\.' '\.DecompressBenchmark\.' \
             -f 1 -wi 2 -i 5 -p size=65536 -rf json -rff results.json
 
-      - name: Report contestants (zstd-java vs zstd-jni vs aircompressor)
+      - name: Report contestants (zstd-ffm vs zstd-jni vs aircompressor)
         if: always()
         shell: bash
         run: |

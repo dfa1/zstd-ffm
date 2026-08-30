@@ -5,7 +5,7 @@ round-trip.
 
 ## 1. Add the dependency
 
-zstd-java is on Maven Central. The `zstd` jar is pure Java and ships no `libzstd`
+zstd-ffm is on Maven Central. The `zstd` jar is pure Java and ships no `libzstd`
 itself — you also need a native artifact. Simplest: depend on `zstd-platform`,
 which bundles the bindings plus every platform's native library, so the build
 runs on any OS/arch:

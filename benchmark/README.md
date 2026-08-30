@@ -1,11 +1,11 @@
-# zstd-java benchmarks
+# zstd-ffm benchmarks
 
-JMH microbenchmarks comparing **zstd-java** against the two common JVM zstd
+JMH microbenchmarks comparing **zstd-ffm** against the two common JVM zstd
 options:
 
 | Contestant | Binding | Modes benchmarked |
 |------------|---------|-------------------|
-| **zstd-java** (this project) | FFM (no JNI) | `byte[]` and zero-copy `MemorySegment` |
+| **zstd-ffm** (this project) | FFM (no JNI) | `byte[]` and zero-copy `MemorySegment` |
 | **zstd-jni** (`com.github.luben`) | JNI | `byte[]` |
 | **aircompressor** (`io.airlift:aircompressor-v3`) | pure Java | `byte[]` |
 

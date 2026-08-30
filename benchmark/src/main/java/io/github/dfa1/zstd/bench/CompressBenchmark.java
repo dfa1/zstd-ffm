@@ -24,7 +24,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
-/// Compression throughput: zstd-java in heap (`byte[]`) and zero-copy
+/// Compression throughput: zstd-ffm in heap (`byte[]`) and zero-copy
 /// (`MemorySegment`) modes, against zstd-jni (JNI) and aircompressor (pure Java).
 ///
 /// The `MemorySegment` path is the one expected to win: input and output are

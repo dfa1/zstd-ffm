@@ -4,14 +4,14 @@
 
 	<parent>
 		<groupId>io.github.dfa1.zstd</groupId>
-		<artifactId>zstd-java</artifactId>
+		<artifactId>zstd-ffm</artifactId>
 		<version>0.12</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<artifactId>zstd-platform</artifactId>
 	<name>zstd-platform</name>
-	<description>zstd-java bindings bundled with every platform's native library</description>
+	<description>zstd-ffm bindings bundled with every platform's native library</description>
 	<!-- Empty convenience jar (no sources of its own): a single, ordinary jar
 	     dependency that transitively pulls everything. jar packaging (not pom) so
 	     clients can add it like any normal artifact. -->

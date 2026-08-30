@@ -120,7 +120,7 @@ final class NativeLibrary {
             archPart = "x86_64";
         } else {
             throw new UnsatisfiedLinkError(
-                    "Unsupported CPU architecture '" + arch + "'; zstd-java ships native libraries "
+                    "Unsupported CPU architecture '" + arch + "'; zstd-ffm ships native libraries "
                             + "only for x86_64 and aarch64");
         }
         return osPart + "-" + archPart;

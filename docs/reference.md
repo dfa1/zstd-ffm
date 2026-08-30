@@ -48,8 +48,8 @@ module and the descriptor is ignored). See
 Requires JDK 25+, Maven, and [Zig](https://ziglang.org/) on `PATH`.
 
 ```bash
-git clone --recurse-submodules https://github.com/dfa1/zstd-java.git
-cd zstd-java
+git clone --recurse-submodules https://github.com/dfa1/zstd-ffm.git
+cd zstd-ffm
 mvn test
 ```
 

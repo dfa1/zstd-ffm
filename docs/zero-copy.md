@@ -1,6 +1,6 @@
 # Zero-copy with `MemorySegment`
 
-zstd-java exposes two shapes of API:
+zstd-ffm exposes two shapes of API:
 
 - **`byte[]`** — convenient, for callers whose data is already on the heap.
 - **`MemorySegment`** — zero-copy *at the call boundary*, for callers whose data

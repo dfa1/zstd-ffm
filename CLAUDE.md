@@ -1,4 +1,4 @@
-# zstd-java
+# zstd-ffm
 
 Java **Foreign Function & Memory (FFM)** bindings for [Zstandard](https://github.com/facebook/zstd).
 No JNI, no hand-written C. Targets **JDK 25+** (stable `java.lang.foreign`).

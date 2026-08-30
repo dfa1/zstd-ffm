@@ -44,7 +44,7 @@ import java.util.List;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
-/// Smoke test for a published zstd-java release: proves the bundled native
+/// Smoke test for a published zstd-ffm release: proves the bundled native
 /// library loads and links correctly on the host OS/arch/libc, and that
 /// off-heap `MemorySegment` interop and native struct layouts (streaming
 /// buffers, frame progression) work there.

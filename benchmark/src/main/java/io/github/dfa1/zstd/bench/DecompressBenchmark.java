@@ -23,10 +23,10 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
-/// Decompression throughput: zstd-java in heap (`byte[]`) and zero-copy
+/// Decompression throughput: zstd-ffm in heap (`byte[]`) and zero-copy
 /// (`MemorySegment`) modes, against zstd-jni (JNI) and aircompressor (pure Java).
 ///
-/// Frames are produced once at setup with zstd-java (they carry the decompressed
+/// Frames are produced once at setup with zstd-ffm (they carry the decompressed
 /// size, which every decoder here relies on for output sizing).
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

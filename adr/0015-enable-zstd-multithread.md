@@ -85,7 +85,7 @@ compression is only for dedicated, caller-owned contexts —
   (`Smoke.multiThreadRoundTrip`), not by PR CI.
 - ~~Streaming classes (`ZstdCompressStream`, `ZstdOutputStream`) have no
   parameter setter, so MT is one-shot-only today; tracked as a follow-up.~~
-  Resolved by [issue #82](https://github.com/dfa1/zstd-java/issues/82): both
+  Resolved by [issue #82](https://github.com/dfa1/zstd-ffm/issues/82): both
   classes now expose `parameter(ZstdCompressParameter, int)`, set once right
   after construction and before the first `compress`/`write` call — the same
   lifecycle constraint above applies, since the streams already own their
@@ -101,7 +101,7 @@ compression is only for dedicated, caller-owned contexts —
 
 ## References
 
-- [Issue #80](https://github.com/dfa1/zstd-java/issues/80)
+- [Issue #80](https://github.com/dfa1/zstd-ffm/issues/80)
 - [ADR 0014 — single-threaded native build](0014-single-threaded-native-build.md) (superseded)
 - [ADR 0010 — native-context pool](0010-native-context-pool.md) (amended)
 - [scripts/build-zstd.sh](../scripts/build-zstd.sh)

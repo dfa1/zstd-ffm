@@ -4,7 +4,7 @@
 
 	<parent>
 		<groupId>io.github.dfa1.zstd</groupId>
-		<artifactId>zstd-java</artifactId>
+		<artifactId>zstd-ffm</artifactId>
 		<version>0.12</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
@@ -14,7 +14,7 @@
 	<packaging>jar</packaging>
 
 	<description>
-		JMH microbenchmarks: zstd-java (byte[] vs MemorySegment) against zstd-jni
+		JMH microbenchmarks: zstd-ffm (byte[] vs MemorySegment) against zstd-jni
 		(JNI) and aircompressor (pure Java). Not published; not part of a release.
 	</description>
 

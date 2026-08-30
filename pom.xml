@@ -3,13 +3,13 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>io.github.dfa1.zstd</groupId>
-	<artifactId>zstd-java</artifactId>
+	<artifactId>zstd-ffm</artifactId>
 	<version>0.12</version>
 	<packaging>pom</packaging>
 
-	<name>zstd-java</name>
+	<name>zstd-ffm</name>
 	<description>Java FFM (Foreign Function &amp; Memory) bindings for zstd</description>
-	<url>https://github.com/dfa1/zstd-java</url>
+	<url>https://github.com/dfa1/zstd-ffm</url>
 
 	<licenses>
 		<license>
@@ -28,9 +28,9 @@
 	</developers>
 
 	<scm>
-		<connection>scm:git:https://github.com/dfa1/zstd-java.git</connection>
-		<developerConnection>scm:git:git@github.com:dfa1/zstd-java.git</developerConnection>
-		<url>https://github.com/dfa1/zstd-java</url>
+		<connection>scm:git:https://github.com/dfa1/zstd-ffm.git</connection>
+		<developerConnection>scm:git:git@github.com:dfa1/zstd-ffm.git</developerConnection>
+		<url>https://github.com/dfa1/zstd-ffm</url>
 		<tag>HEAD</tag>
 	</scm>
 
@@ -64,7 +64,7 @@
 		<!-- SonarCloud analysis (.github/workflows/sonar.yml). -->
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
 		<sonar.organization>dfa11</sonar.organization>
-		<sonar.projectKey>dfa1_zstd-java</sonar.projectKey>
+		<sonar.projectKey>dfa1_zstd-ffm</sonar.projectKey>
 		<!-- The benchmark module is a JMH harness, not shipped runtime: its
 		     @Setup/@TearDown lifecycle trips false "resource not closed" reports and
 		     it has no tests by design. Exclude from analysis entirely (which also

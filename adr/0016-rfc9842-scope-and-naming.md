@@ -11,8 +11,8 @@
 [RFC 9842](https://datatracker.ietf.org/doc/rfc9842/) (Compression Dictionary
 Transport) defines dictionary-based HTTP compression. It splits cleanly into
 two independent layers, tracked in
-[#91](https://github.com/dfa1/zstd-java/issues/91) and
-[#92](https://github.com/dfa1/zstd-java/issues/92):
+[#91](https://github.com/dfa1/zstd-ffm/issues/91) and
+[#92](https://github.com/dfa1/zstd-ffm/issues/92):
 
 1. **Wire format** — `dcz` (and Brotli's `dcb`, out of scope here): a 40-byte
    fixed header (an 8-byte Zstandard skippable-frame magic + a 32-byte SHA-256
@@ -88,5 +88,5 @@ converging here.
 ## References
 
 - [RFC 9842 — Compression Dictionary Transport](https://datatracker.ietf.org/doc/rfc9842/)
-- [#91 — `dcz` wire format](https://github.com/dfa1/zstd-java/issues/91)
-- [#92 — Framework-agnostic model layer](https://github.com/dfa1/zstd-java/issues/92)
+- [#91 — `dcz` wire format](https://github.com/dfa1/zstd-ffm/issues/91)
+- [#92 — Framework-agnostic model layer](https://github.com/dfa1/zstd-ffm/issues/92)
