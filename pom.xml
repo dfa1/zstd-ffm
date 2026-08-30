@@ -64,7 +64,7 @@
 		<!-- SonarCloud analysis (.github/workflows/sonar.yml). -->
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
 		<sonar.organization>dfa11</sonar.organization>
-		<sonar.projectKey>dfa1_zstd-ffm</sonar.projectKey>
+		<sonar.projectKey>dfa1_zstd-java</sonar.projectKey>
 		<!-- The benchmark module is a JMH harness, not shipped runtime: its
 		     @Setup/@TearDown lifecycle trips false "resource not closed" reports and
 		     it has no tests by design. Exclude from analysis entirely (which also
