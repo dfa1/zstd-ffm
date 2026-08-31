@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
+import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -58,13 +59,34 @@ class ZstdParameterTest {
     class Ratio {
 
         @Test
-        void longDistanceMatchingRoundTrips() {
-            byte[] frame;
-            try (ZstdCompressContext ctx =
-                         new ZstdCompressContext().level(new ZstdCompressionLevel(3)).longDistanceMatching(true)) {
-                frame = ctx.compress(PAYLOAD);
+        void longDistanceMatchingFindsAMatchTheDefaultSearchMisses() {
+            // Given a 1 MiB block repeated after 8 MiB of unrelated filler — far
+            // enough back that FASTEST's normal hash table has long since been
+            // overwritten by the filler, so only LDM's separate long-range index
+            // can still find the repeat.
+            byte[] block = randomBytes(0x1D, 1 << 20);
+            byte[] filler = randomBytes(0x2D, 1 << 23);
+            byte[] data = new byte[block.length + filler.length + block.length];
+            System.arraycopy(block, 0, data, 0, block.length);
+            System.arraycopy(filler, 0, data, block.length, filler.length);
+            System.arraycopy(block, 0, data, block.length + filler.length, block.length);
+
+            byte[] withoutLdm;
+            try (ZstdCompressContext ctx = new ZstdCompressContext().level(ZstdCompressionLevel.FASTEST)) {
+                withoutLdm = ctx.compress(data);
             }
-            assertThat(Zstd.decompress(frame)).isEqualTo(PAYLOAD);
+            byte[] withLdm;
+            try (ZstdCompressContext ctx =
+                         new ZstdCompressContext().level(ZstdCompressionLevel.FASTEST).longDistanceMatching(true)) {
+                withLdm = ctx.compress(data);
+            }
+
+            // Then LDM recovers the repeated block the default search missed,
+            // shrinking the frame by roughly its size — proving the parameter
+            // actually reached the encoder rather than being a silent no-op —
+            // and the frame still decodes back to the original bytes
+            assertThat(withLdm.length).isLessThan(withoutLdm.length - block.length / 2);
+            assertThat(Zstd.decompress(withLdm)).isEqualTo(data);
         }
 
         @Test

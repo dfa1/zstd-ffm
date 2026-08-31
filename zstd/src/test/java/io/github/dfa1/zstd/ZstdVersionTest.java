@@ -64,5 +64,17 @@ class ZstdVersionTest {
             // Then it is rejected
             assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
         }
+
+        @Test
+        void acceptsZeroComponents() {
+            // Given every component at its lower boundary
+            // When wrapped
+            ZstdVersion sut = new ZstdVersion(0, 0, 0);
+
+            // Then zero is accepted, not rejected as if it were negative
+            assertThat(sut.major()).isZero();
+            assertThat(sut.minor()).isZero();
+            assertThat(sut.patch()).isZero();
+        }
     }
 }

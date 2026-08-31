@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -41,6 +43,45 @@ class ZstdByteSizeTest {
             assertThatThrownBy(result)
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining(String.valueOf(value));
+        }
+    }
+
+    @Nested
+    class FromUnsignedFrameHeaderField {
+
+        @Test
+        void wrapsZeroAsAPresentSize() {
+            // Given the frame header field reading zero (a legitimate empty size,
+            // not the "not stored" sentinel)
+
+            // When decoded
+            Optional<ZstdByteSize> result = ZstdByteSize.fromUnsignedFrameHeaderField(0L);
+
+            // Then it is present with value zero
+            assertThat(result).contains(new ZstdByteSize(0L));
+        }
+
+        @Test
+        void wrapsAPositiveValue() {
+            // Given an in-range positive field reading
+            // When decoded
+            Optional<ZstdByteSize> result = ZstdByteSize.fromUnsignedFrameHeaderField(1024L);
+
+            // Then it is present with that value
+            assertThat(result).contains(new ZstdByteSize(1024L));
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {-1L, Long.MIN_VALUE})
+        void isEmptyForAnUnrepresentableValue(long raw) {
+            // Given a field reading that wraps negative as a signed long (an
+            // unsigned value at or above 2^63)
+
+            // When decoded
+            Optional<ZstdByteSize> result = ZstdByteSize.fromUnsignedFrameHeaderField(raw);
+
+            // Then no representable size is reported
+            assertThat(result).isEmpty();
         }
     }
 

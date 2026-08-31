@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -13,6 +14,7 @@ import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.segmentOf;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ZstdSegmentStreamTest {
 
@@ -110,6 +112,34 @@ class ZstdSegmentStreamTest {
                 assertThat(p.ingested()).isEqualTo(original.length);
                 assertThat(p.flushed()).isEqualTo(r.bytesProduced());
                 assertThat(p.activeWorkers()).isZero(); // no workers configured
+            }
+        }
+    }
+
+    @Nested
+    class Parameters {
+
+        @Test
+        void returnsTheSameStreamForChaining() {
+            // Given a fresh compress stream
+            try (ZstdCompressStream cs = new ZstdCompressStream()) {
+                // When setting an advanced parameter
+                ZstdCompressStream result = cs.parameter(ZstdCompressParameter.CHECKSUM_FLAG, 1);
+
+                // Then it returns the same instance, for chaining
+                assertThat(result).isSameAs(cs);
+            }
+        }
+
+        @Test
+        void rejectsOutOfRangeValue() {
+            // Given a fresh compress stream
+            try (ZstdCompressStream cs = new ZstdCompressStream()) {
+                // When setting an absurd window log
+                ThrowingCallable result = () -> cs.parameter(ZstdCompressParameter.WINDOW_LOG, 99);
+
+                // Then it is rejected natively
+                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
             }
         }
     }

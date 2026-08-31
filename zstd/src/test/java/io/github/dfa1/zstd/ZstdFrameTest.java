@@ -401,6 +401,20 @@ class ZstdFrameTest {
                     .hasSameHashCodeAs(b)
                     .hasToString("ZstdSkippableContent[content=4 bytes, magicVariant=3]");
         }
+
+        @Test
+        void hashCodeMatchesTheDocumentedFormula() {
+            // Given content bytes and a variant
+            byte[] contentBytes = "meta".getBytes(StandardCharsets.UTF_8);
+            ZstdMagicVariant variant = new ZstdMagicVariant(3);
+            ZstdSkippableContent sut = new ZstdSkippableContent(contentBytes, variant);
+
+            // When hashed
+            int hash = sut.hashCode();
+
+            // Then it matches 31 * Arrays.hashCode(content) + magicVariant.hashCode()
+            assertThat(hash).isEqualTo(31 * Arrays.hashCode(contentBytes) + variant.hashCode());
+        }
     }
 
     @Nested

@@ -286,6 +286,34 @@ class ZstdStreamTest {
     }
 
     @Nested
+    class Parameters {
+
+        @Test
+        void returnsTheSameStreamForChaining() throws IOException {
+            // Given a fresh output stream
+            try (ZstdOutputStream zout = new ZstdOutputStream(new ByteArrayOutputStream())) {
+                // When setting an advanced parameter
+                ZstdOutputStream result = zout.parameter(ZstdCompressParameter.CHECKSUM_FLAG, 1);
+
+                // Then it returns the same instance, for chaining
+                assertThat(result).isSameAs(zout);
+            }
+        }
+
+        @Test
+        void rejectsOutOfRangeValue() throws IOException {
+            // Given a fresh output stream
+            try (ZstdOutputStream zout = new ZstdOutputStream(new ByteArrayOutputStream())) {
+                // When setting an absurd window log
+                ThrowingCallable result = () -> zout.parameter(ZstdCompressParameter.WINDOW_LOG, 99);
+
+                // Then it is rejected natively
+                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+            }
+        }
+    }
+
+    @Nested
     class OutputStreamLifecycle {
 
         @Test
