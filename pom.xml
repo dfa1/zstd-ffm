@@ -58,7 +58,7 @@
 		<maven-release-plugin.version>3.3.1</maven-release-plugin.version>
 		<maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
 		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
-		<pitest-maven.version>1.25.9</pitest-maven.version>
+		<pitest-maven.version>1.30.0</pitest-maven.version>
 		<pitest-junit5-plugin.version>1.2.3</pitest-junit5-plugin.version>
 
 		<!-- SonarCloud analysis (.github/workflows/sonar.yml). -->
