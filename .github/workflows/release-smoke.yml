@@ -99,7 +99,7 @@ jobs:
       # path runs its own build entirely inside the target image (see below).
       - name: Set up JDK 25 (host)
         if: ${{ !matrix.container }}
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: ${{ matrix.distribution }}
           java-version: '25'
