@@ -12,7 +12,13 @@ import java.util.Objects;
 /// memory, so the source may be discarded afterwards.
 ///
 /// Immutable once built and safe to share across threads (the digested dictionary is read-only).
-public final class ZstdDecompressDictionary extends NativeObject {
+///
+/// A [ZstdDecompressContext] may hold a live reference to this dictionary via
+/// [ZstdDecompressContext#refDictionary(ZstdDecompressDictionary)]; the
+/// underlying native dictionary is only freed once every such borrower has
+/// released it, so closing this object while a context still references it
+/// is safe.
+public final class ZstdDecompressDictionary extends NativePointerWithRefCount {
 
     /// Digests `dict` for decompression.
     ///
