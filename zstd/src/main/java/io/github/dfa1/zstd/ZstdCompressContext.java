@@ -26,6 +26,7 @@ import java.util.Objects;
 public final class ZstdCompressContext extends NativeObject {
 
     private ZstdCompressionLevel level;
+    private ZstdCompressDictionary refDict;
 
     /// Creates a new compression context at the default level.
     public ZstdCompressContext() {
@@ -110,6 +111,7 @@ public final class ZstdCompressContext extends NativeObject {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_RESET.invokeExact(ptr(), directive.value()));
         if (directive != ZstdResetDirective.SESSION_ONLY) {
             this.level = ZstdCompressionLevel.DEFAULT;
+            releaseRefDictionary();
         }
         return this;
     }
@@ -161,6 +163,7 @@ public final class ZstdCompressContext extends NativeObject {
 
     private ZstdCompressContext loadDictionary(MemorySegment dict, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_LOAD_DICTIONARY.invokeExact(ptr(), dict, size));
+        releaseRefDictionary();
         return this;
     }
 
@@ -171,17 +174,42 @@ public final class ZstdCompressContext extends NativeObject {
     /// from the [ZstdCompressDictionary]. This is the hot path for a pooled context
     /// recycled with [#reset(ZstdResetDirective)] between frames.
     ///
-    /// The reference is borrowed: `dict` must stay open for as long as this
-    /// context uses it. The reference is dropped by a parameter
-    /// [#reset(ZstdResetDirective)] or by passing `null`.
+    /// This context keeps `dict` alive for as long as it references it: closing
+    /// `dict` while it is still referenced is safe, but the caller no longer
+    /// controls exactly when its native memory is freed. The reference is
+    /// dropped by a parameter [#reset(ZstdResetDirective)], by passing `null`,
+    /// by calling [#loadDictionary(ZstdDictionary)] or [#refPrefix(MemorySegment)]
+    /// (both natively supersede it), or by closing this context.
     ///
     /// @param dict the digested dictionary to reference, or `null` to clear it
     /// @return `this`, for chaining
     /// @throws ZstdException if the dictionary cannot be referenced
     public ZstdCompressContext refDictionary(ZstdCompressDictionary dict) {
+        MemorySegment cctxPtr = ptr();
+        if (dict != null) {
+            dict.retain();
+        }
         MemorySegment cdict = dict == null ? MemorySegment.NULL : dict.ptr();
-        NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_CDICT.invokeExact(ptr(), cdict));
+        try {
+            NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_CDICT.invokeExact(cctxPtr, cdict));
+        } catch (ZstdException e) {
+            if (dict != null) {
+                dict.release();
+            }
+            throw e;
+        }
+        releaseRefDictionary();
+        this.refDict = dict;
         return this;
+    }
+
+    /// Releases this context's outstanding reference on its currently attached
+    /// dictionary, if any.
+    private void releaseRefDictionary() {
+        if (refDict != null) {
+            refDict.release();
+            refDict = null;
+        }
     }
 
     /// References native `prefix` content as a single-use dictionary for the
@@ -213,6 +241,7 @@ public final class ZstdCompressContext extends NativeObject {
 
     private ZstdCompressContext refPrefix(MemorySegment prefix, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_PREFIX.invokeExact(ptr(), prefix, size));
+        releaseRefDictionary();
         return this;
     }
 
@@ -359,6 +388,7 @@ public final class ZstdCompressContext extends NativeObject {
 
     @Override
     protected void tryClose(MemorySegment ptr) throws Throwable {
+        releaseRefDictionary();
         var _ = (long) Bindings.FREE_CCTX.invokeExact(ptr);
     }
 }

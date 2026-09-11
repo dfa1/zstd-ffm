@@ -65,7 +65,7 @@ pooled, recycled context:
 try (ZstdCompressDictionary cdict = dict.compressDict(new ZstdCompressionLevel(19))) {
     // one cctx per pooled worker, all sharing the one digested dictionary
     try (ZstdCompressContext cctx = new ZstdCompressContext()) {
-        cctx.refDictionary(cdict);          // borrowed; cdict must outlive cctx
+        cctx.refDictionary(cdict);          // shared; cdict has its own lifetime
         byte[] a = cctx.compress(first);
         cctx.reset(ZstdResetDirective.SESSION_ONLY); // recycle, keep the dictionary
         byte[] b = cctx.compress(second);
@@ -73,15 +73,18 @@ try (ZstdCompressDictionary cdict = dict.compressDict(new ZstdCompressionLevel(1
 }
 ```
 
-`refDictionary` only borrows: the digested `cdict` is *not* tied to the context's
-lifetime, so it must be closed separately (hence its own try-with-resources). That
-is the price of sharing one digest across many contexts. If you have just **one**
+`refDictionary` is *not* tied to the context's lifetime — `cdict` is still closed
+separately (hence its own try-with-resources), which is the price of sharing one
+digest across many contexts. Closing `cdict` while a context still references it
+is safe: the context holds its own reference, so the native dictionary is freed
+only once every referencing context has let go too. If you have just **one**
 context, don't build a `ZstdCompressDictionary` at all — `loadDictionary` above digests
 into the context and frees it for you, and a stray, never-closed
-`ZstdCompressDictionary` is a native-memory leak.
+`ZstdCompressDictionary` is still a native-memory leak.
 
-A loaded or referenced dictionary stays until replaced, cleared with `null`, or
-dropped by a parameter `reset`. `ZstdDecompressContext` mirrors all of this.
+A loaded or referenced dictionary stays until replaced, cleared with `null`,
+superseded by `loadDictionary`/`refPrefix`, or dropped by a parameter `reset`.
+`ZstdDecompressContext` mirrors all of this.
 
 ## Compress many small payloads with a dictionary
 
