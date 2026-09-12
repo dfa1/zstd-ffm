@@ -1,11 +1,13 @@
 package io.github.dfa1.zstd;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 
 import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RefHolderTest {
@@ -104,8 +106,13 @@ class RefHolderTest {
         // Given a holder that never held anything
         RefHolder<TestObject> sut = new RefHolder<>();
 
-        // When / Then releasing it does not throw
-        sut.release();
-        sut.release();
+        // When releasing it repeatedly
+        ThrowingCallable result = () -> {
+            sut.release();
+            sut.release();
+        };
+
+        // Then it does not throw
+        assertThatCode(result).doesNotThrowAnyException();
     }
 }
