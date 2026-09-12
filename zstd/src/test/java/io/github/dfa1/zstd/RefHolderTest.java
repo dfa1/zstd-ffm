@@ -1,0 +1,111 @@
+package io.github.dfa1.zstd;
+
+import org.junit.jupiter.api.Test;
+
+import java.lang.foreign.MemorySegment;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class RefHolderTest {
+
+    private static final MemorySegment POINTER = MemorySegment.ofAddress(0x1234);
+
+    private static class TestObject extends NativePointerWithRefCount {
+
+        final AtomicInteger tryCloseCount = new AtomicInteger();
+
+        TestObject() {
+            super(POINTER);
+        }
+
+        @Override
+        protected void tryClose(MemorySegment ptr) {
+            tryCloseCount.incrementAndGet();
+        }
+    }
+
+    @Test
+    void setRetainsAndStoresTheNewReference() {
+        // Given a fresh holder and a live reference
+        RefHolder<TestObject> sut = new RefHolder<>();
+        TestObject dict = new TestObject();
+
+        // When set with a native call that succeeds
+        sut.set(dict, () -> { });
+
+        // Then the reference is retained (constructor's own close alone does not free it)
+        dict.close();
+        assertThat(dict.tryCloseCount).hasValue(0);
+
+        // And releasing the holder drops the held retain, freeing it
+        sut.release();
+        assertThat(dict.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void setRollsBackTheRetainWhenTheNativeCallFails() {
+        // Given a holder and a live reference
+        RefHolder<TestObject> sut = new RefHolder<>();
+        TestObject dict = new TestObject();
+
+        // When set with a native call that fails
+        Runnable failingCall = () -> {
+            throw new ZstdException("native call failed");
+        };
+        assertThatThrownBy(() -> sut.set(dict, failingCall)).isInstanceOf(ZstdException.class);
+
+        // Then no reference was retained on the holder's behalf: the dictionary's
+        // own constructor reference alone frees it
+        dict.close();
+        assertThat(dict.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void setReplacesAndReleasesThePreviouslyHeldReference() {
+        // Given a holder already holding a first reference
+        RefHolder<TestObject> sut = new RefHolder<>();
+        TestObject first = new TestObject();
+        TestObject second = new TestObject();
+        sut.set(first, () -> { });
+
+        // When replaced by a second reference
+        sut.set(second, () -> { });
+
+        // Then the first is released (its own close() alone now fully frees it)
+        first.close();
+        assertThat(first.tryCloseCount).hasValue(1);
+
+        // And the second is still held
+        second.close();
+        assertThat(second.tryCloseCount).hasValue(0);
+        sut.release();
+        assertThat(second.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void setWithNullClearsTheHeldReference() {
+        // Given a holder holding a reference
+        RefHolder<TestObject> sut = new RefHolder<>();
+        TestObject dict = new TestObject();
+        sut.set(dict, () -> { });
+
+        // When set to null
+        sut.set(null, () -> { });
+
+        // Then the held reference was released
+        dict.close();
+        assertThat(dict.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void releaseOnAnEmptyHolderIsANoOp() {
+        // Given a holder that never held anything
+        RefHolder<TestObject> sut = new RefHolder<>();
+
+        // When / Then releasing it does not throw
+        sut.release();
+        sut.release();
+    }
+}
