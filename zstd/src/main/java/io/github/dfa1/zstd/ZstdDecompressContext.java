@@ -141,10 +141,8 @@ public final class ZstdDecompressContext extends NativeObject {
     /// @throws ZstdException if the dictionary cannot be referenced
     public ZstdDecompressContext refDictionary(ZstdDecompressDictionary dict) {
         MemorySegment dctxPtr = ptr();
-        refDictionaryHolder.set(dict, () -> {
-            MemorySegment ddict = dict == null ? MemorySegment.NULL : dict.ptr();
-            NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_DDICT.invokeExact(dctxPtr, ddict));
-        });
+        refDictionaryHolder.set(dict, ddict ->
+                NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_DDICT.invokeExact(dctxPtr, ddict)));
         return this;
     }
 

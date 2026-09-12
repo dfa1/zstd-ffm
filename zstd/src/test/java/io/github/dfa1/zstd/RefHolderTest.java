@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -35,7 +36,7 @@ class RefHolderTest {
         TestObject dict = new TestObject();
 
         // When set with a native call that succeeds
-        sut.set(dict, () -> { });
+        sut.set(dict, _ -> { });
 
         // Then the reference is retained (constructor's own close alone does not free it)
         dict.close();
@@ -47,13 +48,42 @@ class RefHolderTest {
     }
 
     @Test
+    void setPassesTheNewReferencesLivePointerToTheNativeCall() {
+        // Given a holder and a live reference
+        RefHolder<TestObject> sut = new RefHolder<>();
+        TestObject dict = new TestObject();
+        MemorySegment[] seen = new MemorySegment[1];
+
+        // When set
+        sut.set(dict, ptr -> seen[0] = ptr);
+
+        // Then the native call received the dictionary's own pointer
+        assertThat(seen[0]).isEqualTo(POINTER);
+    }
+
+    @Test
+    void setWithNullPassesNullSegmentToTheNativeCall() {
+        // Given a holder holding a reference
+        RefHolder<TestObject> sut = new RefHolder<>();
+        TestObject dict = new TestObject();
+        sut.set(dict, _ -> { });
+        MemorySegment[] seen = new MemorySegment[1];
+
+        // When set to null
+        sut.set(null, ptr -> seen[0] = ptr);
+
+        // Then the native call received MemorySegment.NULL, not a dangling pointer
+        assertThat(seen[0]).isEqualTo(MemorySegment.NULL);
+    }
+
+    @Test
     void setRollsBackTheRetainWhenTheNativeCallFails() {
         // Given a holder and a live reference
         RefHolder<TestObject> sut = new RefHolder<>();
         TestObject dict = new TestObject();
 
         // When set with a native call that fails
-        Runnable failingCall = () -> {
+        Consumer<MemorySegment> failingCall = _ -> {
             throw new ZstdException("native call failed");
         };
         assertThatThrownBy(() -> sut.set(dict, failingCall)).isInstanceOf(ZstdException.class);
@@ -70,10 +100,10 @@ class RefHolderTest {
         RefHolder<TestObject> sut = new RefHolder<>();
         TestObject first = new TestObject();
         TestObject second = new TestObject();
-        sut.set(first, () -> { });
+        sut.set(first, _ -> { });
 
         // When replaced by a second reference
-        sut.set(second, () -> { });
+        sut.set(second, _ -> { });
 
         // Then the first is released (its own close() alone now fully frees it)
         first.close();
@@ -91,10 +121,10 @@ class RefHolderTest {
         // Given a holder holding a reference
         RefHolder<TestObject> sut = new RefHolder<>();
         TestObject dict = new TestObject();
-        sut.set(dict, () -> { });
+        sut.set(dict, _ -> { });
 
         // When set to null
-        sut.set(null, () -> { });
+        sut.set(null, _ -> { });
 
         // Then the held reference was released
         dict.close();
