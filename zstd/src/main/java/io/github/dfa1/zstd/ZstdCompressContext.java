@@ -26,7 +26,7 @@ import java.util.Objects;
 public final class ZstdCompressContext extends NativeObject {
 
     private ZstdCompressionLevel level;
-    private final RefHolder<ZstdCompressDictionary> refDictionaryHolder = new RefHolder<>();
+    private ZstdCompressDictionary refDict;
 
     /// Creates a new compression context at the default level.
     public ZstdCompressContext() {
@@ -111,7 +111,7 @@ public final class ZstdCompressContext extends NativeObject {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_RESET.invokeExact(ptr(), directive.value()));
         if (directive != ZstdResetDirective.SESSION_ONLY) {
             this.level = ZstdCompressionLevel.DEFAULT;
-            refDictionaryHolder.release();
+            releaseRefDictionary();
         }
         return this;
     }
@@ -163,7 +163,7 @@ public final class ZstdCompressContext extends NativeObject {
 
     private ZstdCompressContext loadDictionary(MemorySegment dict, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_LOAD_DICTIONARY.invokeExact(ptr(), dict, size));
-        refDictionaryHolder.release();
+        releaseRefDictionary();
         return this;
     }
 
@@ -186,9 +186,30 @@ public final class ZstdCompressContext extends NativeObject {
     /// @throws ZstdException if the dictionary cannot be referenced
     public ZstdCompressContext refDictionary(ZstdCompressDictionary dict) {
         MemorySegment cctxPtr = ptr();
-        refDictionaryHolder.set(dict, cdict ->
-                NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_CDICT.invokeExact(cctxPtr, cdict)));
+        if (dict != null) {
+            dict.retain();
+        }
+        MemorySegment cdict = dict == null ? MemorySegment.NULL : dict.ptr();
+        try {
+            NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_CDICT.invokeExact(cctxPtr, cdict));
+        } catch (ZstdException e) {
+            if (dict != null) {
+                dict.release();
+            }
+            throw e;
+        }
+        releaseRefDictionary();
+        this.refDict = dict;
         return this;
+    }
+
+    /// Releases this context's outstanding reference on its currently attached
+    /// dictionary, if any.
+    private void releaseRefDictionary() {
+        if (refDict != null) {
+            refDict.release();
+            refDict = null;
+        }
     }
 
     /// References native `prefix` content as a single-use dictionary for the
@@ -220,7 +241,7 @@ public final class ZstdCompressContext extends NativeObject {
 
     private ZstdCompressContext refPrefix(MemorySegment prefix, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_PREFIX.invokeExact(ptr(), prefix, size));
-        refDictionaryHolder.release();
+        releaseRefDictionary();
         return this;
     }
 
@@ -367,7 +388,7 @@ public final class ZstdCompressContext extends NativeObject {
 
     @Override
     protected void tryClose(MemorySegment ptr) throws Throwable {
-        refDictionaryHolder.release();
+        releaseRefDictionary();
         var _ = (long) Bindings.FREE_CCTX.invokeExact(ptr);
     }
 }
