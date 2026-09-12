@@ -83,6 +83,7 @@ class ZstdCompressionLevelTest {
         }
     }
 
+    @SuppressWarnings("java:S1144") // referenced via @MethodSource's qualified name from the nested Construction class
     private static Stream<Integer> inRangeLevels() {
         return IntStream.of(
                         ZstdCompressionLevel.minCompressionLevel(),

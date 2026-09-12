@@ -461,6 +461,7 @@ class ZstdStreamTest {
         }
     }
 
+    @SuppressWarnings("java:S1144") // referenced via @MethodSource's qualified name from the nested OutputStreamLifecycle class
     private static Stream<Arguments> closedStreamOperations() {
         return Stream.of(
                 Arguments.of("write after close", (ClosedStreamOperation) () -> {

@@ -85,7 +85,7 @@ class ZstdParameterTest {
             // shrinking the frame by roughly its size — proving the parameter
             // actually reached the encoder rather than being a silent no-op —
             // and the frame still decodes back to the original bytes
-            assertThat(withLdm.length).isLessThan(withoutLdm.length - block.length / 2);
+            assertThat(withLdm).hasSizeLessThan(withoutLdm.length - block.length / 2);
             assertThat(Zstd.decompress(withLdm)).isEqualTo(data);
         }
 

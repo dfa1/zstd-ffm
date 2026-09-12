@@ -108,7 +108,7 @@ class NativePointerWithRefCountTest {
                 ready.countDown();
                 try {
                     go.await();
-                } catch (InterruptedException e) {
+                } catch (InterruptedException _) {
                     Thread.currentThread().interrupt();
                 }
                 sut.releaseForTest();
