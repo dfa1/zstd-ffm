@@ -407,7 +407,13 @@
 						<configuration>
 							<publishingServerId>central</publishingServerId>
 							<autoPublish>true</autoPublish>
-							<waitUntil>published</waitUntil>
+							<!-- Wait only for validation, not the full publish (checksum/signature/POM
+							     checks are fast and deterministic); autoPublish already makes Sonatype
+							     publish automatically afterward. Waiting for "published" polls for the
+							     CDN-sync step, whose latency is highly variable — for this project's
+							     9-artifact bundle it once exceeded the plugin's 1800s default waitMaxTime
+							     and failed the build even though the deploy had actually succeeded. -->
+							<waitUntil>validated</waitUntil>
 							<excludeArtifacts>
 								<!-- Internal modules: not published to Maven Central.
 								     Each entry is a groupId:artifactId string. -->
