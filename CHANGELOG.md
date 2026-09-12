@@ -6,10 +6,26 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+## [0.13] - 2026-09-12
+
 - Project renamed `zstd-java` → `zstd-ffm` (GitHub repo, parent POM
   `artifactId`, SonarCloud project key). Published Maven coordinates
   (`io.github.dfa1.zstd:zstd`, `:zstd-platform`, `:bom`, native classifiers)
   are unaffected — only the internal parent-aggregator `artifactId` changed.
+
+### Fixed
+- `ZstdCompressContext`/`ZstdDecompressContext.refDictionary(...)` held a raw
+  native pointer to the referenced `ZstdCompressDictionary`/
+  `ZstdDecompressDictionary`: closing that dictionary while a context still
+  referenced it freed the pointer out from under the context, corrupting or
+  crashing every subsequent compress/decompress call. Both dictionary types
+  now share ownership with every referencing context via
+  `NativePointerWithRefCount`, so the native dictionary is freed only once
+  every borrower — including the dictionary's own constructor reference —
+  has let go. `refDictionary(...)` on an already-closed context, and
+  `loadDictionary(...)`/`refPrefix(...)` superseding a referenced dictionary,
+  now also drop the reference correctly instead of leaking it.
+  ([#119](https://github.com/dfa1/zstd-ffm/pull/119))
 
 ## [0.12] - 2026-07-26
 
