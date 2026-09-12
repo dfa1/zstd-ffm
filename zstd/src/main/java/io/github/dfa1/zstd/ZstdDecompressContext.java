@@ -71,7 +71,7 @@ public final class ZstdDecompressContext extends NativeObject {
         Objects.requireNonNull(directive, "directive");
         NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_RESET.invokeExact(ptr(), directive.value()));
         if (directive != ZstdResetDirective.SESSION_ONLY) {
-            releaseRefDictionary();
+            refDict = NativePointerWithRefCount.release(refDict);
         }
         return this;
     }
@@ -119,7 +119,7 @@ public final class ZstdDecompressContext extends NativeObject {
 
     private ZstdDecompressContext loadDictionary(MemorySegment dict, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_LOAD_DICTIONARY.invokeExact(ptr(), dict, size));
-        releaseRefDictionary();
+        refDict = NativePointerWithRefCount.release(refDict);
         return this;
     }
 
@@ -141,30 +141,9 @@ public final class ZstdDecompressContext extends NativeObject {
     /// @throws ZstdException if the dictionary cannot be referenced
     public ZstdDecompressContext refDictionary(ZstdDecompressDictionary dict) {
         MemorySegment dctxPtr = ptr();
-        if (dict != null) {
-            dict.retain();
-        }
-        MemorySegment ddict = dict == null ? MemorySegment.NULL : dict.ptr();
-        try {
-            NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_DDICT.invokeExact(dctxPtr, ddict));
-        } catch (ZstdException e) {
-            if (dict != null) {
-                dict.release();
-            }
-            throw e;
-        }
-        releaseRefDictionary();
-        this.refDict = dict;
+        refDict = NativePointerWithRefCount.swap(refDict, dict, ddict ->
+                NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_DDICT.invokeExact(dctxPtr, ddict)));
         return this;
-    }
-
-    /// Releases this context's outstanding reference on its currently attached
-    /// dictionary, if any.
-    private void releaseRefDictionary() {
-        if (refDict != null) {
-            refDict.release();
-            refDict = null;
-        }
     }
 
     /// References native `prefix` content as a single-use dictionary for decoding
@@ -194,7 +173,7 @@ public final class ZstdDecompressContext extends NativeObject {
 
     private ZstdDecompressContext refPrefix(MemorySegment prefix, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(ptr(), prefix, size));
-        releaseRefDictionary();
+        refDict = NativePointerWithRefCount.release(refDict);
         return this;
     }
 
@@ -366,7 +345,7 @@ public final class ZstdDecompressContext extends NativeObject {
 
     @Override
     protected void tryClose(MemorySegment ptr) throws Throwable {
-        releaseRefDictionary();
+        refDict = NativePointerWithRefCount.release(refDict);
         var _ = (long) Bindings.FREE_DCTX.invokeExact(ptr);
     }
 }

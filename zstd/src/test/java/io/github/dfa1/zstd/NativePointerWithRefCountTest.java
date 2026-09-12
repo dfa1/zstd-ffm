@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 
 import java.lang.foreign.MemorySegment;
@@ -125,5 +126,93 @@ class NativePointerWithRefCountTest {
         sut.releaseForTest(); // the extra hold
         sut.close(); // the constructor's own
         assertThat(sut.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void staticReleaseDropsTheHeldReferenceAndReturnsNull() {
+        // Given a "currently held" reference — its own reference plus the extra
+        // hold, the way a swap() that stored it would have left it
+        TestObject held = new TestObject();
+        held.retainForTest();
+
+        TestObject result = NativePointerWithRefCount.release(held);
+
+        // Then only the hold's reference was dropped; the object's own remains
+        assertThat(result).isNull();
+        assertThat(held.tryCloseCount).hasValue(0);
+        held.close();
+        assertThat(held.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void staticReleaseOnNullIsANoOp() {
+        assertThat(NativePointerWithRefCount.<TestObject>release(null)).isNull();
+    }
+
+    @Test
+    void staticSwapRetainsNextAndReleasesHeldOnSuccess() {
+        // Given a currently held reference and a new one to switch to
+        TestObject held = new TestObject();
+        held.retainForTest(); // the hold's own extra reference
+        TestObject next = new TestObject();
+        MemorySegment[] seenPtr = new MemorySegment[1];
+
+        TestObject result = NativePointerWithRefCount.swap(held, next, ptr -> seenPtr[0] = ptr);
+
+        // Then the native call saw next's live pointer, and the switch committed
+        assertThat(result).isSameAs(next);
+        assertThat(seenPtr[0]).isEqualTo(POINTER);
+
+        // held's hold reference was released; only its own construction reference remains
+        assertThat(held.tryCloseCount).hasValue(0);
+        held.close();
+        assertThat(held.tryCloseCount).hasValue(1);
+
+        // next is now held: its own close() alone must not free it
+        next.close();
+        assertThat(next.tryCloseCount).hasValue(0);
+    }
+
+    @Test
+    void staticSwapWithNullNextClearsAndReleasesHeld() {
+        // Given a currently held reference and no replacement
+        TestObject held = new TestObject();
+        held.retainForTest();
+        MemorySegment[] seenPtr = new MemorySegment[1];
+
+        TestObject result = NativePointerWithRefCount.swap(held, null, ptr -> seenPtr[0] = ptr);
+
+        // Then the native call saw MemorySegment.NULL and held's hold reference was released
+        assertThat(result).isNull();
+        assertThat(seenPtr[0]).isEqualTo(MemorySegment.NULL);
+        assertThat(held.tryCloseCount).hasValue(0);
+        held.close();
+        assertThat(held.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void staticSwapRollsBackTheRetainOnNextWhenTheNativeCallFails() {
+        // Given a currently held reference and a candidate replacement
+        TestObject held = new TestObject();
+        held.retainForTest();
+        TestObject next = new TestObject();
+
+        // When the native call fails
+        ThrowingCallable result = () -> NativePointerWithRefCount.swap(held, next, ptr -> {
+            throw new ZstdException("native call failed");
+        });
+
+        // Then the switch does not commit
+        assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+
+        // held is untouched: its hold reference plus its own construction reference remain
+        held.releaseForTest();
+        assertThat(held.tryCloseCount).hasValue(0);
+        held.close();
+        assertThat(held.tryCloseCount).hasValue(1);
+
+        // next's just-acquired retain was rolled back: its own close() alone frees it
+        next.close();
+        assertThat(next.tryCloseCount).hasValue(1);
     }
 }

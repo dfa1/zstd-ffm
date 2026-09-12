@@ -3,6 +3,7 @@ package io.github.dfa1.zstd;
 import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /// Base class for a native pointer shared by more than one borrower — the
 /// `shared_ptr` shape, where [NativeObject]'s unconditional free on
@@ -65,6 +66,51 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
         if (closed.compareAndSet(false, true)) {
             release();
         }
+    }
+
+    /// Releases `held` (if any) — the counterpart to a field that stores a
+    /// borrowed reference, e.g. `refDict = NativePointerWithRefCount.release(refDict)`.
+    ///
+    /// @param held the currently held reference, or `null`
+    /// @return `null`, always — assign it back to the caller's field
+    static <D extends NativePointerWithRefCount> D release(D held) {
+        if (held != null) {
+            held.release();
+        }
+        return null;
+    }
+
+    /// Swaps a field holding a borrowed reference from `held` to `next`, gated
+    /// on `nativeCall` succeeding.
+    ///
+    /// Retains `next` (if non-`null`), then passes `nativeCall` its live
+    /// pointer — [MemorySegment#NULL] if `next` is `null` — to perform the
+    /// native call that must succeed before the switch commits. Only once
+    /// `nativeCall` returns does this release `held` (if any). If `nativeCall`
+    /// throws, the just-acquired retain on `next` is released and `held` is
+    /// returned unchanged.
+    ///
+    /// @param held       the reference currently held, or `null`
+    /// @param next       the new reference to hold, or `null` to clear it
+    /// @param nativeCall performs the native call, given `next`'s pointer (or
+    ///                   [MemorySegment#NULL])
+    /// @return the reference the caller's field should now hold: `next` on
+    ///         success, `held` unchanged if `nativeCall` throws
+    static <D extends NativePointerWithRefCount> D swap(D held, D next, Consumer<MemorySegment> nativeCall) {
+        if (next != null) {
+            next.retain();
+        }
+        MemorySegment nextPtr = next == null ? MemorySegment.NULL : next.ptr();
+        try {
+            nativeCall.accept(nextPtr);
+        } catch (RuntimeException e) {
+            if (next != null) {
+                next.release();
+            }
+            throw e;
+        }
+        release(held);
+        return next;
     }
 
     /// Releases the native resource. Called at most once, when the last
