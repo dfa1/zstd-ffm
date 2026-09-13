@@ -32,26 +32,39 @@ libraries, which `zig cc` cross-compiles regardless of your host platform) so
 
 ## Run
 
-Start the server (leave it running in one terminal):
+`run.sh` computes the classpath and JVM flags for you — start the server
+(leave it running in one terminal):
 
 ```bash
-CP="$(find . -path '*/target/classes' | tr '\n' ':')"
-java --enable-native-access=ALL-UNNAMED --add-modules jdk.httpserver \
-     --class-path "$CP" docs/examples/rfc9842/Server.java
+docs/examples/rfc9842/run.sh Server
 ```
 
 In another terminal, run either client (or both, to compare):
 
 ```bash
-CP="$(find . -path '*/target/classes' | tr '\n' ':')"
-
 # No RFC 9842 awareness — always gets the plain body.
-java --class-path "$CP" docs/examples/rfc9842/NaiveClient.java
+docs/examples/rfc9842/run.sh NaiveClient
 
 # Fetches the dictionary, then gets dcz-compressed responses.
+docs/examples/rfc9842/run.sh Rfc9842Client
+```
+
+<details>
+<summary>Running <code>java</code> directly, without <code>run.sh</code></summary>
+
+```bash
+CP="$(find . -path '*/target/classes' | tr '\n' ':')"
+
+java --enable-native-access=ALL-UNNAMED --add-modules jdk.httpserver \
+     --class-path "$CP" docs/examples/rfc9842/Server.java
+
+# in another terminal:
+java --class-path "$CP" docs/examples/rfc9842/NaiveClient.java
 java --enable-native-access=ALL-UNNAMED --class-path "$CP" \
      docs/examples/rfc9842/Rfc9842Client.java
 ```
+
+</details>
 
 Each program prints the exact request/response headers it sent and received,
 plus (for the clients) bytes received and time to parse/decompress. The
