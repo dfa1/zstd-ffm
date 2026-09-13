@@ -108,14 +108,17 @@ throughput, since on localhost the cost of moving/parsing ~2.8 KB dominates
 over the CPU cost of compression.
 
 At **large** size the picture is more interesting, and more honest about when
-dictionaries actually help: **identity beats gzip** (raw bytes cost less than
-gzip's CPU time on localhost), **plain zstd is the fastest tier overall**
-(much cheaper to compute than gzip, and shrinks the payload enough to win
-anyway), and **`dcz` is *slower* than plain zstd** while barely smaller
-(2874.9 vs. 2946.0 bytes, ~2.4%) — once a payload has enough internal
-repetition for zstd to reference on its own, the dictionary's marginal
-benefit nearly disappears, but `dcz` still pays the wrap/unwrap overhead. This
-is the real shape of when dictionary compression is worth it: small,
+dictionaries actually help. Two findings hold up consistently across repeated
+runs: **identity beats gzip** (raw bytes cost less than gzip's CPU time on
+localhost) and **`dcz`'s byte savings over plain `zstd` shrink to a couple of
+percent** (2874.9 vs. 2946.0 bytes above, ~2.4%) — once a payload has enough
+internal repetition for zstd to reference on its own, a dictionary has little
+left to add. Whether plain `zstd` or `dcz` comes out faster, though, varies
+run to run (this is a single-threaded, single-connection, localhost
+measurement, not a controlled benchmark) — they're close enough in practice
+that the dictionary's wrap/unwrap overhead and its marginal compression gain
+roughly cancel out at this size. This is the real shape of when dictionary
+compression is worth it: small,
 self-similar messages that don't have enough redundancy of their own — not
 large payloads, which become their own dictionary.
 
