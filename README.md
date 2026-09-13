@@ -161,6 +161,10 @@ The docs follow the [Diátaxis](https://diataxis.fr) framework:
 Architecture decisions are recorded as [ADRs](adr/ADR.md) (MADR 3.0) — the
 foundational choices and their trade-offs, one file per decision.
 
+A runnable RFC 9842 (Compression Dictionary Transport) demo — a server plus
+two clients, one RFC-9842-aware and one plain, against the same endpoints —
+lives in [docs/examples/rfc9842](docs/examples/rfc9842).
+
 ## License
 
 [BSD 3-Clause](LICENSE) — the same primary license as zstd, which is bundled
