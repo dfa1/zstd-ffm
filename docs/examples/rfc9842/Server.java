@@ -6,6 +6,7 @@ import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
+import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
@@ -86,6 +87,10 @@ public class Server {
         ZstdDictionary dictionary = ZstdDictionary.train(trainingSamples, ZstdByteSize.ofKiB(1));
         byte[] dictionaryBytes = dictionary.toByteArray();
         AvailableDictionary expectedHash = AvailableDictionary.of(dictionary);
+        // Precomputed once: Rfc9842Frame.wrap(byte[], ZstdDictionary) hashes the
+        // dictionary fresh on every call, the same per-request tax the compress
+        // context/dictionary digestion below was fixed for earlier.
+        Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
 
         // Digested once, not on every request: ZstdCompressContext.compress(byte[],
         // ZstdDictionary) — what an earlier version of this demo used — re-digests
@@ -134,7 +139,7 @@ public class Server {
             String contentEncoding = null;
             if (accepted.contains("dcz") && clientHasTheRightDictionary) {
                 byte[] frame = cctx.compress(payload, compressDictionary);
-                body = Rfc9842Frame.wrap(frame, dictionary);
+                body = Rfc9842Frame.wrap(frame, dictionaryHash);
                 contentEncoding = "dcz";
             } else if (accepted.contains("zstd")) {
                 body = cctx.compress(payload);

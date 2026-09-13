@@ -5,6 +5,7 @@ import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
 import io.github.dfa1.zstd.rfc9842.DictionaryId;
+import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
@@ -49,6 +50,11 @@ public class Rfc9842Client {
         System.out.println("[rfc9842-client] stored dictionary (" + dictResponse.body().length + " bytes), applies to '"
                 + useAsDictionary.match() + "', id=" + useAsDictionary.id());
 
+        // Precomputed once, not per request: AvailableDictionary.of/Rfc9842DictionaryHash.of
+        // both hash the dictionary fresh on every call, and its value never changes here.
+        String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
+        Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
+
         // Step 2 & 3: fetch data, advertising the dictionary when it applies.
         // Digested once and reused, like Server.java's compressDictionary: creating a
         // fresh ZstdDecompressContext and re-digesting the dictionary on every single
@@ -57,14 +63,14 @@ public class Rfc9842Client {
         try (ZstdDecompressContext dctx = new ZstdDecompressContext();
              ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
             for (int i = 0; i < 3; i++) {
-                fetchData(http, dctx, dictionary, decompressDictionary, useAsDictionary);
+                fetchData(http, dctx, dictionaryHash, decompressDictionary, availableDictionary, useAsDictionary);
             }
         }
     }
 
-    private static void fetchData(HttpClient http, ZstdDecompressContext dctx, ZstdDictionary dictionary,
-                                   ZstdDecompressDictionary decompressDictionary, UseAsDictionary useAsDictionary)
-            throws Exception {
+    private static void fetchData(HttpClient http, ZstdDecompressContext dctx, Rfc9842DictionaryHash dictionaryHash,
+                                   ZstdDecompressDictionary decompressDictionary, String availableDictionary,
+                                   UseAsDictionary useAsDictionary) throws Exception {
         String path = "/api/data";
         HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(path)).GET();
 
@@ -74,7 +80,6 @@ public class Rfc9842Client {
 
         boolean offeringDictionary = useAsDictionary.matchesPath(path);
         if (offeringDictionary) {
-            String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
             String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
             builder.header("Available-Dictionary", availableDictionary)
                     .header("Dictionary-ID", dictionaryId);
@@ -96,9 +101,7 @@ public class Rfc9842Client {
 
         byte[] payload = switch (contentEncoding) {
             case "dcz" -> {
-                // unwrap still needs the raw dictionary: it verifies the dcz header's
-                // SHA-256 hash against dictionary.toByteArray(), not the digested form.
-                byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionary);
+                byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionaryHash);
                 ZstdByteSize size = ZstdFrame.decompressedSize(frame);
                 yield dctx.decompress(frame, size, decompressDictionary);
             }

@@ -148,7 +148,8 @@ class Rfc9842FrameTest {
         ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
 
         assertThatThrownBy(() -> Rfc9842Frame.wrap(null, dict)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Rfc9842Frame.wrap(new byte[0], null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Rfc9842Frame.wrap(new byte[0], (ZstdDictionary) null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -156,7 +157,8 @@ class Rfc9842FrameTest {
         ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
 
         assertThatThrownBy(() -> Rfc9842Frame.unwrap((byte[]) null, dict)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Rfc9842Frame.unwrap(new byte[0], null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Rfc9842Frame.unwrap(new byte[0], (ZstdDictionary) null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Nested
@@ -207,6 +209,32 @@ class Rfc9842FrameTest {
                 long written = Rfc9842Frame.wrap(dst, frameSegment, dict);
                 assertThat(written).isEqualTo(Rfc9842Frame.HEADER_SIZE + frame.length);
                 assertThat(toArray(dst)).isEqualTo(expected);
+            }
+        }
+
+        @Test
+        void wrapAndUnwrapWithAPrecomputedHashMatchTheDictionaryOverloads() {
+            // Given a dictionary, its precomputed hash, and an arbitrary "frame"
+            ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
+            Rfc9842DictionaryHash hash = Rfc9842DictionaryHash.of(dict);
+            byte[] frame = {1, 2, 3, 4};
+
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment frameSegment = MemorySegment.ofArray(frame);
+
+                // When wrapped via the precomputed-hash overloads
+                MemorySegment viaArena = Rfc9842Frame.wrap(arena, frameSegment, hash);
+                MemorySegment dst = arena.allocate(Rfc9842Frame.HEADER_SIZE + frame.length);
+                long written = Rfc9842Frame.wrap(dst, frameSegment, hash);
+
+                // Then they match the dictionary-based overload byte-for-byte
+                byte[] expected = Rfc9842Frame.wrap(frame, dict);
+                assertThat(toArray(viaArena)).isEqualTo(expected);
+                assertThat(written).isEqualTo(Rfc9842Frame.HEADER_SIZE + frame.length);
+                assertThat(toArray(dst)).isEqualTo(expected);
+
+                // And unwrapping via the precomputed hash recovers the original frame
+                assertThat(toArray(Rfc9842Frame.unwrap(viaArena, hash))).isEqualTo(frame);
             }
         }
 
@@ -292,13 +320,13 @@ class Rfc9842FrameTest {
                 MemorySegment dst = arena.allocate(Rfc9842Frame.HEADER_SIZE);
                 assertThatThrownBy(() -> Rfc9842Frame.wrap(arena, null, dict))
                         .isInstanceOf(NullPointerException.class);
-                assertThatThrownBy(() -> Rfc9842Frame.wrap(arena, frame, null))
+                assertThatThrownBy(() -> Rfc9842Frame.wrap(arena, frame, (ZstdDictionary) null))
                         .isInstanceOf(NullPointerException.class);
                 assertThatThrownBy(() -> Rfc9842Frame.wrap((Arena) null, frame, dict))
                         .isInstanceOf(NullPointerException.class);
                 assertThatThrownBy(() -> Rfc9842Frame.wrap(dst, null, dict))
                         .isInstanceOf(NullPointerException.class);
-                assertThatThrownBy(() -> Rfc9842Frame.wrap(dst, frame, null))
+                assertThatThrownBy(() -> Rfc9842Frame.wrap(dst, frame, (ZstdDictionary) null))
                         .isInstanceOf(NullPointerException.class);
                 assertThatThrownBy(() -> Rfc9842Frame.wrap((MemorySegment) null, frame, dict))
                         .isInstanceOf(NullPointerException.class);
@@ -312,7 +340,8 @@ class Rfc9842FrameTest {
 
             assertThatThrownBy(() -> Rfc9842Frame.unwrap((MemorySegment) null, dict))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> Rfc9842Frame.unwrap(empty, null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> Rfc9842Frame.unwrap(empty, (ZstdDictionary) null))
+                    .isInstanceOf(NullPointerException.class);
         }
 
         private static byte[] toArray(MemorySegment segment) {

@@ -46,6 +46,16 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// byte[] frame2 = Rfc9842Frame.unwrap(dcz, dict);        // verify + strip the header
 /// byte[] payload2 = dctx.decompress(frame2, maxSize, dict);
 /// }
+///
+/// `wrap`/`unwrap` hash `dictionary` fresh on every call above — fine for
+/// occasional use, wasteful in a hot path against a fixed dictionary (once
+/// per HTTP request, say). Precompute a [Rfc9842DictionaryHash] once and pass
+/// it instead, exactly like pre-digesting a `ZstdCompressDictionary`:
+///
+/// {@snippet :
+/// Rfc9842DictionaryHash hash = Rfc9842DictionaryHash.of(dict); // once, at startup
+/// byte[] dcz = Rfc9842Frame.wrap(frame, hash);                 // per call, no re-hashing
+/// }
 public final class Rfc9842Frame {
 
     /// SHA-256 digest length, in bytes — also the `dcz` header's content length.
@@ -110,26 +120,48 @@ public final class Rfc9842Frame {
     public static byte[] unwrap(byte[] dcz, ZstdDictionary dictionary) {
         Objects.requireNonNull(dcz, "dcz");
         Objects.requireNonNull(dictionary, "dictionary");
-        if (dcz.length < SKIPPABLE_HEADER_SIZE) {
-            throw new Rfc9842Exception("not a dcz frame: shorter than the skippable-frame header");
-        }
-        int magic = readLittleEndianInt(dcz, 0);
-        int variant = magic - SKIPPABLE_MAGIC_BASE;
-        if (variant != MAGIC_VARIANT) {
-            throw new Rfc9842Exception(
-                    "not a dcz frame: expected magic variant " + MAGIC_VARIANT + ", got " + variant);
-        }
-        int contentLength = readLittleEndianInt(dcz, 4);
-        if (contentLength != HASH_LENGTH) {
-            throw new Rfc9842Exception(
-                    "malformed dcz header: expected a " + HASH_LENGTH + "-byte hash, got " + contentLength);
-        }
-        if (dcz.length < HEADER_SIZE) {
-            throw new Rfc9842Exception("malformed dcz header: declares a " + HASH_LENGTH
-                    + "-byte hash but the input is too short to contain it");
-        }
+        validateHeader(dcz);
         byte[] hash = sha256(dictionary);
         if (!Arrays.equals(hash, 0, HASH_LENGTH, dcz, SKIPPABLE_HEADER_SIZE, HEADER_SIZE)) {
+            throw new Rfc9842Exception("dcz hash does not match the given dictionary");
+        }
+        return Arrays.copyOfRange(dcz, HEADER_SIZE, dcz.length);
+    }
+
+    /// Wraps `compressedFrame` with the RFC 9842 `dcz` header, using a
+    /// [Rfc9842DictionaryHash] computed once up front instead of hashing
+    /// `dictionary` again on every call — the hot-path counterpart of
+    /// [#wrap(byte[], ZstdDictionary)], for a fixed dictionary reused across
+    /// many calls (e.g. once per HTTP request against the same dictionary).
+    ///
+    /// @param compressedFrame a zstd frame compressed against the hashed dictionary
+    /// @param hash            the dictionary's precomputed hash, from [Rfc9842DictionaryHash#of(ZstdDictionary)]
+    /// @return the `dcz` header followed by `compressedFrame`
+    public static byte[] wrap(byte[] compressedFrame, Rfc9842DictionaryHash hash) {
+        Objects.requireNonNull(compressedFrame, "compressedFrame");
+        Objects.requireNonNull(hash, "hash");
+        byte[] result = new byte[HEADER_SIZE + compressedFrame.length];
+        System.arraycopy(SKIPPABLE_PREFIX, 0, result, 0, SKIPPABLE_HEADER_SIZE);
+        System.arraycopy(hash.raw(), 0, result, SKIPPABLE_HEADER_SIZE, HASH_LENGTH);
+        System.arraycopy(compressedFrame, 0, result, HEADER_SIZE, compressedFrame.length);
+        return result;
+    }
+
+    /// Verifies and strips the RFC 9842 `dcz` header from `dcz`, using a
+    /// [Rfc9842DictionaryHash] computed once up front instead of hashing the
+    /// dictionary again on every call — the hot-path counterpart of
+    /// [#unwrap(byte[], ZstdDictionary)].
+    ///
+    /// @param dcz  a `dcz`-framed blob produced by [#wrap(byte[], Rfc9842DictionaryHash)]
+    /// @param hash the dictionary's precomputed hash to verify `dcz` against
+    /// @return the compressed zstd frame, with the header stripped
+    /// @throws Rfc9842Exception if `dcz` does not carry a `dcz` header, or its
+    ///                           hash does not match `hash`
+    public static byte[] unwrap(byte[] dcz, Rfc9842DictionaryHash hash) {
+        Objects.requireNonNull(dcz, "dcz");
+        Objects.requireNonNull(hash, "hash");
+        validateHeader(dcz);
+        if (!Arrays.equals(hash.raw(), 0, HASH_LENGTH, dcz, SKIPPABLE_HEADER_SIZE, HEADER_SIZE)) {
             throw new Rfc9842Exception("dcz hash does not match the given dictionary");
         }
         return Arrays.copyOfRange(dcz, HEADER_SIZE, dcz.length);
@@ -171,6 +203,43 @@ public final class Rfc9842Frame {
         return dst;
     }
 
+    /// Wraps `compressedFrame` into `dst`, using a [Rfc9842DictionaryHash]
+    /// computed once up front instead of hashing the dictionary again on
+    /// every call — the hot-path counterpart of
+    /// [#wrap(MemorySegment, MemorySegment, ZstdDictionary)].
+    ///
+    /// @param dst             the destination segment, at least
+    ///                        [#HEADER_SIZE]` + compressedFrame.byteSize()` bytes
+    /// @param compressedFrame a zstd frame compressed against the hashed dictionary
+    /// @param hash            the dictionary's precomputed hash, from [Rfc9842DictionaryHash#of(ZstdDictionary)]
+    /// @return the number of bytes written to `dst`
+    ///         (always `HEADER_SIZE + compressedFrame.byteSize()`)
+    public static long wrap(MemorySegment dst, MemorySegment compressedFrame, Rfc9842DictionaryHash hash) {
+        Objects.requireNonNull(dst, "dst");
+        Objects.requireNonNull(compressedFrame, "compressedFrame");
+        Objects.requireNonNull(hash, "hash");
+        MemorySegment.copy(SKIPPABLE_PREFIX, 0, dst, JAVA_BYTE, 0, SKIPPABLE_HEADER_SIZE);
+        MemorySegment.copy(hash.raw(), 0, dst, JAVA_BYTE, SKIPPABLE_HEADER_SIZE, HASH_LENGTH);
+        MemorySegment.copy(compressedFrame, 0, dst, HEADER_SIZE, compressedFrame.byteSize());
+        return HEADER_SIZE + compressedFrame.byteSize();
+    }
+
+    /// Wraps `compressedFrame`, allocating the result in `arena`, using a
+    /// [Rfc9842DictionaryHash] computed once up front — the hot-path
+    /// counterpart of [#wrap(Arena, MemorySegment, ZstdDictionary)].
+    ///
+    /// @param arena           the arena to allocate the result in
+    /// @param compressedFrame a zstd frame compressed against the hashed dictionary
+    /// @param hash            the dictionary's precomputed hash, from [Rfc9842DictionaryHash#of(ZstdDictionary)]
+    /// @return the `dcz` header followed by `compressedFrame`, an arena-owned segment
+    public static MemorySegment wrap(Arena arena, MemorySegment compressedFrame, Rfc9842DictionaryHash hash) {
+        Objects.requireNonNull(arena, "arena");
+        Objects.requireNonNull(compressedFrame, "compressedFrame");
+        MemorySegment dst = arena.allocate(HEADER_SIZE + compressedFrame.byteSize());
+        wrap(dst, compressedFrame, hash);
+        return dst;
+    }
+
     /// Verifies the RFC 9842 `dcz` header in `dcz` and returns a slice of
     /// `dcz` with it stripped — the zero-copy counterpart of
     /// [#unwrap(byte[], ZstdDictionary)]. No bytes are copied: the returned
@@ -185,6 +254,61 @@ public final class Rfc9842Frame {
     public static MemorySegment unwrap(MemorySegment dcz, ZstdDictionary dictionary) {
         Objects.requireNonNull(dcz, "dcz");
         Objects.requireNonNull(dictionary, "dictionary");
+        validateHeader(dcz);
+        MemorySegment hash = MemorySegment.ofArray(sha256(dictionary));
+        if (MemorySegment.mismatch(hash, 0, HASH_LENGTH, dcz, SKIPPABLE_HEADER_SIZE, HEADER_SIZE) != -1) {
+            throw new Rfc9842Exception("dcz hash does not match the given dictionary");
+        }
+        return dcz.asSlice(HEADER_SIZE, dcz.byteSize() - HEADER_SIZE);
+    }
+
+    /// Verifies the RFC 9842 `dcz` header in `dcz` and returns a slice with
+    /// it stripped, using a [Rfc9842DictionaryHash] computed once up front
+    /// instead of hashing the dictionary again on every call — the hot-path
+    /// counterpart of [#unwrap(MemorySegment, ZstdDictionary)]. Still
+    /// genuinely zero-allocation: the returned segment is a view of `dcz`.
+    ///
+    /// @param dcz  a `dcz`-framed segment produced by
+    ///             [#wrap(MemorySegment, MemorySegment, Rfc9842DictionaryHash)]
+    /// @param hash the dictionary's precomputed hash to verify `dcz` against
+    /// @return a slice of `dcz`: the compressed zstd frame, with the header stripped
+    /// @throws Rfc9842Exception if `dcz` does not carry a `dcz` header, or its
+    ///                           hash does not match `hash`
+    public static MemorySegment unwrap(MemorySegment dcz, Rfc9842DictionaryHash hash) {
+        Objects.requireNonNull(dcz, "dcz");
+        Objects.requireNonNull(hash, "hash");
+        validateHeader(dcz);
+        MemorySegment hashSegment = MemorySegment.ofArray(hash.raw());
+        if (MemorySegment.mismatch(hashSegment, 0, HASH_LENGTH, dcz, SKIPPABLE_HEADER_SIZE, HEADER_SIZE) != -1) {
+            throw new Rfc9842Exception("dcz hash does not match the given dictionary");
+        }
+        return dcz.asSlice(HEADER_SIZE, dcz.byteSize() - HEADER_SIZE);
+    }
+
+    // ---- shared ----
+
+    private static void validateHeader(byte[] dcz) {
+        if (dcz.length < SKIPPABLE_HEADER_SIZE) {
+            throw new Rfc9842Exception("not a dcz frame: shorter than the skippable-frame header");
+        }
+        int magic = readLittleEndianInt(dcz, 0);
+        int variant = magic - SKIPPABLE_MAGIC_BASE;
+        if (variant != MAGIC_VARIANT) {
+            throw new Rfc9842Exception(
+                    "not a dcz frame: expected magic variant " + MAGIC_VARIANT + ", got " + variant);
+        }
+        int contentLength = readLittleEndianInt(dcz, 4);
+        if (contentLength != HASH_LENGTH) {
+            throw new Rfc9842Exception(
+                    "malformed dcz header: expected a " + HASH_LENGTH + "-byte hash, got " + contentLength);
+        }
+        if (dcz.length < HEADER_SIZE) {
+            throw new Rfc9842Exception("malformed dcz header: declares a " + HASH_LENGTH
+                    + "-byte hash but the input is too short to contain it");
+        }
+    }
+
+    private static void validateHeader(MemorySegment dcz) {
         if (dcz.byteSize() < SKIPPABLE_HEADER_SIZE) {
             throw new Rfc9842Exception("not a dcz frame: shorter than the skippable-frame header");
         }
@@ -203,14 +327,7 @@ public final class Rfc9842Frame {
             throw new Rfc9842Exception("malformed dcz header: declares a " + HASH_LENGTH
                     + "-byte hash but the input is too short to contain it");
         }
-        MemorySegment hash = MemorySegment.ofArray(sha256(dictionary));
-        if (MemorySegment.mismatch(hash, 0, HASH_LENGTH, dcz, SKIPPABLE_HEADER_SIZE, HEADER_SIZE) != -1) {
-            throw new Rfc9842Exception("dcz hash does not match the given dictionary");
-        }
-        return dcz.asSlice(HEADER_SIZE, dcz.byteSize() - HEADER_SIZE);
     }
-
-    // ---- shared ----
 
     private static int readLittleEndianInt(byte[] data, int offset) {
         return (data[offset] & 0xFF)

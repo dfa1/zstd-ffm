@@ -5,6 +5,7 @@ import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
 import io.github.dfa1.zstd.rfc9842.DictionaryId;
+import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
@@ -72,6 +73,10 @@ public class PerfTest {
                 dictResponse.headers().firstValue("Use-As-Dictionary").orElseThrow());
         String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
         String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
+        // Precomputed once: Rfc9842Frame.unwrap(byte[], ZstdDictionary) hashes the
+        // dictionary fresh on every call, the same per-request tax
+        // dctx.decompress(byte[], ZstdByteSize, ZstdDictionary) was fixed for below.
+        Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
 
         System.out.printf("%-6s %-10s %10s %14s %9s %9s %9s %9s %9s %12s%n",
                 "size", "encoding", "req/s", "avg bytes/req", "p50 µs", "p90 µs", "p95 µs", "p99 µs", "max µs",
@@ -82,21 +87,23 @@ public class PerfTest {
         // taxing the dcz tier's decode cost here, the same bug fixed server-side earlier.
         try (ZstdDecompressContext dctx = new ZstdDecompressContext();
              ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
-            runAllTiers(size, DATA, http, dctx, dictionary, decompressDictionary, availableDictionary, dictionaryId);
+            runAllTiers(size, DATA, http, dctx, dictionaryHash, decompressDictionary, availableDictionary,
+                    dictionaryId);
         }
     }
 
     private static void runAllTiers(String size, URI data, HttpClient http, ZstdDecompressContext dctx,
-                                     ZstdDictionary dictionary, ZstdDecompressDictionary decompressDictionary,
+                                     Rfc9842DictionaryHash dictionaryHash,
+                                     ZstdDecompressDictionary decompressDictionary,
                                      String availableDictionary, String dictionaryId)
             throws Exception {
-        run(size, "identity", http, dctx, dictionary, decompressDictionary,
+        run(size, "identity", http, dctx, dictionaryHash, decompressDictionary,
                 () -> HttpRequest.newBuilder(data).GET().build());
-        run(size, "gzip", http, dctx, dictionary, decompressDictionary,
+        run(size, "gzip", http, dctx, dictionaryHash, decompressDictionary,
                 () -> HttpRequest.newBuilder(data).header("Accept-Encoding", "gzip").GET().build());
-        run(size, "zstd", http, dctx, dictionary, decompressDictionary,
+        run(size, "zstd", http, dctx, dictionaryHash, decompressDictionary,
                 () -> HttpRequest.newBuilder(data).header("Accept-Encoding", "zstd").GET().build());
-        run(size, "dcz", http, dctx, dictionary, decompressDictionary,
+        run(size, "dcz", http, dctx, dictionaryHash, decompressDictionary,
                 () -> HttpRequest.newBuilder(data)
                         .header("Accept-Encoding", "dcz")
                         .header("Available-Dictionary", availableDictionary)
@@ -105,13 +112,13 @@ public class PerfTest {
     }
 
     private static void run(String size, String label, HttpClient http, ZstdDecompressContext dctx,
-                             ZstdDictionary dictionary, ZstdDecompressDictionary decompressDictionary,
+                             Rfc9842DictionaryHash dictionaryHash, ZstdDecompressDictionary decompressDictionary,
                              RequestFactory requestFactory) throws Exception {
         // Warm up: JIT compilation and first-call native library loading skew
         // the first few requests badly (each dcz/zstd call otherwise pays it) —
         // discard them before measuring.
         for (int i = 0; i < WARMUP_REQUESTS; i++) {
-            decode(http.send(requestFactory.create(), HttpResponse.BodyHandlers.ofByteArray()), dctx, dictionary,
+            decode(http.send(requestFactory.create(), HttpResponse.BodyHandlers.ofByteArray()), dctx, dictionaryHash,
                     decompressDictionary);
         }
 
@@ -122,7 +129,7 @@ public class PerfTest {
             long requestStart = System.nanoTime();
             HttpResponse<byte[]> response = http.send(requestFactory.create(), HttpResponse.BodyHandlers.ofByteArray());
             totalBytes += response.body().length;
-            decode(response, dctx, dictionary, decompressDictionary); // pay the real decode cost, same as a real client would
+            decode(response, dctx, dictionaryHash, decompressDictionary); // pay the real decode cost, same as a real client would
             latenciesNanos[i] = System.nanoTime() - requestStart;
         }
         double elapsedSeconds = (System.nanoTime() - start) / 1_000_000_000.0;
@@ -176,14 +183,13 @@ public class PerfTest {
         return sortedNanos[rank] / 1000.0;
     }
 
-    private static byte[] decode(HttpResponse<byte[]> response, ZstdDecompressContext dctx, ZstdDictionary dictionary,
-                                  ZstdDecompressDictionary decompressDictionary) throws Exception {
+    private static byte[] decode(HttpResponse<byte[]> response, ZstdDecompressContext dctx,
+                                  Rfc9842DictionaryHash dictionaryHash, ZstdDecompressDictionary decompressDictionary)
+            throws Exception {
         String contentEncoding = response.headers().firstValue("Content-Encoding").orElse("identity");
         return switch (contentEncoding) {
             case "dcz" -> {
-                // unwrap still needs the raw dictionary: it verifies the dcz header's
-                // SHA-256 hash against dictionary.toByteArray(), not the digested form.
-                byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionary);
+                byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionaryHash);
                 ZstdByteSize size = ZstdFrame.decompressedSize(frame);
                 yield dctx.decompress(frame, size, decompressDictionary);
             }
