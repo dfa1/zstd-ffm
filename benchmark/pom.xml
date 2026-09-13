@@ -15,7 +15,8 @@
 
 	<description>
 		JMH microbenchmarks: zstd-ffm (byte[] vs MemorySegment) against zstd-jni
-		(JNI) and aircompressor (pure Java). Not published; not part of a release.
+		(JNI) and aircompressor (pure Java); gzip vs plain zstd vs RFC 9842 dcz
+		codec cost in isolation from HTTP. Not published; not part of a release.
 	</description>
 
 	<properties>
@@ -31,6 +32,11 @@
 		<dependency>
 			<groupId>io.github.dfa1.zstd</groupId>
 			<artifactId>zstd</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.github.dfa1.zstd</groupId>
+			<artifactId>zstd-rfc9842</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

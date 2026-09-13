@@ -93,39 +93,50 @@ a typical run:
 
 ```
 size   encoding        req/s  avg bytes/req     avg µs/req  total bytes
-small  identity       2726.8         2828.0          366.7      1413999
-small  gzip           3690.6          363.8          271.0       181911
-small  zstd           4402.9          384.7          227.1       192348
-small  dcz            4493.3          328.6          222.6       164282
-large  identity       3639.9        50055.6          274.7     25027800
-large  gzip           2261.1         2173.9          442.3      1086971
-large  zstd           3979.7         2946.0          251.3      1473013
-large  dcz            3773.4         2874.9          265.0      1437470
+small  identity       2763.0         2828.0          361.9      1413999
+small  gzip           3745.8          361.4          267.0       180683
+small  zstd           4670.9          377.0          214.1       188483
+small  dcz            4386.5          325.5          228.0       162759
+large  identity       3784.9        50055.6          264.2     25027800
+large  gzip           2294.2         2173.9          435.9      1086964
+large  zstd           4067.7         2946.0          245.8      1473012
+large  dcz            3927.2         2739.2          254.6      1369588
 ```
 
-At **small** size, `dcz` wins outright — fewer bytes *and* the highest
-throughput, since on localhost the cost of moving/parsing ~2.8 KB dominates
-over the CPU cost of compression.
+(`Server.java` reuses one `ZstdCompressContext` and a pre-digested
+`ZstdCompressDictionary` across requests, rather than re-digesting the
+dictionary and recreating native state on every call — an earlier version of
+this demo didn't, which understated `dcz`'s real compression ratio,
+especially at large size.)
+
+At **small** size, `dcz` is the smallest tier and at or near the top on
+throughput too — on localhost the cost of moving/parsing ~2.8 KB dominates
+over the CPU cost of compression, so the extra bytes it saves outweigh the
+extra CPU a dictionary lookup costs.
 
 At **large** size the picture is more interesting, and more honest about when
 dictionaries actually help. Two findings hold up consistently across repeated
 runs: **identity beats gzip** (raw bytes cost less than gzip's CPU time on
-localhost) and **`dcz`'s byte savings over plain `zstd` shrink to a couple of
-percent** (2874.9 vs. 2946.0 bytes above, ~2.4%) — once a payload has enough
-internal repetition for zstd to reference on its own, a dictionary has little
-left to add. Whether plain `zstd` or `dcz` comes out faster, though, varies
-run to run (this is a single-threaded, single-connection, localhost
-measurement, not a controlled benchmark) — they're close enough in practice
-that the dictionary's wrap/unwrap overhead and its marginal compression gain
-roughly cancel out at this size. This is the real shape of when dictionary
-compression is worth it: small,
-self-similar messages that don't have enough redundancy of their own — not
-large payloads, which become their own dictionary.
+localhost), and **`dcz` stays meaningfully smaller than plain `zstd`**
+(~2740 vs. ~2946 bytes above, a reproducible ~7% — bigger than it first
+looked before fixing the bugs above). What does *not* hold up run to run is
+which of plain `zstd` or `dcz` is faster: `zstd` usually edges ahead at this
+size, because referencing dictionary content while matching costs a little
+more CPU per call, and at 50 KB that cost is no longer negligible next to the
+bytes saved — but the margin is close enough (and noisy enough on a
+single-threaded, single-connection, localhost measurement) that it isn't a
+reliable ranking. This is the real shape of when dictionary compression is
+worth it: small, self-similar messages that don't have enough redundancy of
+their own — not large payloads, which become their own dictionary and make a
+dictionary's compression-ratio edge cost more CPU than it's worth in pure
+throughput terms (though `dcz` still ships fewer bytes either way).
 
 This is deliberately not a rigorous benchmark (single connection, single
-thread, localhost only) — a real dictionary trained on your own
-representative traffic (`ZstdDictionary.train`) and a real network would
-shift the specifics, though not this overall shape; see
-[../how-to.md](../how-to.md).
+thread, localhost only, HTTP framing and JSON generation mixed into every
+measurement) — see [`../../../benchmark`](../../../benchmark) for a proper
+JMH microbenchmark isolating just the codec cost, no HTTP involved. A real
+dictionary trained on your own representative traffic
+(`ZstdDictionary.train`) and a real network would shift the specifics further
+still, though not the overall shape; see [../how-to.md](../how-to.md).
 
 Stop the server with Ctrl+C when done.
