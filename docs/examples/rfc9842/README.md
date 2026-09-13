@@ -67,10 +67,14 @@ java --enable-native-access=ALL-UNNAMED --class-path "$CP" \
 </details>
 
 Each program prints the exact request/response headers it sent and received,
-plus (for the clients) bytes received and time to parse/decompress. The
-payload here is small, so the size win is modest — the point is watching the
-actual header negotiation and `dcz` unwrap happen, not a benchmark. A real
+plus (for the clients) the full round-trip time, the extra request-header
+bytes offering a dictionary costs, and the response bytes received. `/api/data`
+returns a batch of ~20 JSON events (a realistic small-API-response size, not a
+single record) — small enough that a dictionary meaningfully compresses it, but
+big enough that the ~120 bytes of `Available-Dictionary`/`Dictionary-ID`
+negotiation overhead is trivial next to the savings (in practice: roughly
+2.8 KB down to ~330 bytes). This is deliberately not a benchmark — a real
 dictionary trained on your own representative traffic (`ZstdDictionary.train`)
-would show a much bigger effect; see [../how-to.md](../how-to.md).
+would look different; see [../how-to.md](../how-to.md).
 
 Stop the server with Ctrl+C when done.

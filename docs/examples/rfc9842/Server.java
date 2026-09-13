@@ -46,6 +46,15 @@ public class Server {
             {"event":"page_view","user":"dave","path":"/docs","timestamp":1699999004,"properties":{"referrer":"https://example.com","device":"mobile"}}
             """).getBytes(StandardCharsets.UTF_8);
 
+    // A batch, not a single record: at millions of requests/day, a per-request
+    // saving too small to beat the negotiation headers' own byte cost (see
+    // README.md) isn't worth it. A realistic small batch is.
+    private static final int BATCH_SIZE = 20;
+    private static final String[] EVENT_TYPES = {"page_view", "click", "scroll"};
+    private static final String[] USERS = {"eve", "frank", "grace", "heidi", "ivan"};
+    private static final String[] PATHS = {"/checkout", "/cart", "/product/42", "/search"};
+    private static final String[] DEVICES = {"desktop", "mobile", "tablet"};
+
     private static final AtomicInteger EVENT_COUNTER = new AtomicInteger();
 
     public static void main(String[] args) throws IOException {
@@ -64,7 +73,7 @@ public class Server {
 
         server.createContext("/api/data", exchange -> {
             logRequest(exchange);
-            byte[] payload = nextEvent().getBytes(StandardCharsets.UTF_8);
+            byte[] payload = nextBatch(BATCH_SIZE).getBytes(StandardCharsets.UTF_8);
             String availableDictionaryHeader = exchange.getRequestHeaders().getFirst("Available-Dictionary");
             String dictionaryIdHeader = exchange.getRequestHeaders().getFirst("Dictionary-ID");
 
@@ -98,11 +107,22 @@ public class Server {
                 + " request headers: " + exchange.getRequestHeaders());
     }
 
-    private static String nextEvent() {
-        int n = EVENT_COUNTER.incrementAndGet();
-        return """
-                {"event":"click","user":"eve","path":"/checkout","timestamp":170000%04d,"properties":{"referrer":"https://example.com","device":"desktop"}}"""
-                .formatted(n);
+    /// A batch of `count` realistic, varied events — a client analytics/event
+    /// API endpoint's actual response shape, not a single toy record.
+    private static String nextBatch(int count) {
+        StringBuilder batch = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            int n = EVENT_COUNTER.incrementAndGet();
+            batch.append("""
+                    {"event":"%s","user":"%s","path":"%s","timestamp":%d,"properties":{"referrer":"https://example.com","device":"%s"}}
+                    """.formatted(
+                    EVENT_TYPES[n % EVENT_TYPES.length],
+                    USERS[n % USERS.length],
+                    PATHS[n % PATHS.length],
+                    1_700_000_000L + n,
+                    DEVICES[n % DEVICES.length]));
+        }
+        return batch.toString();
     }
 
     private static String unquote(String sfvString) {
