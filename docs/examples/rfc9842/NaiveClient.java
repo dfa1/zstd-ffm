@@ -26,25 +26,29 @@ public class NaiveClient {
 
     private static final URI BASE = URI.create("http://localhost:9842");
 
+    private static final String DATA_PATH = "/api/data";
+
     public static void main(String[] args) throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
-        for (int i = 0; i < 3; i++) {
-            fetchData(http);
+        // Pinned to HTTP/1.1 (the JDK HttpServer speaks nothing else) and
+        // closed at the end — HttpClient is AutoCloseable since JDK 21.
+        try (HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()) {
+            // Immutable, so built once and sent three times.
+            HttpRequest request = HttpRequest.newBuilder(BASE.resolve(DATA_PATH))
+                    .header("Accept-Encoding", "gzip")
+                    .GET().build();
+            System.out.println("[naive-client] GET " + DATA_PATH + " request headers:  " + request.headers().map());
+            for (int i = 0; i < 3; i++) {
+                fetchData(http, request);
+            }
         }
     }
 
-    private static void fetchData(HttpClient http) throws Exception {
-        String path = "/api/data";
-        HttpRequest request = HttpRequest.newBuilder(BASE.resolve(path))
-                .header("Accept-Encoding", "gzip")
-                .GET().build();
-        System.out.println("[naive-client] GET " + path + " request headers:  " + request.headers().map());
-
+    private static void fetchData(HttpClient http, HttpRequest request) throws Exception {
         // Round trip starts here: send, receive, and (below) decode are all
         // part of what this request actually costs the caller.
         long start = System.nanoTime();
         HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
-        System.out.println("[naive-client] GET " + path + " response headers: " + response.headers().map());
+        System.out.println("[naive-client] GET " + DATA_PATH + " response headers: " + response.headers().map());
 
         int receivedBytes = response.body().length;
         Optional<String> contentEncoding = response.headers().firstValue("Content-Encoding");

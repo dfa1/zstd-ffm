@@ -57,42 +57,47 @@ public class PerfTest {
     private static final int WARMUP_REQUESTS = 2_000;
     private static final int MEASURED_REQUESTS = 10_000;
 
-    private interface RequestFactory {
-        HttpRequest create();
-    }
-
     public static void main(String[] args) throws Exception {
         // Label only, purely informational: the server itself was started
         // with the response size fixed (see Server.java's args[0]) and this
         // doesn't change what gets requested.
         String size = args.length > 0 ? args[0] : "default";
 
-        HttpClient http = HttpClient.newHttpClient();
+        // Pinned to HTTP/1.1, not the HttpClient default of HTTP/2: the JDK's
+        // HttpServer speaks HTTP/1.1 only, so every h2c upgrade attempt the
+        // default makes is negotiation that can only fail. Measured at ~+4%
+        // req/s and −3.5 µs p50 here, and it keeps the logged request headers
+        // free of the `Connection: Upgrade`/`HTTP2-Settings` pair.
+        //
+        // Closed at the end (HttpClient is AutoCloseable since JDK 21), which
+        // shuts down its selector and executor threads rather than leaving them
+        // to keep the JVM alive.
+        try (HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()) {
+            HttpResponse<byte[]> dictResponse = http.send(
+                    HttpRequest.newBuilder(BASE.resolve("/dictionary")).GET().build(),
+                    HttpResponse.BodyHandlers.ofByteArray());
+            ZstdDictionary dictionary = ZstdDictionary.of(dictResponse.body());
+            UseAsDictionary useAsDictionary = UseAsDictionary.parse(
+                    dictResponse.headers().firstValue("Use-As-Dictionary").orElseThrow());
+            String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
+            String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
+            // Precomputed once: Rfc9842Frame.unwrap(byte[], ZstdDictionary) hashes the
+            // dictionary fresh on every call, the same per-request tax
+            // dctx.decompress(byte[], ZstdByteSize, ZstdDictionary) was fixed for below.
+            Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
 
-        HttpResponse<byte[]> dictResponse = http.send(
-                HttpRequest.newBuilder(BASE.resolve("/dictionary")).GET().build(),
-                HttpResponse.BodyHandlers.ofByteArray());
-        ZstdDictionary dictionary = ZstdDictionary.of(dictResponse.body());
-        UseAsDictionary useAsDictionary = UseAsDictionary.parse(
-                dictResponse.headers().firstValue("Use-As-Dictionary").orElseThrow());
-        String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
-        String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
-        // Precomputed once: Rfc9842Frame.unwrap(byte[], ZstdDictionary) hashes the
-        // dictionary fresh on every call, the same per-request tax
-        // dctx.decompress(byte[], ZstdByteSize, ZstdDictionary) was fixed for below.
-        Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
-
-        System.out.printf("%-6s %-10s %10s %14s %9s %9s %9s %9s %9s %12s%n",
-                "size", "encoding", "req/s", "avg bytes/req", "p50 µs", "p90 µs", "p95 µs", "p99 µs", "max µs",
-                "total bytes");
-        // Pre-digested once, like Server.java's compressDictionary: dctx.decompress(byte[],
-        // ZstdByteSize, ZstdDictionary) re-digests the dictionary from scratch on every
-        // single call. Passing the raw ZstdDictionary there on every request was silently
-        // taxing the dcz tier's decode cost here, the same bug fixed server-side earlier.
-        try (ZstdDecompressContext dctx = new ZstdDecompressContext();
-             ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
-            runAllTiers(size, DATA, http, dctx, dictionaryHash, decompressDictionary, availableDictionary,
-                    dictionaryId);
+            System.out.printf("%-6s %-10s %10s %14s %9s %9s %9s %9s %9s %12s%n",
+                    "size", "encoding", "req/s", "avg bytes/req", "p50 µs", "p90 µs", "p95 µs", "p99 µs", "max µs",
+                    "total bytes");
+            // Pre-digested once, like Server.java's compressDictionary: dctx.decompress(byte[],
+            // ZstdByteSize, ZstdDictionary) re-digests the dictionary from scratch on every
+            // single call. Passing the raw ZstdDictionary there on every request was silently
+            // taxing the dcz tier's decode cost here, the same bug fixed server-side earlier.
+            try (ZstdDecompressContext dctx = new ZstdDecompressContext();
+                 ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
+                runAllTiers(size, DATA, http, dctx, dictionaryHash, decompressDictionary, availableDictionary,
+                        dictionaryId);
+            }
         }
     }
 
@@ -101,14 +106,22 @@ public class PerfTest {
                                      ZstdDecompressDictionary decompressDictionary,
                                      String availableDictionary, String dictionaryId)
             throws Exception {
+        // Built once per tier, not per request: HttpRequest is immutable and
+        // documented as sendable more than once, so rebuilding it 12,000 times
+        // only re-runs header validation and re-allocates the header map inside
+        // the measured loop — work that has nothing to do with what is being
+        // measured.
         run(size, "identity", http, dctx, dictionaryHash, decompressDictionary,
-                () -> HttpRequest.newBuilder(data).GET().build());
+                HttpRequest.newBuilder(data).GET().build());
         run(size, "gzip", http, dctx, dictionaryHash, decompressDictionary,
-                () -> HttpRequest.newBuilder(data).header("Accept-Encoding", "gzip").GET().build());
+                HttpRequest.newBuilder(data).header("Accept-Encoding", "gzip").GET().build());
         run(size, "zstd", http, dctx, dictionaryHash, decompressDictionary,
-                () -> HttpRequest.newBuilder(data).header("Accept-Encoding", "zstd").GET().build());
+                HttpRequest.newBuilder(data).header("Accept-Encoding", "zstd").GET().build());
+        // RFC 9842 §6.1: `dcz` is only offered together with the dictionary it
+        // needs — advertising it without an `Available-Dictionary` would ask for
+        // an encoding this client could not decode.
         run(size, "dcz", http, dctx, dictionaryHash, decompressDictionary,
-                () -> HttpRequest.newBuilder(data)
+                HttpRequest.newBuilder(data)
                         .header("Accept-Encoding", "dcz")
                         .header("Available-Dictionary", availableDictionary)
                         .header("Dictionary-ID", dictionaryId)
@@ -117,12 +130,12 @@ public class PerfTest {
 
     private static void run(String size, String label, HttpClient http, ZstdDecompressContext dctx,
                              Rfc9842DictionaryHash dictionaryHash, ZstdDecompressDictionary decompressDictionary,
-                             RequestFactory requestFactory) throws Exception {
+                             HttpRequest request) throws Exception {
         // Warm up: JIT compilation and first-call native library loading skew
         // the first few requests badly (each dcz/zstd call otherwise pays it) —
         // discard them before measuring.
         for (int i = 0; i < WARMUP_REQUESTS; i++) {
-            decode(http.send(requestFactory.create(), HttpResponse.BodyHandlers.ofByteArray()), dctx, dictionaryHash,
+            decode(http.send(request, HttpResponse.BodyHandlers.ofByteArray()), dctx, dictionaryHash,
                     decompressDictionary);
         }
 
@@ -131,7 +144,7 @@ public class PerfTest {
         long start = System.nanoTime();
         for (int i = 0; i < MEASURED_REQUESTS; i++) {
             long requestStart = System.nanoTime();
-            HttpResponse<byte[]> response = http.send(requestFactory.create(), HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
             totalBytes += response.body().length;
             decode(response, dctx, dictionaryHash, decompressDictionary); // pay the real decode cost, same as a real client would
             latenciesNanos[i] = System.nanoTime() - requestStart;

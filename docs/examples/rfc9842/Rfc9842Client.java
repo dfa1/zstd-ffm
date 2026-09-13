@@ -23,10 +23,10 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
 /// RFC 9842 (Compression Dictionary Transport)-aware demo client — the
 /// counterpart to `NaiveClient` in this directory, against the same
-/// Server.java. Fetches the dictionary once, then advertises `Accept-Encoding:
-/// gzip, zstd, dcz` (everything it can decode) on every request, offering the
-/// dictionary too whenever it applies — letting the server pick the best of
-/// the four encodings it actually has available for that request.
+/// Server.java. Fetches the dictionary once, then advertises everything it can
+/// decode on every request — `gzip, zstd`, plus `dcz` and the dictionary
+/// itself on requests the dictionary applies to — letting the server pick the
+/// best encoding it actually has available for that request.
 ///
 /// Run from the repository root (see README.md in this directory for the
 /// one-time build step and the exact classpath), after starting Server.java:
@@ -38,51 +38,70 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 public class Rfc9842Client {
 
     private static final URI BASE = URI.create("http://localhost:9842");
+    private static final String DATA_PATH = "/api/data";
+
+    /// The prepared `/api/data` request plus the extra request-header bytes
+    /// offering a dictionary costs, so the report below can show what the
+    /// negotiation itself is worth.
+    private record DataRequest(HttpRequest request, int extraHeaderBytes) {
+    }
 
     public static void main(String[] args) throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
+        // Pinned to HTTP/1.1 (the JDK HttpServer speaks nothing else, so the
+        // default HTTP/2 client only spends an h2c upgrade attempt finding
+        // that out), and closed at the end — HttpClient is AutoCloseable since
+        // JDK 21, and closing shuts down its selector and executor threads.
+        try (HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()) {
+            // Step 1: fetch the dictionary and learn where it applies.
+            HttpRequest dictRequest = HttpRequest.newBuilder(BASE.resolve("/dictionary")).GET().build();
+            System.out.println("[rfc9842-client] GET /dictionary request headers:  " + dictRequest.headers().map());
+            HttpResponse<byte[]> dictResponse = http.send(dictRequest, HttpResponse.BodyHandlers.ofByteArray());
+            System.out.println("[rfc9842-client] GET /dictionary response headers: " + dictResponse.headers().map());
 
-        // Step 1: fetch the dictionary and learn where it applies.
-        HttpRequest dictRequest = HttpRequest.newBuilder(BASE.resolve("/dictionary")).GET().build();
-        System.out.println("[rfc9842-client] GET /dictionary request headers:  " + dictRequest.headers().map());
-        HttpResponse<byte[]> dictResponse = http.send(dictRequest, HttpResponse.BodyHandlers.ofByteArray());
-        System.out.println("[rfc9842-client] GET /dictionary response headers: " + dictResponse.headers().map());
+            ZstdDictionary dictionary = ZstdDictionary.of(dictResponse.body());
+            UseAsDictionary useAsDictionary = UseAsDictionary.parse(
+                    dictResponse.headers().firstValue("Use-As-Dictionary").orElseThrow());
+            System.out.println("[rfc9842-client] stored dictionary (" + dictResponse.body().length
+                    + " bytes), applies to '" + useAsDictionary.match() + "', id=" + useAsDictionary.id());
 
-        ZstdDictionary dictionary = ZstdDictionary.of(dictResponse.body());
-        UseAsDictionary useAsDictionary = UseAsDictionary.parse(
-                dictResponse.headers().firstValue("Use-As-Dictionary").orElseThrow());
-        System.out.println("[rfc9842-client] stored dictionary (" + dictResponse.body().length + " bytes), applies to '"
-                + useAsDictionary.match() + "', id=" + useAsDictionary.id());
+            // Everything the request needs, built once up front rather than per
+            // call: the hashes (AvailableDictionary.of/Rfc9842DictionaryHash.of
+            // both re-hash the whole dictionary on every call) and the request
+            // itself, which is immutable and documented as sendable repeatedly.
+            String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
+            Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
+            DataRequest dataRequest = dataRequest(availableDictionary, useAsDictionary);
+            System.out.println("[rfc9842-client] GET " + DATA_PATH + " request headers:  "
+                    + dataRequest.request().headers().map());
 
-        // Precomputed once, not per request: AvailableDictionary.of/Rfc9842DictionaryHash.of
-        // both hash the dictionary fresh on every call, and its value never changes here.
-        String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
-        Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
-
-        // Step 2 & 3: fetch data, advertising the dictionary when it applies.
-        // Digested once and reused, like Server.java's compressDictionary: creating a
-        // fresh ZstdDecompressContext and re-digesting the dictionary on every single
-        // call — as an earlier version of this client did — pays real native setup
-        // cost per request instead of once.
-        try (ZstdDecompressContext dctx = new ZstdDecompressContext();
-             ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
-            for (int i = 0; i < 3; i++) {
-                fetchData(http, dctx, dictionaryHash, decompressDictionary, availableDictionary, useAsDictionary);
+            // Step 2 & 3: fetch data, advertising the dictionary when it applies.
+            // Digested once and reused, like Server.java's compressDictionary: creating a
+            // fresh ZstdDecompressContext and re-digesting the dictionary on every single
+            // call — as an earlier version of this client did — pays real native setup
+            // cost per request instead of once.
+            try (ZstdDecompressContext dctx = new ZstdDecompressContext();
+                 ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
+                for (int i = 0; i < 3; i++) {
+                    fetchData(http, dataRequest, dctx, dictionaryHash, decompressDictionary);
+                }
             }
         }
     }
 
-    private static void fetchData(HttpClient http, ZstdDecompressContext dctx, Rfc9842DictionaryHash dictionaryHash,
-                                   ZstdDecompressDictionary decompressDictionary, String availableDictionary,
-                                   UseAsDictionary useAsDictionary) throws Exception {
-        String path = "/api/data";
-        HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(path)).GET();
-
-        String acceptEncoding = "gzip, zstd, dcz";
+    /// Builds the one `/api/data` request this client sends over and over,
+    /// reporting the extra header bytes offering a dictionary costs.
+    ///
+    /// RFC 9842 §6.1 is the reason `dcz` is conditional rather than always
+    /// advertised: a client that has no dictionary matching the request "MUST
+    /// NOT send its dictionary-aware content encodings in the `Accept-Encoding`
+    /// request header" — asking for an encoding it could not then decode.
+    private static DataRequest dataRequest(String availableDictionary, UseAsDictionary useAsDictionary) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(DATA_PATH)).GET();
+        boolean offeringDictionary = useAsDictionary.matchesPath(DATA_PATH);
+        String acceptEncoding = offeringDictionary ? "gzip, zstd, dcz" : "gzip, zstd";
         builder.header("Accept-Encoding", acceptEncoding);
         int requestHeaderBytes = headerBytes("Accept-Encoding", acceptEncoding);
 
-        boolean offeringDictionary = useAsDictionary.matchesPath(path);
         if (offeringDictionary) {
             String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
             builder.header("Available-Dictionary", availableDictionary)
@@ -90,15 +109,17 @@ public class Rfc9842Client {
             requestHeaderBytes += headerBytes("Available-Dictionary", availableDictionary)
                     + headerBytes("Dictionary-ID", dictionaryId);
         }
+        return new DataRequest(builder.build(), requestHeaderBytes);
+    }
 
-        HttpRequest request = builder.build();
-        System.out.println("[rfc9842-client] GET " + path + " request headers:  " + request.headers().map());
-
+    private static void fetchData(HttpClient http, DataRequest dataRequest, ZstdDecompressContext dctx,
+                                   Rfc9842DictionaryHash dictionaryHash,
+                                   ZstdDecompressDictionary decompressDictionary) throws Exception {
         // Round trip starts here: send, receive, and (below) verify/decompress
         // are all part of what this request actually costs the caller.
         long start = System.nanoTime();
-        HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
-        System.out.println("[rfc9842-client] GET " + path + " response headers: " + response.headers().map());
+        HttpResponse<byte[]> response = http.send(dataRequest.request(), HttpResponse.BodyHandlers.ofByteArray());
+        System.out.println("[rfc9842-client] GET " + DATA_PATH + " response headers: " + response.headers().map());
 
         String contentEncoding = response.headers().firstValue("Content-Encoding").orElse("identity");
         int receivedBytes = response.body().length;
@@ -117,7 +138,7 @@ public class Rfc9842Client {
 
         System.out.printf("[rfc9842-client] round trip: %.1f µs, %d extra request header bytes, "
                         + "%d response bytes (%s) -> %d payload bytes%n",
-                roundTripMicros, requestHeaderBytes, receivedBytes, contentEncoding, payload.length);
+                roundTripMicros, dataRequest.extraHeaderBytes(), receivedBytes, contentEncoding, payload.length);
         System.out.println("[rfc9842-client]   body: " + new String(payload, StandardCharsets.UTF_8).strip());
     }
 
