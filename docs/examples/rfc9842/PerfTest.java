@@ -73,8 +73,9 @@ public class PerfTest {
         String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
         String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
 
-        System.out.printf("%-6s %-10s %10s %14s %9s %9s %9s %9s %12s%n",
-                "size", "encoding", "req/s", "avg bytes/req", "p50 µs", "p90 µs", "p99 µs", "max µs", "total bytes");
+        System.out.printf("%-6s %-10s %10s %14s %9s %9s %9s %9s %9s %12s%n",
+                "size", "encoding", "req/s", "avg bytes/req", "p50 µs", "p90 µs", "p95 µs", "p99 µs", "max µs",
+                "total bytes");
         // Pre-digested once, like Server.java's compressDictionary: dctx.decompress(byte[],
         // ZstdByteSize, ZstdDictionary) re-digests the dictionary from scratch on every
         // single call. Passing the raw ZstdDictionary there on every request was silently
@@ -127,12 +128,13 @@ public class PerfTest {
         double elapsedSeconds = (System.nanoTime() - start) / 1_000_000_000.0;
 
         Arrays.sort(latenciesNanos);
-        System.out.printf("%-6s %-10s %10.1f %14.1f %9.1f %9.1f %9.1f %9.1f %12d%n",
+        System.out.printf("%-6s %-10s %10.1f %14.1f %9.1f %9.1f %9.1f %9.1f %9.1f %12d%n",
                 size, label,
                 MEASURED_REQUESTS / elapsedSeconds,
                 (double) totalBytes / MEASURED_REQUESTS,
                 percentileMicros(latenciesNanos, 50),
                 percentileMicros(latenciesNanos, 90),
+                percentileMicros(latenciesNanos, 95),
                 percentileMicros(latenciesNanos, 99),
                 latenciesNanos[latenciesNanos.length - 1] / 1000.0,
                 totalBytes);
