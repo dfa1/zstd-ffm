@@ -7,15 +7,25 @@ git tags, which trigger publication to Maven Central.
 ## [Unreleased]
 
 ### Added
-- New module `io.github.dfa1.zstd:zstd-rfc9842` — an RFC 9842 (Compression
-  Dictionary Transport) `dcz` frame codec. `Rfc9842Frame.wrap`/`unwrap` add or
-  verify the 40-byte header (skippable-frame magic + SHA-256 dictionary hash)
-  around a zstd frame, so a decoder can self-verify the right dictionary is in
-  hand before decompressing — independent of any HTTP headers that negotiated
-  it. No HTTP dependency: composes with either the per-call dictionary path or
-  a pre-digested `ZstdCompressDictionary`/`ZstdDecompressDictionary`. Scoped to
-  the wire format only; HTTP header semantics are tracked separately.
-  ([#91](https://github.com/dfa1/zstd-ffm/issues/91))
+- New module `io.github.dfa1.zstd:zstd-rfc9842` — RFC 9842 (Compression
+  Dictionary Transport) support.
+  - `Rfc9842Frame.wrap`/`unwrap` add or verify the `dcz` wire format: a 40-byte
+    header (skippable-frame magic + SHA-256 dictionary hash) around a zstd
+    frame, so a decoder can self-verify the right dictionary is in hand before
+    decompressing — independent of any HTTP headers that negotiated it. No
+    HTTP dependency: composes with either the per-call dictionary path or a
+    pre-digested `ZstdCompressDictionary`/`ZstdDecompressDictionary`.
+    ([#91](https://github.com/dfa1/zstd-ffm/issues/91))
+  - `UseAsDictionary`, `AvailableDictionary`, and `DictionaryId` parse/build
+    the values of the three HTTP headers (`Use-As-Dictionary`,
+    `Available-Dictionary`, `Dictionary-ID`) as a framework-agnostic model —
+    zero dependency on any HTTP framework or servlet API. Includes a minimal
+    hand-rolled RFC 8941 (Structured Field Values) parser/serializer scoped to
+    what these headers use, and path matching against `Use-As-Dictionary`'s
+    `match` pattern restricted to literal text plus `*` wildcards (a deliberate
+    subset of WHATWG URL Pattern — named/optional groups are not supported,
+    matching literally instead of failing to compile).
+    ([#92](https://github.com/dfa1/zstd-ffm/issues/92))
 
 ## [0.13] - 2026-09-12
 

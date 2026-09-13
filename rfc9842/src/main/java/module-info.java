@@ -1,8 +1,14 @@
-/// RFC 9842 (Compression Dictionary Transport) `dcz` frame codec.
+/// RFC 9842 (Compression Dictionary Transport) support: the `dcz` frame codec
+/// and a framework-agnostic model of the three HTTP headers.
 ///
-/// Wraps/verifies the skippable-frame header that identifies which dictionary
-/// a zstd frame was compressed against (Compression Dictionary Transport §5).
-/// No HTTP dependency — pairs with the bindings in `io.github.dfa1.zstd`.
+/// [io.github.dfa1.zstd.rfc9842.Rfc9842Frame] wraps/verifies the
+/// skippable-frame header that identifies which dictionary a zstd frame was
+/// compressed against (§5). [io.github.dfa1.zstd.rfc9842.UseAsDictionary],
+/// [io.github.dfa1.zstd.rfc9842.AvailableDictionary], and
+/// [io.github.dfa1.zstd.rfc9842.DictionaryId] parse/build the values of the
+/// `Use-As-Dictionary`, `Available-Dictionary`, and `Dictionary-ID` headers
+/// (§2), with zero dependency on any HTTP framework. Pairs with the bindings
+/// in `io.github.dfa1.zstd`; no HTTP dependency of its own.
 @SuppressWarnings("module") // dfa1 is my username in github
 module io.github.dfa1.zstd.rfc9842 {
     requires transitive io.github.dfa1.zstd;
