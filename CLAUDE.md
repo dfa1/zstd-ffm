@@ -18,7 +18,7 @@ Multi-module Maven build (`io.github.dfa1.zstd:zstd`):
   Classifiers: `osx-aarch64`, `osx-x86_64`, `linux-x86_64`, `linux-aarch64`,
   `windows-x86_64`, `windows-aarch64`.
 - `bom/` — dependency BOM.
-- `zstd/` — vendored `facebook/zstd` git submodule (the C source of truth).
+- `third_party/zstd/` — vendored `facebook/zstd` git submodule (the C source of truth).
 
 ## Native build
 
@@ -84,7 +84,7 @@ Built `.dylib/.so/.dll` are git-ignored; they are regenerated from the submodule
 - `@Nested` groups related scenarios (`@BeforeEach` in a nested class applies only to it). Private
   helpers go after all `@Test` methods.
 
-# Code style
+## Code style
 
 - 4-space indent, **zero SonarQube bugs/smells**, no `sun.misc.Unsafe` or internal JDK APIs.
 - Prefer explicit over clever; fail fast on unhandled cases.
