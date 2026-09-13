@@ -1,6 +1,7 @@
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
@@ -12,8 +13,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
@@ -47,23 +51,23 @@ public class Server {
 
     private static final String DICTIONARY_ID = "demo-v1";
 
-    // A toy "dictionary": a handful of sample events sharing the same JSON
-    // shape as the data /api/data actually serves. A real dictionary would be
-    // trained with ZstdDictionary.train(...) on a representative sample set;
-    // a literal shared prefix like this works too — see ZstdDictionary.of.
-    private static final byte[] DICTIONARY_BYTES = ("""
-            {"event":"page_view","user":"alice","path":"/home","timestamp":1699999001,"properties":{"referrer":"https://example.com","device":"desktop"}}
-            {"event":"page_view","user":"bob","path":"/pricing","timestamp":1699999002,"properties":{"referrer":"https://example.com","device":"mobile"}}
-            {"event":"click","user":"carol","path":"/signup","timestamp":1699999003,"properties":{"referrer":"https://example.com","device":"desktop"}}
-            {"event":"page_view","user":"dave","path":"/docs","timestamp":1699999004,"properties":{"referrer":"https://example.com","device":"mobile"}}
-            """).getBytes(StandardCharsets.UTF_8);
+    // Trained (via ZstdDictionary.train), not a hand-picked toy sample: see
+    // benchmark/.../DictionaryTransportBenchmark, which found a dictionary
+    // that merely "looks like" the payload teaches nothing about how ZDICT
+    // actually behaves on this response size. 300 independently generated
+    // batches of the same shape as what /api/data serves, disjoint from any
+    // batch actually served, standing in for a corpus of real past traffic.
+    private static final int TRAINING_SAMPLE_COUNT = 300;
+    private static final long TRAINING_SEED = 0x5EED;
 
     // A batch, not a single record: at millions of requests/day, a per-request
     // saving too small to beat the negotiation headers' own byte cost (see
-    // README.md) isn't worth it. A realistic small batch is — plus a larger
-    // one (?size=large) to see how the four tiers compare at a bigger size.
-    private static final int SMALL_TARGET_BYTES = 2_800;
-    private static final int LARGE_TARGET_BYTES = 50_000;
+    // README.md) isn't worth it. Configurable via args[0] (bytes) so the same
+    // server can be pointed at any response size, to see how the four tiers
+    // and the dictionary's own benefit shift with it — see
+    // benchmark/.../DictionaryTransportBenchmark for the equivalent in-process
+    // sweep.
+    private static final int DEFAULT_TARGET_BYTES = 2_800;
     private static final String[] EVENT_TYPES = {"page_view", "click", "scroll"};
     private static final String[] USERS = {"eve", "frank", "grace", "heidi", "ivan"};
     private static final String[] PATHS = {"/checkout", "/cart", "/product/42", "/search"};
@@ -72,7 +76,15 @@ public class Server {
     private static final AtomicInteger EVENT_COUNTER = new AtomicInteger();
 
     public static void main(String[] args) throws IOException {
-        ZstdDictionary dictionary = ZstdDictionary.of(DICTIONARY_BYTES);
+        int targetBytes = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_TARGET_BYTES;
+
+        List<byte[]> trainingSamples = new ArrayList<>(TRAINING_SAMPLE_COUNT);
+        Random trainingRandom = new Random(TRAINING_SEED);
+        for (int i = 0; i < TRAINING_SAMPLE_COUNT; i++) {
+            trainingSamples.add(nextBatch(targetBytes, trainingRandom).getBytes(StandardCharsets.UTF_8));
+        }
+        ZstdDictionary dictionary = ZstdDictionary.train(trainingSamples, ZstdByteSize.ofKiB(1));
+        byte[] dictionaryBytes = dictionary.toByteArray();
         AvailableDictionary expectedHash = AvailableDictionary.of(dictionary);
 
         // Digested once, not on every request: ZstdCompressContext.compress(byte[],
@@ -103,14 +115,13 @@ public class Server {
             logRequest(exchange);
             exchange.getResponseHeaders().add("Use-As-Dictionary",
                     new UseAsDictionary("/api/*", DICTIONARY_ID).toHeaderValue());
-            System.out.println("[server] serving dictionary (" + DICTIONARY_BYTES.length + " bytes)");
-            sendBody(exchange, 200, DICTIONARY_BYTES);
+            System.out.println("[server] serving dictionary (" + dictionaryBytes.length + " bytes)");
+            sendBody(exchange, 200, dictionaryBytes);
         });
 
         server.createContext("/api/data", exchange -> {
             logRequest(exchange);
-            boolean large = "size=large".equals(exchange.getRequestURI().getQuery());
-            byte[] payload = nextBatch(large ? LARGE_TARGET_BYTES : SMALL_TARGET_BYTES).getBytes(StandardCharsets.UTF_8);
+            byte[] payload = nextBatch(targetBytes, EVENT_COUNTER).getBytes(StandardCharsets.UTF_8);
 
             Set<String> accepted = parseAcceptEncoding(exchange.getRequestHeaders().getFirst("Accept-Encoding"));
             String availableDictionaryHeader = exchange.getRequestHeaders().getFirst("Available-Dictionary");
@@ -154,11 +165,12 @@ public class Server {
 
     /// A batch of realistic, varied events totaling at least `targetBytes` —
     /// a client analytics/event API endpoint's actual response shape, not a
-    /// single toy record.
-    private static String nextBatch(int targetBytes) {
+    /// single toy record. Driven by an ever-incrementing counter so every
+    /// served response is distinct real "traffic".
+    private static String nextBatch(int targetBytes, AtomicInteger counter) {
         StringBuilder batch = new StringBuilder();
         while (batch.length() < targetBytes) {
-            int n = EVENT_COUNTER.incrementAndGet();
+            int n = counter.incrementAndGet();
             batch.append("""
                     {"event":"%s","user":"%s","path":"%s","timestamp":%d,"properties":{"referrer":"https://example.com","device":"%s"}}
                     """.formatted(
@@ -167,6 +179,25 @@ public class Server {
                     PATHS[n % PATHS.length],
                     1_700_000_000L + n,
                     DEVICES[n % DEVICES.length]));
+        }
+        return batch.toString();
+    }
+
+    /// Same shape as [#nextBatch(int, AtomicInteger)], but driven by a
+    /// caller-supplied `Random` instead of the live traffic counter — used
+    /// only to build the training corpus, which must stay disjoint from
+    /// anything actually served.
+    private static String nextBatch(int targetBytes, Random random) {
+        StringBuilder batch = new StringBuilder();
+        while (batch.length() < targetBytes) {
+            batch.append("""
+                    {"event":"%s","user":"%s","path":"%s","timestamp":%d,"properties":{"referrer":"https://example.com","device":"%s"}}
+                    """.formatted(
+                    EVENT_TYPES[random.nextInt(EVENT_TYPES.length)],
+                    USERS[random.nextInt(USERS.length)],
+                    PATHS[random.nextInt(PATHS.length)],
+                    1_700_000_000L + random.nextInt(1_000_000),
+                    DEVICES[random.nextInt(DEVICES.length)]));
         }
         return batch.toString();
     }

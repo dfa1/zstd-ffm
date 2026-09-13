@@ -1,5 +1,6 @@
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdDecompressContext;
+import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
@@ -49,12 +50,20 @@ public class Rfc9842Client {
                 + useAsDictionary.match() + "', id=" + useAsDictionary.id());
 
         // Step 2 & 3: fetch data, advertising the dictionary when it applies.
-        for (int i = 0; i < 3; i++) {
-            fetchData(http, dictionary, useAsDictionary);
+        // Digested once and reused, like Server.java's compressDictionary: creating a
+        // fresh ZstdDecompressContext and re-digesting the dictionary on every single
+        // call — as an earlier version of this client did — pays real native setup
+        // cost per request instead of once.
+        try (ZstdDecompressContext dctx = new ZstdDecompressContext();
+             ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
+            for (int i = 0; i < 3; i++) {
+                fetchData(http, dctx, dictionary, decompressDictionary, useAsDictionary);
+            }
         }
     }
 
-    private static void fetchData(HttpClient http, ZstdDictionary dictionary, UseAsDictionary useAsDictionary)
+    private static void fetchData(HttpClient http, ZstdDecompressContext dctx, ZstdDictionary dictionary,
+                                   ZstdDecompressDictionary decompressDictionary, UseAsDictionary useAsDictionary)
             throws Exception {
         String path = "/api/data";
         HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(path)).GET();
@@ -87,18 +96,18 @@ public class Rfc9842Client {
 
         byte[] payload = switch (contentEncoding) {
             case "dcz" -> {
+                // unwrap still needs the raw dictionary: it verifies the dcz header's
+                // SHA-256 hash against dictionary.toByteArray(), not the digested form.
                 byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionary);
                 ZstdByteSize size = ZstdFrame.decompressedSize(frame);
-                try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-                    yield dctx.decompress(frame, size, dictionary);
+                yield dctx.decompress(frame, size, decompressDictionary);
+            }
+            case "zstd" -> dctx.decompress(response.body());
+            case "gzip" -> {
+                try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(response.body()))) {
+                    yield gzip.readAllBytes();
                 }
             }
-            case "zstd" -> {
-                try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-                    yield dctx.decompress(response.body());
-                }
-            }
-            case "gzip" -> new GZIPInputStream(new ByteArrayInputStream(response.body())).readAllBytes();
             default -> response.body();
         };
         double roundTripMicros = (System.nanoTime() - start) / 1_000.0;

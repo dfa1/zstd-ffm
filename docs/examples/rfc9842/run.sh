@@ -4,17 +4,18 @@
 #
 # Usage (from anywhere, after the one-time `./mvnw -q compile` from the repo
 # root — see README.md):
-#   docs/examples/rfc9842/run.sh Server
+#   docs/examples/rfc9842/run.sh Server [responseSizeBytes]
 #   docs/examples/rfc9842/run.sh NaiveClient
 #   docs/examples/rfc9842/run.sh Rfc9842Client
-#   docs/examples/rfc9842/run.sh PerfTest
+#   docs/examples/rfc9842/run.sh PerfTest [responseSizeBytes]
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-    echo "usage: $0 <Server|NaiveClient|Rfc9842Client|PerfTest>" >&2
+    echo "usage: $0 <Server|NaiveClient|Rfc9842Client|PerfTest> [args...]" >&2
     exit 1
 fi
 class="$1"
+shift
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$repo_root"
@@ -36,9 +37,9 @@ case "$class" in
     NaiveClient)
         ;;
     *)
-        echo "usage: $0 <Server|NaiveClient|Rfc9842Client|PerfTest>" >&2
+        echo "usage: $0 <Server|NaiveClient|Rfc9842Client|PerfTest> [args...]" >&2
         exit 1
         ;;
 esac
 
-exec java "${flags[@]}" "docs/examples/rfc9842/$class.java"
+exec java "${flags[@]}" "docs/examples/rfc9842/$class.java" "$@"

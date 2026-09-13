@@ -1,4 +1,5 @@
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -48,7 +49,7 @@ public class NaiveClient {
         int receivedBytes = response.body().length;
         Optional<String> contentEncoding = response.headers().firstValue("Content-Encoding");
         byte[] payloadBytes = contentEncoding.filter("gzip"::equals).isPresent()
-                ? new GZIPInputStream(new ByteArrayInputStream(response.body())).readAllBytes()
+                ? gunzip(response.body())
                 : response.body();
         double roundTripMicros = (System.nanoTime() - start) / 1_000.0;
 
@@ -56,5 +57,11 @@ public class NaiveClient {
                         + "%d response bytes -> %d payload bytes%n",
                 roundTripMicros, receivedBytes, payloadBytes.length);
         System.out.println("[naive-client]   body: " + new String(payloadBytes, StandardCharsets.UTF_8).strip());
+    }
+
+    private static byte[] gunzip(byte[] data) throws IOException {
+        try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(data))) {
+            return gzip.readAllBytes();
+        }
     }
 }
