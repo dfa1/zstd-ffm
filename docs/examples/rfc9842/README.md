@@ -19,7 +19,8 @@ dependency, only `zstd`/`zstd-rfc9842` and JDK-standard classes
   `Accept-Encoding: gzip, zstd, dcz` and offers the dictionary whenever it
   applies, letting the server pick the best tier it actually has. Decodes
   whichever comes back.
-- **`PerfTest.java`** — hits the same server across all four tiers, reporting
+- **`PerfTest.java`** — hits the same server across all four tiers, at both
+  response sizes (`small`, the default; `large`, `?size=large`), reporting
   requests/second and total bytes transferred for each.
 
 Run the clients (or `PerfTest`) against the same server to compare directly.
@@ -80,29 +81,48 @@ java --enable-native-access=ALL-UNNAMED --class-path "$CP" \
 `Server.java` and the clients print the exact request/response headers sent
 and received, plus (for the clients) the full round-trip time, the extra
 request-header bytes offering a dictionary costs, and the response bytes
-received. `/api/data` returns a batch of ~20 JSON events (a realistic
-small-API-response size, not a single record) — small enough that a
-dictionary meaningfully compresses it, but big enough that the ~130 bytes of
-`Available-Dictionary`/`Dictionary-ID` negotiation overhead is trivial next
-to the savings.
+received. `/api/data` returns a batch of ~20 JSON events by default (~2.8 KB,
+a realistic small-API-response size, not a single record) — small enough that
+a dictionary meaningfully compresses it, but big enough that the ~130 bytes of
+`Available-Dictionary`/`Dictionary-ID` negotiation overhead is trivial next to
+the savings. `?size=large` returns a ~50 KB batch instead, to see how the
+trade-off shifts with response size.
 
 `PerfTest.java` (500 measured requests per tier, 20 discarded as warmup) shows
 a typical run:
 
 ```
-encoding        req/s  avg bytes/req     avg µs/req  total bytes
-identity       3024.8         2828.0          330.6      1414003
-gzip           4135.8          361.4          241.8       180683
-zstd           4782.8          377.0          209.1       188484
-dcz            4973.6          328.5          201.1       164266
+size   encoding        req/s  avg bytes/req     avg µs/req  total bytes
+small  identity       2726.8         2828.0          366.7      1413999
+small  gzip           3690.6          363.8          271.0       181911
+small  zstd           4402.9          384.7          227.1       192348
+small  dcz            4493.3          328.6          222.6       164282
+large  identity       3639.9        50055.6          274.7     25027800
+large  gzip           2261.1         2173.9          442.3      1086971
+large  zstd           3979.7         2946.0          251.3      1473013
+large  dcz            3773.4         2874.9          265.0      1437470
 ```
 
-`dcz` wins on both KPIs here — fewer bytes *and* higher throughput, since on
-localhost the cost of moving/parsing ~2.8 KB dominates over the CPU cost of
-compression. Over a real network the gap would be larger still. This is
-deliberately not a rigorous benchmark (single connection, single thread,
-localhost only) — a real dictionary trained on your own representative
-traffic (`ZstdDictionary.train`) would look somewhat different in the
-specifics, though the same shape; see [../how-to.md](../how-to.md).
+At **small** size, `dcz` wins outright — fewer bytes *and* the highest
+throughput, since on localhost the cost of moving/parsing ~2.8 KB dominates
+over the CPU cost of compression.
+
+At **large** size the picture is more interesting, and more honest about when
+dictionaries actually help: **identity beats gzip** (raw bytes cost less than
+gzip's CPU time on localhost), **plain zstd is the fastest tier overall**
+(much cheaper to compute than gzip, and shrinks the payload enough to win
+anyway), and **`dcz` is *slower* than plain zstd** while barely smaller
+(2874.9 vs. 2946.0 bytes, ~2.4%) — once a payload has enough internal
+repetition for zstd to reference on its own, the dictionary's marginal
+benefit nearly disappears, but `dcz` still pays the wrap/unwrap overhead. This
+is the real shape of when dictionary compression is worth it: small,
+self-similar messages that don't have enough redundancy of their own — not
+large payloads, which become their own dictionary.
+
+This is deliberately not a rigorous benchmark (single connection, single
+thread, localhost only) — a real dictionary trained on your own
+representative traffic (`ZstdDictionary.train`) and a real network would
+shift the specifics, though not this overall shape; see
+[../how-to.md](../how-to.md).
 
 Stop the server with Ctrl+C when done.

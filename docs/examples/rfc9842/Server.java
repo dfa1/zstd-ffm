@@ -59,8 +59,10 @@ public class Server {
 
     // A batch, not a single record: at millions of requests/day, a per-request
     // saving too small to beat the negotiation headers' own byte cost (see
-    // README.md) isn't worth it. A realistic small batch is.
-    private static final int BATCH_SIZE = 20;
+    // README.md) isn't worth it. A realistic small batch is — plus a larger
+    // one (?size=large) to see how the four tiers compare at a bigger size.
+    private static final int SMALL_TARGET_BYTES = 2_800;
+    private static final int LARGE_TARGET_BYTES = 50_000;
     private static final String[] EVENT_TYPES = {"page_view", "click", "scroll"};
     private static final String[] USERS = {"eve", "frank", "grace", "heidi", "ivan"};
     private static final String[] PATHS = {"/checkout", "/cart", "/product/42", "/search"};
@@ -84,7 +86,8 @@ public class Server {
 
         server.createContext("/api/data", exchange -> {
             logRequest(exchange);
-            byte[] payload = nextBatch(BATCH_SIZE).getBytes(StandardCharsets.UTF_8);
+            boolean large = "size=large".equals(exchange.getRequestURI().getQuery());
+            byte[] payload = nextBatch(large ? LARGE_TARGET_BYTES : SMALL_TARGET_BYTES).getBytes(StandardCharsets.UTF_8);
 
             Set<String> accepted = parseAcceptEncoding(exchange.getRequestHeaders().getFirst("Accept-Encoding"));
             String availableDictionaryHeader = exchange.getRequestHeaders().getFirst("Available-Dictionary");
@@ -131,11 +134,12 @@ public class Server {
                 + " request headers: " + exchange.getRequestHeaders());
     }
 
-    /// A batch of `count` realistic, varied events — a client analytics/event
-    /// API endpoint's actual response shape, not a single toy record.
-    private static String nextBatch(int count) {
+    /// A batch of realistic, varied events totaling at least `targetBytes` —
+    /// a client analytics/event API endpoint's actual response shape, not a
+    /// single toy record.
+    private static String nextBatch(int targetBytes) {
         StringBuilder batch = new StringBuilder();
-        for (int i = 0; i < count; i++) {
+        while (batch.length() < targetBytes) {
             int n = EVENT_COUNTER.incrementAndGet();
             batch.append("""
                     {"event":"%s","user":"%s","path":"%s","timestamp":%d,"properties":{"referrer":"https://example.com","device":"%s"}}
