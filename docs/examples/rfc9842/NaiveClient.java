@@ -32,18 +32,21 @@ public class NaiveClient {
         HttpRequest request = HttpRequest.newBuilder(BASE.resolve(path)).GET().build();
         System.out.println("[naive-client] GET " + path + " request headers:  " + request.headers().map());
 
+        // Round trip starts here: send, receive, and (below) decode are all
+        // part of what this request actually costs the caller.
+        long start = System.nanoTime();
         HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
         System.out.println("[naive-client] GET " + path + " response headers: " + response.headers().map());
 
         int receivedBytes = response.body().length;
-        long start = System.nanoTime();
         // Nothing to decompress or verify: this client only ever gets a plain
         // body back, since it never offered a dictionary the server could use.
         String payload = new String(response.body(), StandardCharsets.UTF_8);
-        double micros = (System.nanoTime() - start) / 1_000.0;
+        double roundTripMicros = (System.nanoTime() - start) / 1_000.0;
 
-        System.out.printf("[naive-client] %d bytes received, %.1f µs to parse -> %d bytes payload%n",
-                receivedBytes, micros, payload.getBytes(StandardCharsets.UTF_8).length);
+        System.out.printf("[naive-client] round trip: %.1f µs, 0 extra request header bytes, "
+                        + "%d response bytes -> %d payload bytes%n",
+                roundTripMicros, receivedBytes, payload.getBytes(StandardCharsets.UTF_8).length);
         System.out.println("[naive-client]   body: " + payload.strip());
     }
 }

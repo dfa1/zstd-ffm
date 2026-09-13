@@ -58,14 +58,25 @@ public class Rfc9842Client {
         HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(path)).GET();
 
         boolean offeringDictionary = useAsDictionary.matchesPath(path);
+        int requestHeaderBytes = 0;
         if (offeringDictionary) {
-            builder.header("Accept-Encoding", "dcz")
-                    .header("Available-Dictionary", AvailableDictionary.of(dictionary).toHeaderValue())
-                    .header("Dictionary-ID", new DictionaryId(useAsDictionary.id()).toHeaderValue());
+            String acceptEncoding = "dcz";
+            String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
+            String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
+            builder.header("Accept-Encoding", acceptEncoding)
+                    .header("Available-Dictionary", availableDictionary)
+                    .header("Dictionary-ID", dictionaryId);
+            requestHeaderBytes = headerBytes("Accept-Encoding", acceptEncoding)
+                    + headerBytes("Available-Dictionary", availableDictionary)
+                    + headerBytes("Dictionary-ID", dictionaryId);
         }
 
         HttpRequest request = builder.build();
         System.out.println("[rfc9842-client] GET " + path + " request headers:  " + request.headers().map());
+
+        // Round trip starts here: send, receive, and (below) verify/decompress
+        // are all part of what this request actually costs the caller.
+        long start = System.nanoTime();
         HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
         System.out.println("[rfc9842-client] GET " + path + " response headers: " + response.headers().map());
 
@@ -73,7 +84,6 @@ public class Rfc9842Client {
         int receivedBytes = response.body().length;
 
         byte[] payload;
-        long start = System.nanoTime();
         if (contentEncoding.isPresent() && contentEncoding.get().equals("dcz")) {
             byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionary);
             ZstdByteSize size = ZstdFrame.decompressedSize(frame);
@@ -83,10 +93,17 @@ public class Rfc9842Client {
         } else {
             payload = response.body();
         }
-        double micros = (System.nanoTime() - start) / 1_000.0;
+        double roundTripMicros = (System.nanoTime() - start) / 1_000.0;
 
-        System.out.printf("[rfc9842-client] %d bytes received, %.1f µs to parse/decompress -> %d bytes payload%n",
-                receivedBytes, micros, payload.length);
+        System.out.printf("[rfc9842-client] round trip: %.1f µs, %d extra request header bytes, "
+                        + "%d response bytes -> %d payload bytes%n",
+                roundTripMicros, requestHeaderBytes, receivedBytes, payload.length);
         System.out.println("[rfc9842-client]   body: " + new String(payload, StandardCharsets.UTF_8).strip());
+    }
+
+    /// Approximate wire size of one request header line, for reporting the
+    /// extra cost of offering a dictionary.
+    private static int headerBytes(String name, String value) {
+        return (name + ": " + value + "\r\n").getBytes(StandardCharsets.UTF_8).length;
     }
 }
