@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>io.github.dfa1.zstd</groupId>
+		<artifactId>zstd-ffm</artifactId>
+		<version>0.13</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>zstd-rfc9842</artifactId>
+	<name>zstd-rfc9842</name>
+	<description>RFC 9842 (Compression Dictionary Transport) dcz frame codec for zstd-ffm</description>
+	<packaging>jar</packaging>
+
+	<dependencies>
+		<dependency>
+			<groupId>io.github.dfa1.zstd</groupId>
+			<artifactId>zstd</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<!--
+		Tests exercise real compress/decompress and skippable-frame native calls,
+		so they need libzstd on the classpath. Each profile pulls in the native
+		artifact matching the host platform (test scope only).
+	-->
+	<profiles>
+		<profile>
+			<id>native-osx-aarch64</id>
+			<activation>
+				<os><family>mac</family><arch>aarch64</arch></os>
+			</activation>
+			<dependencies>
+				<dependency>
+					<groupId>io.github.dfa1.zstd</groupId>
+					<artifactId>zstd-native-osx-aarch64</artifactId>
+					<version>${project.version}</version>
+					<scope>test</scope>
+				</dependency>
+			</dependencies>
+		</profile>
+		<profile>
+			<id>native-linux-x86_64</id>
+			<activation>
+				<os><family>unix</family><name>linux</name><arch>amd64</arch></os>
+			</activation>
+			<dependencies>
+				<dependency>
+					<groupId>io.github.dfa1.zstd</groupId>
+					<artifactId>zstd-native-linux-x86_64</artifactId>
+					<version>${project.version}</version>
+					<scope>test</scope>
+				</dependency>
+			</dependencies>
+		</profile>
+		<profile>
+			<id>native-linux-aarch64</id>
+			<activation>
+				<os><family>unix</family><name>linux</name><arch>aarch64</arch></os>
+			</activation>
+			<dependencies>
+				<dependency>
+					<groupId>io.github.dfa1.zstd</groupId>
+					<artifactId>zstd-native-linux-aarch64</artifactId>
+					<version>${project.version}</version>
+					<scope>test</scope>
+				</dependency>
+			</dependencies>
+		</profile>
+		<profile>
+			<id>native-osx-x86_64</id>
+			<activation>
+				<os><family>mac</family><arch>x86_64</arch></os>
+			</activation>
+			<dependencies>
+				<dependency>
+					<groupId>io.github.dfa1.zstd</groupId>
+					<artifactId>zstd-native-osx-x86_64</artifactId>
+					<version>${project.version}</version>
+					<scope>test</scope>
+				</dependency>
+			</dependencies>
+		</profile>
+		<profile>
+			<id>native-windows-x86_64</id>
+			<activation>
+				<os><family>windows</family><arch>amd64</arch></os>
+			</activation>
+			<dependencies>
+				<dependency>
+					<groupId>io.github.dfa1.zstd</groupId>
+					<artifactId>zstd-native-windows-x86_64</artifactId>
+					<version>${project.version}</version>
+					<scope>test</scope>
+				</dependency>
+			</dependencies>
+		</profile>
+		<profile>
+			<id>native-windows-aarch64</id>
+			<activation>
+				<os><family>windows</family><arch>aarch64</arch></os>
+			</activation>
+			<dependencies>
+				<dependency>
+					<groupId>io.github.dfa1.zstd</groupId>
+					<artifactId>zstd-native-windows-aarch64</artifactId>
+					<version>${project.version}</version>
+					<scope>test</scope>
+				</dependency>
+			</dependencies>
+		</profile>
+	</profiles>
+</project>

@@ -28,6 +28,11 @@
 			</dependency>
 			<dependency>
 				<groupId>io.github.dfa1.zstd</groupId>
+				<artifactId>zstd-rfc9842</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.github.dfa1.zstd</groupId>
 				<artifactId>zstd-native-osx-aarch64</artifactId>
 				<version>${project.version}</version>
 			</dependency>

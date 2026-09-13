@@ -43,6 +43,7 @@
 		<module>native/windows-aarch64</module>
 		<module>zstd</module>
 		<module>zstd-platform</module>
+		<module>rfc9842</module>
 		<module>bom</module>
 		<module>integration-tests</module>
 		<module>benchmark</module>
@@ -111,6 +112,11 @@
 			<dependency>
 				<groupId>io.github.dfa1.zstd</groupId>
 				<artifactId>zstd-platform</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.github.dfa1.zstd</groupId>
+				<artifactId>zstd-rfc9842</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>

@@ -6,6 +6,17 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Added
+- New module `io.github.dfa1.zstd:zstd-rfc9842` — an RFC 9842 (Compression
+  Dictionary Transport) `dcz` frame codec. `Rfc9842Frame.wrap`/`unwrap` add or
+  verify the 40-byte header (skippable-frame magic + SHA-256 dictionary hash)
+  around a zstd frame, so a decoder can self-verify the right dictionary is in
+  hand before decompressing — independent of any HTTP headers that negotiated
+  it. No HTTP dependency: composes with either the per-call dictionary path or
+  a pre-digested `ZstdCompressDictionary`/`ZstdDecompressDictionary`. Scoped to
+  the wire format only; HTTP header semantics are tracked separately.
+  ([#91](https://github.com/dfa1/zstd-ffm/issues/91))
+
 ## [0.13] - 2026-09-12
 
 - Project renamed `zstd-java` → `zstd-ffm` (GitHub repo, parent POM
