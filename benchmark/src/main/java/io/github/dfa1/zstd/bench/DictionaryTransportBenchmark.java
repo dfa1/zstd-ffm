@@ -36,10 +36,10 @@ import org.openjdk.jmh.annotations.Warmup;
 /// Pure in-process codec comparison — gzip vs plain zstd (no dictionary) vs
 /// zstd with a pre-digested dictionary (the RFC 9842 `dcz` codec) — with no
 /// HTTP, no JSON generation, and no socket I/O in the measured path, unlike
-/// `docs/examples/rfc9842/PerfTest.java`, which mixes all of that in. Same
-/// payload shapes as that demo (a batch of similar small JSON "event"
-/// records, at its "small" ~2.8 KB and "large" ~50 KB sizes) and the same toy
-/// dictionary, so the two can be compared directly.
+/// `docs/examples/rfc9842/PerfTest.java`, which mixes all of that in. Swept
+/// across a range of payload sizes to see where a dictionary's benefit peaks
+/// and where it stops paying for itself, as payloads grow more able to
+/// compress against their own internal redundancy alone.
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Thread)
@@ -56,11 +56,12 @@ public class DictionaryTransportBenchmark {
     // exact same shape as the payload under test — standing in for "the real
     // data we are serving" a production deployment would train against.
     private static final int TRAINING_SAMPLE_COUNT = 300;
-    private static final ZstdByteSize MAX_DICT_BYTES = ZstdByteSize.ofKiB(16);
+    private static final ZstdByteSize MAX_DICT_BYTES = ZstdByteSize.ofKiB(1);
 
-    // Matches docs/examples/rfc9842/Server.java's SMALL_TARGET_BYTES/LARGE_TARGET_BYTES.
-    @Param({"small", "large"})
-    private String size;
+    // Payload size in bytes, swept from 512 B to 64 KB to trace the curve of
+    // where a dictionary helps vs. where it stops paying for itself.
+    @Param({"512", "1024", "2048", "4096", "8192", "16384", "32768", "65536"})
+    private int size;
 
     private byte[] payload;
     private byte[] gzipped;
@@ -75,7 +76,7 @@ public class DictionaryTransportBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        int targetBytes = "small".equals(size) ? 2_800 : 50_000;
+        int targetBytes = size;
 
         List<byte[]> trainingSamples = new ArrayList<>(TRAINING_SAMPLE_COUNT);
         Random trainingRandom = new Random(0x5EED);
