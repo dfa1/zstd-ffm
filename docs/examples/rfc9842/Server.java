@@ -7,22 +7,33 @@ import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.GZIPOutputStream;
 
 /// RFC 9842 (Compression Dictionary Transport) demo server, built on
 /// `com.sun.net.httpserver.HttpServer` — a public, JDK-bundled API
 /// (`jdk.httpserver` module), no third-party HTTP framework.
 ///
 /// Serves a dictionary at `/dictionary` (`Use-As-Dictionary: match="/api/*",
-/// id="demo-v1"`) and data at `/api/data`. When a request carries a matching
-/// `Available-Dictionary`/`Dictionary-ID`, the response is compressed against
-/// the dictionary and sent as a `dcz` frame (`Content-Encoding: dcz`);
-/// otherwise it falls back to a plain body. Every request's and response's
-/// headers are logged, so `NaiveClient` and `Rfc9842Client` in this directory
-/// can be compared side by side against the same server.
+/// id="demo-v1"`) and data at `/api/data`, negotiated via `Accept-Encoding`
+/// with a four-rung ladder, best first:
+///
+/// 1. `dcz` — zstd compressed against the dictionary, if the request offers a
+///    matching `Available-Dictionary`/`Dictionary-ID` (RFC 9842).
+/// 2. `zstd` — plain zstd, no dictionary (RFC 8878), if accepted.
+/// 3. `gzip` — the universal HTTP baseline (`java.util.zip`), if accepted.
+/// 4. identity — a plain body, if nothing else was accepted or offered.
+///
+/// Every request's and response's headers are logged, so `NaiveClient`,
+/// `Rfc9842Client`, and `PerfTest` in this directory can be compared side by
+/// side against the same server.
 ///
 /// Run from the repository root (see README.md in this directory for the
 /// one-time build step and the exact classpath):
@@ -74,28 +85,41 @@ public class Server {
         server.createContext("/api/data", exchange -> {
             logRequest(exchange);
             byte[] payload = nextBatch(BATCH_SIZE).getBytes(StandardCharsets.UTF_8);
+
+            Set<String> accepted = parseAcceptEncoding(exchange.getRequestHeaders().getFirst("Accept-Encoding"));
             String availableDictionaryHeader = exchange.getRequestHeaders().getFirst("Available-Dictionary");
             String dictionaryIdHeader = exchange.getRequestHeaders().getFirst("Dictionary-ID");
-
             boolean clientHasTheRightDictionary = availableDictionaryHeader != null && dictionaryIdHeader != null
                     && DICTIONARY_ID.equals(unquote(dictionaryIdHeader))
                     && expectedHash.equals(AvailableDictionary.parse(availableDictionaryHeader));
 
-            if (clientHasTheRightDictionary) {
+            byte[] body;
+            String contentEncoding = null;
+            if (accepted.contains("dcz") && clientHasTheRightDictionary) {
                 byte[] frame;
                 try (ZstdCompressContext cctx = new ZstdCompressContext()) {
                     frame = cctx.compress(payload, dictionary);
                 }
-                byte[] dcz = Rfc9842Frame.wrap(frame, dictionary);
-                System.out.println("[server] dictionary recognized, sending dcz ("
-                        + payload.length + " -> " + dcz.length + " bytes)");
-                exchange.getResponseHeaders().add("Content-Encoding", "dcz");
-                sendBody(exchange, 200, dcz);
+                body = Rfc9842Frame.wrap(frame, dictionary);
+                contentEncoding = "dcz";
+            } else if (accepted.contains("zstd")) {
+                try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+                    body = cctx.compress(payload);
+                }
+                contentEncoding = "zstd";
+            } else if (accepted.contains("gzip")) {
+                body = gzip(payload);
+                contentEncoding = "gzip";
             } else {
-                System.out.println("[server] no matching dictionary offered, sending plain body ("
-                        + payload.length + " bytes)");
-                sendBody(exchange, 200, payload);
+                body = payload;
             }
+
+            System.out.println("[server] " + (contentEncoding == null ? "identity" : contentEncoding)
+                    + ": " + payload.length + " -> " + body.length + " bytes");
+            if (contentEncoding != null) {
+                exchange.getResponseHeaders().add("Content-Encoding", contentEncoding);
+            }
+            sendBody(exchange, 200, body);
         });
 
         server.start();
@@ -127,6 +151,31 @@ public class Server {
 
     private static String unquote(String sfvString) {
         return sfvString.length() >= 2 ? sfvString.substring(1, sfvString.length() - 1) : sfvString;
+    }
+
+    /// Parses an `Accept-Encoding` header into the set of encoding tokens it
+    /// names, ignoring any `;q=` weighting (not needed for this demo's
+    /// simple best-first ladder).
+    private static Set<String> parseAcceptEncoding(String header) {
+        if (header == null) {
+            return Set.of();
+        }
+        Set<String> tokens = new LinkedHashSet<>();
+        for (String part : header.split(",")) {
+            String token = part.split(";")[0].trim().toLowerCase(Locale.ROOT);
+            if (!token.isEmpty()) {
+                tokens.add(token);
+            }
+        }
+        return tokens;
+    }
+
+    private static byte[] gzip(byte[] data) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(out)) {
+            gzip.write(data);
+        }
+        return out.toByteArray();
     }
 
     private static void sendBody(HttpExchange exchange, int status, byte[] body) throws IOException {

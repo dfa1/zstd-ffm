@@ -7,18 +7,20 @@ import io.github.dfa1.zstd.rfc9842.DictionaryId;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.Optional;
+import java.util.zip.GZIPInputStream;
 
 /// RFC 9842 (Compression Dictionary Transport)-aware demo client — the
 /// counterpart to `NaiveClient` in this directory, against the same
-/// Server.java. Fetches the dictionary once, then offers it on every request
-/// that applies, so the server can reply with a `dcz`-compressed body instead
-/// of a plain one.
+/// Server.java. Fetches the dictionary once, then advertises `Accept-Encoding:
+/// gzip, zstd, dcz` (everything it can decode) on every request, offering the
+/// dictionary too whenever it applies — letting the server pick the best of
+/// the four encodings it actually has available for that request.
 ///
 /// Run from the repository root (see README.md in this directory for the
 /// one-time build step and the exact classpath), after starting Server.java:
@@ -57,17 +59,17 @@ public class Rfc9842Client {
         String path = "/api/data";
         HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(path)).GET();
 
+        String acceptEncoding = "gzip, zstd, dcz";
+        builder.header("Accept-Encoding", acceptEncoding);
+        int requestHeaderBytes = headerBytes("Accept-Encoding", acceptEncoding);
+
         boolean offeringDictionary = useAsDictionary.matchesPath(path);
-        int requestHeaderBytes = 0;
         if (offeringDictionary) {
-            String acceptEncoding = "dcz";
             String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
             String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
-            builder.header("Accept-Encoding", acceptEncoding)
-                    .header("Available-Dictionary", availableDictionary)
+            builder.header("Available-Dictionary", availableDictionary)
                     .header("Dictionary-ID", dictionaryId);
-            requestHeaderBytes = headerBytes("Accept-Encoding", acceptEncoding)
-                    + headerBytes("Available-Dictionary", availableDictionary)
+            requestHeaderBytes += headerBytes("Available-Dictionary", availableDictionary)
                     + headerBytes("Dictionary-ID", dictionaryId);
         }
 
@@ -80,24 +82,30 @@ public class Rfc9842Client {
         HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
         System.out.println("[rfc9842-client] GET " + path + " response headers: " + response.headers().map());
 
-        Optional<String> contentEncoding = response.headers().firstValue("Content-Encoding");
+        String contentEncoding = response.headers().firstValue("Content-Encoding").orElse("identity");
         int receivedBytes = response.body().length;
 
-        byte[] payload;
-        if (contentEncoding.isPresent() && contentEncoding.get().equals("dcz")) {
-            byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionary);
-            ZstdByteSize size = ZstdFrame.decompressedSize(frame);
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-                payload = dctx.decompress(frame, size, dictionary);
+        byte[] payload = switch (contentEncoding) {
+            case "dcz" -> {
+                byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionary);
+                ZstdByteSize size = ZstdFrame.decompressedSize(frame);
+                try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                    yield dctx.decompress(frame, size, dictionary);
+                }
             }
-        } else {
-            payload = response.body();
-        }
+            case "zstd" -> {
+                try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                    yield dctx.decompress(response.body());
+                }
+            }
+            case "gzip" -> new GZIPInputStream(new ByteArrayInputStream(response.body())).readAllBytes();
+            default -> response.body();
+        };
         double roundTripMicros = (System.nanoTime() - start) / 1_000.0;
 
         System.out.printf("[rfc9842-client] round trip: %.1f µs, %d extra request header bytes, "
-                        + "%d response bytes -> %d payload bytes%n",
-                roundTripMicros, requestHeaderBytes, receivedBytes, payload.length);
+                        + "%d response bytes (%s) -> %d payload bytes%n",
+                roundTripMicros, requestHeaderBytes, receivedBytes, contentEncoding, payload.length);
         System.out.println("[rfc9842-client]   body: " + new String(payload, StandardCharsets.UTF_8).strip());
     }
 

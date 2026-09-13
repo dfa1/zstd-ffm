@@ -7,10 +7,11 @@
 #   docs/examples/rfc9842/run.sh Server
 #   docs/examples/rfc9842/run.sh NaiveClient
 #   docs/examples/rfc9842/run.sh Rfc9842Client
+#   docs/examples/rfc9842/run.sh PerfTest
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-    echo "usage: $0 <Server|NaiveClient|Rfc9842Client>" >&2
+    echo "usage: $0 <Server|NaiveClient|Rfc9842Client|PerfTest>" >&2
     exit 1
 fi
 class="$1"
@@ -29,13 +30,13 @@ case "$class" in
     Server)
         flags=(--enable-native-access=ALL-UNNAMED --add-modules jdk.httpserver "${flags[@]}")
         ;;
-    Rfc9842Client)
+    Rfc9842Client|PerfTest)
         flags=(--enable-native-access=ALL-UNNAMED "${flags[@]}")
         ;;
     NaiveClient)
         ;;
     *)
-        echo "usage: $0 <Server|NaiveClient|Rfc9842Client>" >&2
+        echo "usage: $0 <Server|NaiveClient|Rfc9842Client|PerfTest>" >&2
         exit 1
         ;;
 esac
