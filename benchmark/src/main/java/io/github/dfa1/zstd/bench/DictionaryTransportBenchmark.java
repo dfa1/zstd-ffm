@@ -13,6 +13,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
@@ -46,12 +48,15 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class DictionaryTransportBenchmark {
 
-    private static final byte[] DICTIONARY_BYTES = ("""
-            {"event":"page_view","user":"alice","path":"/home","timestamp":1699999001,"properties":{"referrer":"https://example.com","device":"desktop"}}
-            {"event":"page_view","user":"bob","path":"/pricing","timestamp":1699999002,"properties":{"referrer":"https://example.com","device":"mobile"}}
-            {"event":"click","user":"carol","path":"/signup","timestamp":1699999003,"properties":{"referrer":"https://example.com","device":"desktop"}}
-            {"event":"page_view","user":"dave","path":"/docs","timestamp":1699999004,"properties":{"referrer":"https://example.com","device":"mobile"}}
-            """).getBytes(StandardCharsets.UTF_8);
+    // A dictionary hand-picked to merely "look like" the payload teaches
+    // nothing about real dictionary compression: ZDICT's whole value is
+    // finding the redundancy actually present across a corpus of previously
+    // served responses. So the dictionary here is trained (via
+    // ZstdDictionary#train) on many independently generated batches of the
+    // exact same shape as the payload under test — standing in for "the real
+    // data we are serving" a production deployment would train against.
+    private static final int TRAINING_SAMPLE_COUNT = 300;
+    private static final ZstdByteSize MAX_DICT_BYTES = ZstdByteSize.ofKiB(16);
 
     // Matches docs/examples/rfc9842/Server.java's SMALL_TARGET_BYTES/LARGE_TARGET_BYTES.
     @Param({"small", "large"})
@@ -70,13 +75,23 @@ public class DictionaryTransportBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        dictionary = ZstdDictionary.of(DICTIONARY_BYTES);
+        int targetBytes = "small".equals(size) ? 2_800 : 50_000;
+
+        List<byte[]> trainingSamples = new ArrayList<>(TRAINING_SAMPLE_COUNT);
+        Random trainingRandom = new Random(0x5EED);
+        for (int i = 0; i < TRAINING_SAMPLE_COUNT; i++) {
+            trainingSamples.add(eventBatch(targetBytes, trainingRandom));
+        }
+        dictionary = ZstdDictionary.train(trainingSamples, MAX_DICT_BYTES);
         compressDictionary = dictionary.compressDict();
         decompressDictionary = dictionary.decompressDict();
         cctx = new ZstdCompressContext();
         dctx = new ZstdDecompressContext();
 
-        payload = eventBatch("small".equals(size) ? 2_800 : 50_000);
+        // The payload under test is its own fixed seed, disjoint from the
+        // training corpus above — dictionaries must not be evaluated against
+        // the very samples they were trained on.
+        payload = eventBatch(targetBytes, new Random(0xC0FFEE));
         gzipped = gzip(payload);
         zstdCompressed = cctx.compress(payload);
         dczFramed = Rfc9842Frame.wrap(cctx.compress(payload, compressDictionary), dictionary);
@@ -136,15 +151,15 @@ public class DictionaryTransportBenchmark {
         }
     }
 
-    // Same shape as docs/examples/rfc9842/Server.java's nextBatch, but with a
-    // fixed seed: JMH runs need deterministic input, not a live counter.
-    private static byte[] eventBatch(int targetBytes) {
+    // Same shape as docs/examples/rfc9842/Server.java's nextBatch, but driven
+    // by a caller-supplied Random: JMH runs need deterministic input, not a
+    // live counter, while training still needs many distinct samples.
+    private static byte[] eventBatch(int targetBytes, Random random) {
         String[] eventTypes = {"page_view", "click", "scroll"};
         String[] users = {"eve", "frank", "grace", "heidi", "ivan"};
         String[] paths = {"/checkout", "/cart", "/product/42", "/search"};
         String[] devices = {"desktop", "mobile", "tablet"};
 
-        Random random = new Random(0xC0FFEE);
         StringBuilder batch = new StringBuilder();
         while (batch.length() < targetBytes) {
             batch.append("""
