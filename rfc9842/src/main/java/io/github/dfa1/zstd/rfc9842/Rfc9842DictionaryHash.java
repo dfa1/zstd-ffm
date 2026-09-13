@@ -73,11 +73,15 @@ public record Rfc9842DictionaryHash(byte[] bytes) {
 
     /// Value equality over the hash bytes rather than array identity (the record default).
     ///
+    /// A record pattern here would invoke the [#bytes()] accessor, which
+    /// clones defensively — silently allocating on every comparison. Reading
+    /// the private field directly (same class, so permitted) avoids that.
+    ///
     /// @param o the object to compare with
     /// @return `true` if `o` is an [Rfc9842DictionaryHash] with an equal hash
     @Override
     public boolean equals(Object o) {
-        return o instanceof Rfc9842DictionaryHash(byte[] otherBytes) && Arrays.equals(bytes, otherBytes);
+        return o instanceof Rfc9842DictionaryHash other && Arrays.equals(bytes, other.bytes);
     }
 
     /// Hash code consistent with [#equals(Object)], derived from the hash bytes.

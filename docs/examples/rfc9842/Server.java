@@ -1,6 +1,7 @@
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
@@ -12,6 +13,8 @@ import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -22,6 +25,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
+
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
 /// RFC 9842 (Compression Dictionary Transport) demo server, built on
 /// `com.sun.net.httpserver.HttpServer` — a public, JDK-bundled API
@@ -138,8 +143,7 @@ public class Server {
             byte[] body;
             String contentEncoding = null;
             if (accepted.contains("dcz") && clientHasTheRightDictionary) {
-                byte[] frame = cctx.compress(payload, compressDictionary);
-                body = Rfc9842Frame.wrap(frame, dictionaryHash);
+                body = compressDcz(payload, cctx, compressDictionary, dictionaryHash);
                 contentEncoding = "dcz";
             } else if (accepted.contains("zstd")) {
                 body = cctx.compress(payload);
@@ -226,6 +230,34 @@ public class Server {
             }
         }
         return tokens;
+    }
+
+    /// Compresses `payload` against `dictionary` and prepends the RFC 9842
+    /// `dcz` header, touching native memory once and the JVM heap once.
+    ///
+    /// The straightforward `cctx.compress(payload, dictionary)` followed by
+    /// `Rfc9842Frame.wrap(frame, hash)` — what an earlier version of this
+    /// method did — allocates and copies the compressed frame twice on the
+    /// request hot path: once out of native memory into a `frame` array,
+    /// then again into a second, header-prefixed array. Reserving the header
+    /// bytes up front and compressing directly past them collapses that to a
+    /// single native buffer and a single final copy out to `body`.
+    private static byte[] compressDcz(byte[] payload, ZstdCompressContext cctx, ZstdCompressDictionary dictionary,
+                                       Rfc9842DictionaryHash dictionaryHash) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment in = arena.allocate(payload.length);
+            MemorySegment.copy(payload, 0, in, JAVA_BYTE, 0, payload.length);
+
+            ZstdByteSize bound = Zstd.compressBound(new ZstdByteSize(payload.length));
+            MemorySegment dst = arena.allocate(Rfc9842Frame.HEADER_SIZE + bound.value());
+            MemorySegment frameOut = dst.asSlice(Rfc9842Frame.HEADER_SIZE, bound.value());
+            long written = cctx.compress(frameOut, in, dictionary);
+            long total = Rfc9842Frame.wrap(dst, frameOut.asSlice(0, written), dictionaryHash);
+
+            byte[] body = new byte[(int) total];
+            MemorySegment.copy(dst, JAVA_BYTE, 0, body, 0, body.length);
+            return body;
+        }
     }
 
     private static byte[] gzip(byte[] data) throws IOException {

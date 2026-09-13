@@ -10,12 +10,16 @@ import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
 import java.io.ByteArrayInputStream;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPInputStream;
+
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
 /// RFC 9842 (Compression Dictionary Transport)-aware demo client — the
 /// counterpart to `NaiveClient` in this directory, against the same
@@ -100,11 +104,7 @@ public class Rfc9842Client {
         int receivedBytes = response.body().length;
 
         byte[] payload = switch (contentEncoding) {
-            case "dcz" -> {
-                byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionaryHash);
-                ZstdByteSize size = ZstdFrame.decompressedSize(frame);
-                yield dctx.decompress(frame, size, decompressDictionary);
-            }
+            case "dcz" -> decodeDcz(response.body(), dctx, dictionaryHash, decompressDictionary);
             case "zstd" -> dctx.decompress(response.body());
             case "gzip" -> {
                 try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(response.body()))) {
@@ -125,5 +125,26 @@ public class Rfc9842Client {
     /// extra cost of offering a dictionary.
     private static int headerBytes(String name, String value) {
         return (name + ": " + value + "\r\n").getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    /// Verifies and decompresses a `dcz` response body, touching native
+    /// memory once and the JVM heap once — see `PerfTest.decodeDcz`, which
+    /// this mirrors, for why the straightforward `unwrap`-then-`decompress`
+    /// byte[] path it replaces copies the frame three times instead.
+    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, Rfc9842DictionaryHash dictionaryHash,
+                                     ZstdDecompressDictionary decompressDictionary) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment dcz = arena.allocate(body.length);
+            MemorySegment.copy(body, 0, dcz, JAVA_BYTE, 0, body.length);
+
+            MemorySegment frame = Rfc9842Frame.unwrap(dcz, dictionaryHash);
+            ZstdByteSize size = ZstdFrame.decompressedSize(frame);
+            MemorySegment out = arena.allocate(size.value());
+            long written = dctx.decompress(out, frame, decompressDictionary);
+
+            byte[] payload = new byte[(int) written];
+            MemorySegment.copy(out, JAVA_BYTE, 0, payload, 0, payload.length);
+            return payload;
+        }
     }
 }

@@ -10,12 +10,16 @@ import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
 import java.io.ByteArrayInputStream;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Arrays;
 import java.util.zip.GZIPInputStream;
+
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
 /// Small, sequential perf comparison of Server.java's four `Content-Encoding`
 /// tiers — identity, gzip, plain zstd, and RFC 9842 `dcz` — against the same
@@ -188,11 +192,7 @@ public class PerfTest {
             throws Exception {
         String contentEncoding = response.headers().firstValue("Content-Encoding").orElse("identity");
         return switch (contentEncoding) {
-            case "dcz" -> {
-                byte[] frame = Rfc9842Frame.unwrap(response.body(), dictionaryHash);
-                ZstdByteSize size = ZstdFrame.decompressedSize(frame);
-                yield dctx.decompress(frame, size, decompressDictionary);
-            }
+            case "dcz" -> decodeDcz(response.body(), dctx, dictionaryHash, decompressDictionary);
             case "zstd" -> dctx.decompress(response.body());
             case "gzip" -> {
                 try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(response.body()))) {
@@ -201,5 +201,37 @@ public class PerfTest {
             }
             default -> response.body();
         };
+    }
+
+    /// Verifies and decompresses a `dcz` response body, touching native
+    /// memory once and the JVM heap once.
+    ///
+    /// `Rfc9842Frame.unwrap(byte[], hash)` followed by
+    /// `dctx.decompress(frame, size, dict)` — what this method replaces —
+    /// copies the compressed frame three times on the request hot path:
+    /// `unwrap`'s `Arrays.copyOfRange` strips the header into a new array,
+    /// `ZstdFrame.decompressedSize(byte[])` copies that whole array into
+    /// native memory just to read a header field, and `decompress` copies it
+    /// into native memory again to actually decode it. Copying the response
+    /// into native memory once and working with `MemorySegment` slices from
+    /// there collapses all three into the one copy that was always
+    /// unavoidable given `HttpResponse.BodyHandlers.ofByteArray()`, plus the
+    /// one copy back out to a `byte[]` that keeps this tier's cost
+    /// comparable to the others' (they all materialize the payload too).
+    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, Rfc9842DictionaryHash dictionaryHash,
+                                     ZstdDecompressDictionary decompressDictionary) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment dcz = arena.allocate(body.length);
+            MemorySegment.copy(body, 0, dcz, JAVA_BYTE, 0, body.length);
+
+            MemorySegment frame = Rfc9842Frame.unwrap(dcz, dictionaryHash);
+            ZstdByteSize size = ZstdFrame.decompressedSize(frame);
+            MemorySegment out = arena.allocate(size.value());
+            long written = dctx.decompress(out, frame, decompressDictionary);
+
+            byte[] payload = new byte[(int) written];
+            MemorySegment.copy(out, JAVA_BYTE, 0, payload, 0, payload.length);
+            return payload;
+        }
     }
 }

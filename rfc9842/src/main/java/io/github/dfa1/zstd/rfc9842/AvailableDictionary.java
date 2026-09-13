@@ -81,11 +81,17 @@ public record AvailableDictionary(byte[] hash) {
 
     /// Value equality over the hash bytes rather than array identity (the record default).
     ///
+    /// A record pattern here would invoke the [#hash()] accessor, which clones
+    /// defensively — silently allocating on every comparison, including the
+    /// per-request check a dictionary-aware server makes against each
+    /// incoming `Available-Dictionary` header. Reading the private field
+    /// directly (same class, so permitted) avoids that clone.
+    ///
     /// @param o the object to compare with
     /// @return `true` if `o` is an [AvailableDictionary] with an equal hash
     @Override
     public boolean equals(Object o) {
-        return o instanceof AvailableDictionary(byte[] otherHash) && Arrays.equals(hash, otherHash);
+        return o instanceof AvailableDictionary other && Arrays.equals(hash, other.hash);
     }
 
     /// Hash code consistent with [#equals(Object)], derived from the hash bytes.
