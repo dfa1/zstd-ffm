@@ -2,6 +2,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import io.github.dfa1.zstd.ZstdCompressContext;
+import io.github.dfa1.zstd.ZstdCompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
@@ -74,6 +75,28 @@ public class Server {
         ZstdDictionary dictionary = ZstdDictionary.of(DICTIONARY_BYTES);
         AvailableDictionary expectedHash = AvailableDictionary.of(dictionary);
 
+        // Digested once, not on every request: ZstdCompressContext.compress(byte[],
+        // ZstdDictionary) — what an earlier version of this demo used — re-digests
+        // the dictionary from scratch on every single call. ZstdCompressDictionary
+        // exists specifically to pay that cost once and reuse it; skipping it here
+        // was silently taxing the dcz tier on every request.
+        //
+        // One ZstdCompressContext is likewise reused for both the zstd and dcz
+        // tiers below, instead of creating/destroying native state per request —
+        // safe here because compress(byte[], ZstdCompressDictionary) takes the
+        // digested dictionary as an explicit argument each call (it is not
+        // "sticky" context state), and because HttpServer with no executor set
+        // dispatches exchanges sequentially on a single thread. A context is
+        // "not thread-safe: confine to one thread or pool it" per its own docs —
+        // pool one context per worker thread instead if this server is ever given
+        // a concurrent executor.
+        ZstdCompressDictionary compressDictionary = dictionary.compressDict();
+        ZstdCompressContext cctx = new ZstdCompressContext();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            cctx.close();
+            compressDictionary.close();
+        }));
+
         HttpServer server = HttpServer.create(new InetSocketAddress(9842), 0);
 
         server.createContext("/dictionary", exchange -> {
@@ -99,16 +122,11 @@ public class Server {
             byte[] body;
             String contentEncoding = null;
             if (accepted.contains("dcz") && clientHasTheRightDictionary) {
-                byte[] frame;
-                try (ZstdCompressContext cctx = new ZstdCompressContext()) {
-                    frame = cctx.compress(payload, dictionary);
-                }
+                byte[] frame = cctx.compress(payload, compressDictionary);
                 body = Rfc9842Frame.wrap(frame, dictionary);
                 contentEncoding = "dcz";
             } else if (accepted.contains("zstd")) {
-                try (ZstdCompressContext cctx = new ZstdCompressContext()) {
-                    body = cctx.compress(payload);
-                }
+                body = cctx.compress(payload);
                 contentEncoding = "zstd";
             } else if (accepted.contains("gzip")) {
                 body = gzip(payload);
@@ -175,8 +193,11 @@ public class Server {
     }
 
     private static byte[] gzip(byte[] data) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try (GZIPOutputStream gzip = new GZIPOutputStream(out)) {
+        // Presized to a plausible compressed-size guess and a larger Deflater
+        // buffer than the 512-byte default: an unsized ByteArrayOutputStream
+        // would otherwise double (and copy) repeatedly to hold a large payload.
+        ByteArrayOutputStream out = new ByteArrayOutputStream(Math.max(64, data.length / 3));
+        try (GZIPOutputStream gzip = new GZIPOutputStream(out, Math.min(65536, Math.max(512, data.length)))) {
             gzip.write(data);
         }
         return out.toByteArray();
