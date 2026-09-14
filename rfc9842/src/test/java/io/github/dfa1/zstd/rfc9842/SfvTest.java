@@ -111,30 +111,20 @@ class SfvTest {
     }
 
     @Test
-    void innerListOfStringsRoundTripsMultipleItems() {
-        // Given
-        List<String> items = List.of("document", "worker");
-
+    void parseInnerListOfStringsParsesMultipleItems() {
         // When
-        String serialized = Sfv.serializeInnerListOfStrings(items);
-        List<String> parsed = Sfv.parseInnerListOfStrings(Sfv.cursor(serialized));
+        List<String> parsed = Sfv.parseInnerListOfStrings(Sfv.cursor("(\"document\" \"worker\")"));
 
         // Then
-        assertThat(serialized).isEqualTo("(\"document\" \"worker\")");
-        assertThat(parsed).isEqualTo(items);
+        assertThat(parsed).containsExactly("document", "worker");
     }
 
     @Test
-    void innerListOfStringsRoundTripsEmpty() {
-        // Given
-        List<String> items = List.of();
-
+    void parseInnerListOfStringsParsesEmpty() {
         // When
-        String serialized = Sfv.serializeInnerListOfStrings(items);
-        List<String> parsed = Sfv.parseInnerListOfStrings(Sfv.cursor(serialized));
+        List<String> parsed = Sfv.parseInnerListOfStrings(Sfv.cursor("()"));
 
         // Then
-        assertThat(serialized).isEqualTo("()");
         assertThat(parsed).isEmpty();
     }
 

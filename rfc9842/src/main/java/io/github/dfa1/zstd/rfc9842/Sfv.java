@@ -211,16 +211,4 @@ final class Sfv {
         c.expect(')', "inner list close paren");
         return items;
     }
-
-    static String serializeInnerListOfStrings(List<String> items) {
-        StringBuilder out = new StringBuilder();
-        out.append('(');
-        for (int i = 0; i < items.size(); i++) {
-            if (i > 0) {
-                out.append(' ');
-            }
-            out.append(serializeString(items.get(i)));
-        }
-        return out.append(')').toString();
-    }
 }

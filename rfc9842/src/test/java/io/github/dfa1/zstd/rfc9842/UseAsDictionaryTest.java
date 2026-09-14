@@ -4,9 +4,6 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -25,15 +22,15 @@ class UseAsDictionaryTest {
 
             // Then
             assertThat(sut.match()).isEqualTo("/app/*/main.js");
-            assertThat(sut.matchDest()).isEmpty();
             assertThat(sut.id()).isEmpty();
             assertThat(sut.type()).isEqualTo(UseAsDictionary.TYPE_RAW);
             assertThat(sut.toHeaderValue()).isEqualTo(header);
         }
 
         @Test
-        void parsesMatchWithMatchDest() {
-            // Given the RFC 9842 example header value
+        void parsesAcceptingButNotModelingMatchDest() {
+            // Given a header a browser-facing server might also send — match-dest
+            // is not modeled (see class doc), just tolerated so parsing doesn't fail
             String header = "match=\"/product/*\", match-dest=(\"document\")";
 
             // When
@@ -41,8 +38,7 @@ class UseAsDictionaryTest {
 
             // Then
             assertThat(sut.match()).isEqualTo("/product/*");
-            assertThat(sut.matchDest()).containsExactly("document");
-            assertThat(sut.toHeaderValue()).isEqualTo(header);
+            assertThat(sut.toHeaderValue()).isEqualTo("match=\"/product/*\"");
         }
 
         @Test
@@ -59,16 +55,15 @@ class UseAsDictionaryTest {
         }
 
         @Test
-        void parsesAllFourMembers() {
+        void parsesMatchIdAndType() {
             // Given
-            String header = "match=\"/x/*\", match-dest=(\"document\" \"worker\"), id=\"abc\", type=custom";
+            String header = "match=\"/x/*\", id=\"abc\", type=custom";
 
             // When
             UseAsDictionary sut = UseAsDictionary.parse(header);
 
             // Then
             assertThat(sut.match()).isEqualTo("/x/*");
-            assertThat(sut.matchDest()).containsExactly("document", "worker");
             assertThat(sut.id()).isEqualTo("abc");
             assertThat(sut.type()).isEqualTo("custom");
             assertThat(sut.toHeaderValue()).isEqualTo(header);
@@ -115,7 +110,6 @@ class UseAsDictionaryTest {
         void matchOnlyConvenienceConstructorUsesDefaults() {
             UseAsDictionary sut = new UseAsDictionary("/x/*");
 
-            assertThat(sut.matchDest()).isEmpty();
             assertThat(sut.id()).isEmpty();
             assertThat(sut.type()).isEqualTo(UseAsDictionary.TYPE_RAW);
         }
@@ -125,7 +119,6 @@ class UseAsDictionaryTest {
             UseAsDictionary sut = new UseAsDictionary("/x/*", "abc");
 
             assertThat(sut.id()).isEqualTo("abc");
-            assertThat(sut.matchDest()).isEmpty();
             assertThat(sut.type()).isEqualTo(UseAsDictionary.TYPE_RAW);
         }
 
@@ -137,20 +130,8 @@ class UseAsDictionaryTest {
 
         @Test
         void rejectsAnIdOverTheMaximumLength() {
-            ThrowingCallable result = () -> new UseAsDictionary("/x", List.of(), "a".repeat(1025), "raw");
+            ThrowingCallable result = () -> new UseAsDictionary("/x", "a".repeat(1025), "raw");
             assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
-        }
-
-        @Test
-        void matchDestIsDefensivelyCopiedAndImmutable() {
-            List<String> mutable = new ArrayList<>(List.of("document"));
-            UseAsDictionary sut = new UseAsDictionary("/x", mutable, "", "raw");
-            mutable.add("worker"); // mutate the caller's list after construction
-
-            assertThat(sut.matchDest()).containsExactly("document"); // unaffected
-
-            ThrowingCallable result = () -> sut.matchDest().add("script");
-            assertThatThrownBy(result).isInstanceOf(UnsupportedOperationException.class);
         }
     }
 
@@ -192,35 +173,6 @@ class UseAsDictionaryTest {
             UseAsDictionary sut = new UseAsDictionary("/a/*/z");
 
             assertThat(sut.matchesPath("/a/b/c/z")).isTrue();
-        }
-    }
-
-    @Nested
-    class DestinationMatching {
-
-        @Test
-        void emptyMatchDestAppliesToEveryDestination() {
-            UseAsDictionary sut = new UseAsDictionary("/x");
-
-            assertThat(sut.appliesToDestination("document")).isTrue();
-            assertThat(sut.appliesToDestination("script")).isTrue();
-        }
-
-        @Test
-        void nonEmptyMatchDestOnlyAppliesToListedDestinations() {
-            UseAsDictionary sut = new UseAsDictionary("/x", List.of("document", "worker"), "", UseAsDictionary.TYPE_RAW);
-
-            assertThat(sut.appliesToDestination("document")).isTrue();
-            assertThat(sut.appliesToDestination("script")).isFalse();
-        }
-
-        @Test
-        void matchesCombinesPathAndDestination() {
-            UseAsDictionary sut = new UseAsDictionary("/x/*", List.of("document"), "", UseAsDictionary.TYPE_RAW);
-
-            assertThat(sut.matches("/x/1", "document")).isTrue();
-            assertThat(sut.matches("/x/1", "script")).isFalse();
-            assertThat(sut.matches("/other", "document")).isFalse();
         }
     }
 }
