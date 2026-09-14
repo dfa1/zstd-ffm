@@ -165,7 +165,7 @@ A runnable RFC 9842 (Compression Dictionary Transport) demo — a server plus
 two clients, one RFC-9842-aware and one plain, against the same endpoints,
 built on embedded Jetty so it speaks both real HTTP/1.1 and real HTTP/2 —
 lives in `rfc9842`'s test classpath
-([`ServerDemo`](rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842/ServerDemo.java)
+([`ServerDemo`](rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842/demo/ServerDemo.java)
 and friends).
 
 ## License

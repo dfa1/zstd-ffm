@@ -1,10 +1,15 @@
-package io.github.dfa1.zstd.rfc9842;
+package io.github.dfa1.zstd.rfc9842.demo;
 
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
+import io.github.dfa1.zstd.rfc9842.DictionaryId;
+import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
+import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
+import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
 import java.io.ByteArrayInputStream;
 import java.lang.foreign.Arena;

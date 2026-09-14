@@ -1,4 +1,4 @@
-package io.github.dfa1.zstd.rfc9842;
+package io.github.dfa1.zstd.rfc9842.demo;
 
 import io.github.dfa1.zstd.ZstdCompressionLevel;
 

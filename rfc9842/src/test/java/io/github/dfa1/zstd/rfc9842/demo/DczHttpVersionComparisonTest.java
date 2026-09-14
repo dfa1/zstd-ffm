@@ -1,6 +1,9 @@
-package io.github.dfa1.zstd.rfc9842;
+package io.github.dfa1.zstd.rfc9842.demo;
 
 import io.github.dfa1.zstd.ZstdDictionary;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
+import io.github.dfa1.zstd.rfc9842.DictionaryId;
+import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
 import org.junit.jupiter.api.Test;
 

@@ -1,4 +1,4 @@
-package io.github.dfa1.zstd.rfc9842;
+package io.github.dfa1.zstd.rfc9842.demo;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

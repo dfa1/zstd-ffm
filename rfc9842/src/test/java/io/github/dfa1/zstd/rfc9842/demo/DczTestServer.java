@@ -1,4 +1,4 @@
-package io.github.dfa1.zstd.rfc9842;
+package io.github.dfa1.zstd.rfc9842.demo;
 
 import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
@@ -6,6 +6,11 @@ import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
 import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdDictionary;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
+import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
+import io.github.dfa1.zstd.rfc9842.Rfc9842Exception;
+import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
+import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
 import org.eclipse.jetty.http2.server.HTTP2CServerConnectionFactory;
 import org.eclipse.jetty.io.Connection;
