@@ -7,6 +7,13 @@ git tags, which trigger publication to Maven Central.
 ## [Unreleased]
 
 ### Added
+- [docs/how-to.md](docs/how-to.md): "Stream over pooled `DirectByteBuffer`s
+  (Netty-style)" recipe, combining the existing `ByteBuffer`-wrapping and
+  `ZstdCompressStream` recipes into the zero-allocation pattern a pooled-buffer
+  network stack needs — the same ground covered by upstream zstd's deprecated
+  buffer-less `ZSTD_compressBegin`/`compressContinue`/`compressEnd` API, which
+  `ZSTD_compressStream2` (already wrapped by `ZstdCompressStream`) supersedes.
+  No new API. ([#99](https://github.com/dfa1/zstd-ffm/issues/99))
 - New module `io.github.dfa1.zstd:zstd-rfc9842` — RFC 9842 (Compression
   Dictionary Transport) support.
   - `Rfc9842Frame.wrap`/`unwrap` add or verify the `dcz` wire format: a 40-byte

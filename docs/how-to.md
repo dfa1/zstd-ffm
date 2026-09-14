@@ -226,6 +226,37 @@ try (ZstdCompressStream cs = new ZstdCompressStream(level)) {
 Both drivers take an optional `ZstdDictionary`. Decompression mirrors the loop,
 calling `decompress(dst, src)` until a result `isComplete()`.
 
+## Stream over pooled `DirectByteBuffer`s (Netty-style)
+
+Combine the two recipes above for a pooled-buffer network stack: streaming
+compression driven directly on `DirectByteBuffer`s the caller already owns,
+with no allocation per message.
+
+```java
+try (ZstdCompressStream cs = new ZstdCompressStream(level)) {
+    MemorySegment in  = MemorySegment.ofBuffer(pooledSrc); // e.g. Netty ByteBuf.nioBuffer()
+    MemorySegment out = MemorySegment.ofBuffer(pooledDst);
+    long off = 0;
+    ZstdStreamResult r;
+    do {
+        r = cs.compress(out, in.asSlice(off), ZstdEndDirective.FLUSH);
+        off += r.bytesConsumed();
+        channel.write(pooledDst.slice(0, (int) r.bytesProduced()));
+    } while (off < in.byteSize() || r.bytesProduced() > 0);
+}
+```
+
+`in`/`out` alias pool-owned buffers, so nothing allocates inside the loop —
+`cs` itself allocates once, at construction. Use `ZstdEndDirective.FLUSH`
+per message to push pending bytes out without closing the frame, and
+`ZstdEndDirective.END` (see the recipe above) only on the last message,
+since one `ZstdCompressStream` instance holds exactly one frame.
+
+This is the zero-copy, zero-allocation answer to "drive zstd from
+`ZSTD_compressBegin`/`compressContinue`/`compressEnd`": that buffer-less C
+API is deprecated upstream in favor of `ZSTD_compressStream2` /
+`ZSTD_CCtx_setParameter`, which is exactly what `ZstdCompressStream` wraps.
+
 ## Pledge the size so a streamed frame decodes in one shot
 
 A streamed frame does **not** record its decompressed size, so it cannot be decoded
