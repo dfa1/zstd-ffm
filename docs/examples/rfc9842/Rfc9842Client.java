@@ -98,18 +98,25 @@ public class Rfc9842Client {
     private static DataRequest dataRequest(String availableDictionary, UseAsDictionary useAsDictionary) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(DATA_PATH)).GET();
         boolean offeringDictionary = useAsDictionary.matchesPath(DATA_PATH);
-        String acceptEncoding = offeringDictionary ? "gzip, zstd, dcz" : "gzip, zstd";
+        String baseAcceptEncoding = "gzip, zstd";
+        String acceptEncoding = offeringDictionary ? baseAcceptEncoding + ", dcz" : baseAcceptEncoding;
         builder.header("Accept-Encoding", acceptEncoding);
-        int requestHeaderBytes = headerBytes("Accept-Encoding", acceptEncoding);
 
+        // Only what offering a dictionary *adds*: the two negotiation headers,
+        // plus the ", dcz" this request's Accept-Encoding grew by. The
+        // Accept-Encoding line itself is not part of the cost — every client
+        // sends one, dictionary or not — and counting the whole line would
+        // overstate the price of RFC 9842 by about 30 bytes a request.
+        int extraHeaderBytes = 0;
         if (offeringDictionary) {
             String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
             builder.header("Available-Dictionary", availableDictionary)
                     .header("Dictionary-ID", dictionaryId);
-            requestHeaderBytes += headerBytes("Available-Dictionary", availableDictionary)
-                    + headerBytes("Dictionary-ID", dictionaryId);
+            extraHeaderBytes = headerBytes("Available-Dictionary", availableDictionary)
+                    + headerBytes("Dictionary-ID", dictionaryId)
+                    + (acceptEncoding.length() - baseAcceptEncoding.length());
         }
-        return new DataRequest(builder.build(), requestHeaderBytes);
+        return new DataRequest(builder.build(), extraHeaderBytes);
     }
 
     private static void fetchData(HttpClient http, DataRequest dataRequest, ZstdDecompressContext dctx,

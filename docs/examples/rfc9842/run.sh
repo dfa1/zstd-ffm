@@ -4,7 +4,7 @@
 #
 # Usage (from anywhere, after the one-time `./mvnw -q compile` from the repo
 # root — see README.md):
-#   docs/examples/rfc9842/run.sh Server [responseSizeBytes] [--quiet]
+#   docs/examples/rfc9842/run.sh Server [responseSizeBytes] [--dict KiB] [--level n] [--quiet]
 #   docs/examples/rfc9842/run.sh NaiveClient
 #   docs/examples/rfc9842/run.sh Rfc9842Client
 #   docs/examples/rfc9842/run.sh PerfTest [responseSizeBytes]

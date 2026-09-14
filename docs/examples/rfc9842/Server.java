@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
+import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
@@ -96,21 +97,40 @@ public class Server {
     /// +10% req/s and −8 µs p50 on every tier.
     private static final String QUIET_FLAG = "--quiet";
 
+    /// `--dict <KiB>`: the dictionary size cap handed to `ZstdDictionary.train`.
+    ///
+    /// The single most consequential knob here, and the one most often left at
+    /// a value that was never chosen: a dictionary much smaller than the
+    /// payload makes `dcz` *bigger* than using no dictionary at all. See the
+    /// dictionary-sizing table in README.md.
+    private static final String DICTIONARY_FLAG = "--dict";
+    private static final int DEFAULT_DICTIONARY_KIB = 4;
+
+    /// `--level <n>`: the zstd compression level for both the `zstd` and `dcz`
+    /// tiers. Defaults to zstd's own default (3), which is tuned for speed —
+    /// at large payloads it ships more bytes than the `gzip` tier does. See
+    /// the level table in README.md.
+    private static final String LEVEL_FLAG = "--level";
+
     private static final AtomicInteger EVENT_COUNTER = new AtomicInteger();
 
     public static void main(String[] args) throws IOException {
         boolean quiet = false;
         int size = DEFAULT_TARGET_BYTES;
-        for (String arg : args) {
-            if (QUIET_FLAG.equals(arg)) {
-                quiet = true;
-            } else {
-                size = Integer.parseInt(arg);
+        int dictKiB = DEFAULT_DICTIONARY_KIB;
+        int compressionLevel = ZstdCompressionLevel.DEFAULT.value();
+        for (int i = 0; i < args.length; i++) {
+            switch (args[i]) {
+                case QUIET_FLAG -> quiet = true;
+                case DICTIONARY_FLAG -> dictKiB = Integer.parseInt(args[++i]);
+                case LEVEL_FLAG -> compressionLevel = Integer.parseInt(args[++i]);
+                default -> size = Integer.parseInt(args[i]);
             }
         }
         // Effectively final from here on, so the handlers below can close over them.
         boolean verbose = !quiet;
         int targetBytes = size;
+        ZstdCompressionLevel level = new ZstdCompressionLevel(compressionLevel);
 
         // One builder, reused for the whole training corpus and then for every
         // served batch: rendering a batch is the one piece of per-request work
@@ -122,7 +142,7 @@ public class Server {
         for (int i = 0; i < TRAINING_SAMPLE_COUNT; i++) {
             trainingSamples.add(nextBatch(batchBuilder, targetBytes, trainingRandom));
         }
-        ZstdDictionary dictionary = ZstdDictionary.train(trainingSamples, ZstdByteSize.ofKiB(1));
+        ZstdDictionary dictionary = ZstdDictionary.train(trainingSamples, ZstdByteSize.ofKiB(dictKiB));
         byte[] dictionaryBytes = dictionary.toByteArray();
         AvailableDictionary expectedHash = AvailableDictionary.of(dictionary);
         // The exact header value a conforming client sends for this dictionary.
@@ -155,8 +175,8 @@ public class Server {
         // "not thread-safe: confine to one thread or pool it" per its own docs —
         // pool one context per worker thread instead if this server is ever given
         // a concurrent executor.
-        ZstdCompressDictionary compressDictionary = dictionary.compressDict();
-        ZstdCompressContext cctx = new ZstdCompressContext();
+        ZstdCompressDictionary compressDictionary = dictionary.compressDict(level);
+        ZstdCompressContext cctx = new ZstdCompressContext().level(level);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             cctx.close();
             compressDictionary.close();
@@ -222,6 +242,7 @@ public class Server {
 
         server.start();
         System.out.println("[server] listening on http://localhost:9842, " + targetBytes + "-byte responses, "
+                + dictKiB + " KiB dictionary (" + dictionaryBytes.length + " B), level " + level.value() + ", "
                 + (verbose ? "logging every request (pass " + QUIET_FLAG + " for PerfTest runs)" : "quiet")
                 + " (Ctrl+C to stop)");
     }
