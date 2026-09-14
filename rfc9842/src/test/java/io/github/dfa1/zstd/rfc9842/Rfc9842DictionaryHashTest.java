@@ -90,6 +90,25 @@ class Rfc9842DictionaryHashTest {
     }
 
     @Test
+    void toStringShowsTheHashContentHexEncoded() {
+        // Given
+        byte[] bytes = new byte[32];
+        bytes[0] = (byte) 0xAB;
+        bytes[31] = (byte) 0xCD;
+        Rfc9842DictionaryHash sut = new Rfc9842DictionaryHash(bytes);
+
+        // When
+        String result = sut.toString();
+
+        // Then the content is hex-encoded, not the array's default reference form
+        // ("Rfc9842DictionaryHash[bytes=..." would otherwise print something like
+        // "[B@1a2b3c4d")
+        assertThat(result).startsWith("Rfc9842DictionaryHash[bytes=ab")
+                .endsWith("cd]")
+                .doesNotContain("@");
+    }
+
+    @Test
     void bytesReturnsADefensiveCopy() {
         byte[] original = new byte[32];
         Rfc9842DictionaryHash sut = new Rfc9842DictionaryHash(original);

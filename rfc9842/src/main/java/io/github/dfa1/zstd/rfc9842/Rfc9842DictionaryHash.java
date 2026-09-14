@@ -5,6 +5,7 @@ import io.github.dfa1.zstd.ZstdDictionary;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.Objects;
 
 /// A dictionary's SHA-256 hash, precomputed once and cached — the value
@@ -90,5 +91,15 @@ public record Rfc9842DictionaryHash(byte[] bytes) {
     @Override
     public int hashCode() {
         return Arrays.hashCode(bytes);
+    }
+
+    /// String representation over the hash's content (hex-encoded), matching
+    /// [#equals(Object)]/[#hashCode()] — the record default would print the
+    /// `byte[]` field's array reference instead.
+    ///
+    /// @return this hash, hex-encoded
+    @Override
+    public String toString() {
+        return "Rfc9842DictionaryHash[bytes=" + HexFormat.of().formatHex(bytes) + "]";
     }
 }
