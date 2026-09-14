@@ -33,11 +33,6 @@ git tags, which trigger publication to Maven Central.
     subset of WHATWG URL Pattern — named/optional groups are not supported,
     matching literally instead of failing to compile).
     ([#92](https://github.com/dfa1/zstd-ffm/issues/92))
-  - Deliberately not browser-scoped: `match-dest` (`Sec-Fetch-Dest` values like
-    `document`/`script`) is a browser fetch-metadata concept with no
-    equivalent for a non-browser caller, so `UseAsDictionary` doesn't model it
-    — `parse` still accepts and discards it so a header shared with browser
-    clients keeps parsing, but it's never exposed or re-emitted.
   - A runnable demo (`ServerDemo`/`NaiveClientDemo`/`Rfc9842ClientDemo`/
     `PerfTestDemo`, `rfc9842`'s test classpath) on embedded Jetty, so it speaks
     real HTTP/1.1 and real HTTP/2 (h2c, no TLS needed) on one port —
