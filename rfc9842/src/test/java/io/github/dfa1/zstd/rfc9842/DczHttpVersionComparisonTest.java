@@ -10,12 +10,11 @@ import java.net.http.HttpResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/// Measures, rather than calculates, `docs/examples/rfc9842/README.md`'s claim
-/// that HTTP/2's HPACK indexing erases the repeated dcz negotiation headers'
-/// per-request cost that HTTP/1.1 pays in full on every request. Same
-/// dictionary, same request sequence, same server logic ([DczTestServer], a
-/// Jetty port of that demo's `Server.java`) — the only variable is HTTP/1.1
-/// versus HTTP/2 (h2c) on the connector.
+/// Measures, rather than calculates, the claim that HTTP/2's HPACK indexing
+/// erases the repeated dcz negotiation headers' per-request cost that
+/// HTTP/1.1 pays in full on every request. Same dictionary, same request
+/// sequence, same server logic ([DczTestServer]) — the only variable is
+/// HTTP/1.1 versus HTTP/2 (h2c) on the connector.
 class DczHttpVersionComparisonTest {
 
     private static final int WARMED_UP_REQUESTS = 20;
