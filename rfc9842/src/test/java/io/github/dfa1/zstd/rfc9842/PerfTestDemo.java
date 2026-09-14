@@ -1,13 +1,10 @@
+package io.github.dfa1.zstd.rfc9842;
+
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
-import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
-import io.github.dfa1.zstd.rfc9842.DictionaryId;
-import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
-import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
-import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
 import java.io.ByteArrayInputStream;
 import java.lang.foreign.Arena;
@@ -21,25 +18,24 @@ import java.util.zip.GZIPInputStream;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
-/// Small, sequential perf comparison of Server.java's four `Content-Encoding`
+/// Small, sequential perf comparison of [ServerDemo]'s four `Content-Encoding`
 /// tiers — identity, gzip, plain zstd, and RFC 9842 `dcz` — against the same
 /// live server, reporting requests/second, the full round-trip latency
 /// distribution (p50/p90/p99/max, not just a mean — an average alone hides
 /// how much the tail differs between tiers), and total bytes transferred for
 /// each. Not a rigorous benchmark (single connection, single thread, no
 /// warmup methodology beyond discarding the first few calls) — just enough to
-/// see the shape of the trade-off. Server.java's response size is fixed at
-/// startup (its `args[0]`); pass the same value here purely as a label for
-/// the output table.
+/// see the shape of the trade-off. [ServerDemo]'s response size is fixed at
+/// startup; pass the same value here purely as a label for the output table.
+/// Pass `--http2` to run all four tiers over real HTTP/2 (h2c) instead of the
+/// default HTTP/1.1 — [ServerDemo] speaks both on the same port.
 ///
-/// Run from the repository root (see README.md in this directory for the
-/// one-time build step and the exact classpath), after starting Server.java:
+/// Run from the repository root, after starting [ServerDemo] `--quiet`:
 /// {@snippet :
-/// java --enable-native-access=ALL-UNNAMED \
-///      --class-path "$(find . -path '*/target/classes' | tr '\n' ':')" \
-///      docs/examples/rfc9842/PerfTest.java
+/// mvn -q -pl rfc9842 exec:java -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.PerfTestDemo \
+///     -Dexec.classpathScope=test -Dexec.args="--enable-native-access=ALL-UNNAMED"
 /// }
-public class PerfTest {
+public final class PerfTestDemo {
 
     private static final URI BASE = URI.create("http://localhost:9842");
     private static final URI DATA = BASE.resolve("/api/data");
@@ -57,22 +53,37 @@ public class PerfTest {
     private static final int WARMUP_REQUESTS = 2_000;
     private static final int MEASURED_REQUESTS = 10_000;
 
+    private PerfTestDemo() {
+    }
+
+    private static final String HTTP2_FLAG = "--http2";
+
     public static void main(String[] args) throws Exception {
         // Label only, purely informational: the server itself was started
-        // with the response size fixed (see Server.java's args[0]) and this
-        // doesn't change what gets requested.
-        String size = args.length > 0 ? args[0] : "default";
+        // with the response size fixed and this doesn't change what gets requested.
+        String size = "default";
+        boolean http2 = false;
+        for (String arg : args) {
+            if (HTTP2_FLAG.equals(arg)) {
+                http2 = true;
+            } else {
+                size = arg;
+            }
+        }
+        HttpClient.Version version = http2 ? HttpClient.Version.HTTP_2 : HttpClient.Version.HTTP_1_1;
+        System.out.println("[perftest] using " + version);
 
-        // Pinned to HTTP/1.1, not the HttpClient default of HTTP/2: the JDK's
-        // HttpServer speaks HTTP/1.1 only, so every h2c upgrade attempt the
-        // default makes is negotiation that can only fail. Measured at ~+4%
-        // req/s and −3.5 µs p50 here, and it keeps the logged request headers
-        // free of the `Connection: Upgrade`/`HTTP2-Settings` pair.
+        // Explicit rather than the HttpClient default of HTTP/2: ServerDemo
+        // speaks both HTTP/1.1 and h2c on the same port, so --http2 picks
+        // which one this run measures instead of leaving it to negotiation —
+        // and pinning HTTP/1.1 by default keeps every run comparable to
+        // earlier numbers and the logged request headers free of the
+        // `Connection: Upgrade`/`HTTP2-Settings` pair.
         //
         // Closed at the end (HttpClient is AutoCloseable since JDK 21), which
         // shuts down its selector and executor threads rather than leaving them
         // to keep the JVM alive.
-        try (HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()) {
+        try (HttpClient http = HttpClient.newBuilder().version(version).build()) {
             HttpResponse<byte[]> dictResponse = http.send(
                     HttpRequest.newBuilder(BASE.resolve("/dictionary")).GET().build(),
                     HttpResponse.BodyHandlers.ofByteArray());
@@ -89,7 +100,7 @@ public class PerfTest {
             System.out.printf("%-6s %-10s %10s %14s %9s %9s %9s %9s %9s %12s%n",
                     "size", "encoding", "req/s", "avg bytes/req", "p50 µs", "p90 µs", "p95 µs", "p99 µs", "max µs",
                     "total bytes");
-            // Pre-digested once, like Server.java's compressDictionary: dctx.decompress(byte[],
+            // Pre-digested once, like ServerDemo's compressDictionary: dctx.decompress(byte[],
             // ZstdByteSize, ZstdDictionary) re-digests the dictionary from scratch on every
             // single call. Passing the raw ZstdDictionary there on every request was silently
             // taxing the dcz tier's decode cost here, the same bug fixed server-side earlier.

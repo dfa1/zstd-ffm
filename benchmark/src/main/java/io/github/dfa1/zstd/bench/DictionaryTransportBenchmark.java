@@ -37,8 +37,8 @@ import org.openjdk.jmh.annotations.Warmup;
 /// Pure in-process codec comparison — gzip vs plain zstd (no dictionary) vs
 /// zstd with a pre-digested dictionary (the RFC 9842 `dcz` codec) — with no
 /// HTTP, no JSON generation, and no socket I/O in the measured path, unlike
-/// `docs/examples/rfc9842/PerfTest.java`, which mixes all of that in. Swept
-/// across a range of payload sizes to see where a dictionary's benefit peaks
+/// `PerfTestDemo` (`rfc9842`'s test classpath), which mixes all of that in.
+/// Swept across a range of payload sizes to see where a dictionary's benefit peaks
 /// and where it stops paying for itself, as payloads grow more able to
 /// compress against their own internal redundancy alone.
 @BenchmarkMode(Mode.Throughput)
@@ -155,7 +155,7 @@ public class DictionaryTransportBenchmark {
         }
     }
 
-    // Same shape as docs/examples/rfc9842/Server.java's nextBatch, but driven
+    // Same shape as DczTestServer's nextBatch (rfc9842's test classpath), but driven
     // by a caller-supplied Random: JMH runs need deterministic input, not a
     // live counter, while training still needs many distinct samples.
     private static byte[] eventBatch(int targetBytes, Random random) {

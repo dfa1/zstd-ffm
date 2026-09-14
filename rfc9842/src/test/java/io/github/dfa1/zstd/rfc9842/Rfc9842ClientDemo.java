@@ -1,13 +1,10 @@
+package io.github.dfa1.zstd.rfc9842;
+
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
-import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
-import io.github.dfa1.zstd.rfc9842.DictionaryId;
-import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
-import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
-import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
 import java.io.ByteArrayInputStream;
 import java.lang.foreign.Arena;
@@ -22,23 +19,31 @@ import java.util.zip.GZIPInputStream;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
 /// RFC 9842 (Compression Dictionary Transport)-aware demo client — the
-/// counterpart to `NaiveClient` in this directory, against the same
-/// Server.java. Fetches the dictionary once, then advertises everything it can
-/// decode on every request — `gzip, zstd`, plus `dcz` and the dictionary
-/// itself on requests the dictionary applies to — letting the server pick the
-/// best encoding it actually has available for that request.
+/// counterpart to [NaiveClientDemo], against the same [ServerDemo]. Fetches
+/// the dictionary once, then advertises everything it can decode on every
+/// request — `gzip, zstd`, plus `dcz` and the dictionary itself on requests
+/// the dictionary applies to — letting the server pick the best encoding it
+/// actually has available for that request.
 ///
-/// Run from the repository root (see README.md in this directory for the
-/// one-time build step and the exact classpath), after starting Server.java:
+/// Pass `--http2` to request `HttpClient.Version.HTTP_2` instead of the
+/// default `HTTP_1_1` — [ServerDemo] speaks both on the same port (h2c), so
+/// this is the by-eye version of what `DczHttpVersionComparisonTest` measures:
+/// run once each way and compare the request-header byte counts this client
+/// prints out.
+///
+/// Run from the repository root, after starting [ServerDemo]:
 /// {@snippet :
-/// java --enable-native-access=ALL-UNNAMED \
-///      --class-path "$(find . -path '*/target/classes' | tr '\n' ':')" \
-///      docs/examples/rfc9842/Rfc9842Client.java
+/// mvn -q -pl rfc9842 exec:java -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.Rfc9842ClientDemo \
+///     -Dexec.classpathScope=test -Dexec.args="--enable-native-access=ALL-UNNAMED --http2"
 /// }
-public class Rfc9842Client {
+public final class Rfc9842ClientDemo {
 
     private static final URI BASE = URI.create("http://localhost:9842");
     private static final String DATA_PATH = "/api/data";
+    private static final String HTTP2_FLAG = "--http2";
+
+    private Rfc9842ClientDemo() {
+    }
 
     /// The prepared `/api/data` request plus the extra request-header bytes
     /// offering a dictionary costs, so the report below can show what the
@@ -47,11 +52,13 @@ public class Rfc9842Client {
     }
 
     public static void main(String[] args) throws Exception {
-        // Pinned to HTTP/1.1 (the JDK HttpServer speaks nothing else, so the
-        // default HTTP/2 client only spends an h2c upgrade attempt finding
-        // that out), and closed at the end — HttpClient is AutoCloseable since
-        // JDK 21, and closing shuts down its selector and executor threads.
-        try (HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()) {
+        boolean http2 = args.length > 0 && HTTP2_FLAG.equals(args[0]);
+        HttpClient.Version version = http2 ? HttpClient.Version.HTTP_2 : HttpClient.Version.HTTP_1_1;
+        System.out.println("[rfc9842-client] using " + version);
+
+        // Closed at the end — HttpClient is AutoCloseable since JDK 21, and
+        // closing shuts down its selector and executor threads.
+        try (HttpClient http = HttpClient.newBuilder().version(version).build()) {
             // Step 1: fetch the dictionary and learn where it applies.
             HttpRequest dictRequest = HttpRequest.newBuilder(BASE.resolve("/dictionary")).GET().build();
             System.out.println("[rfc9842-client] GET /dictionary request headers:  " + dictRequest.headers().map());
@@ -75,10 +82,6 @@ public class Rfc9842Client {
                     + dataRequest.request().headers().map());
 
             // Step 2 & 3: fetch data, advertising the dictionary when it applies.
-            // Digested once and reused, like Server.java's compressDictionary: creating a
-            // fresh ZstdDecompressContext and re-digesting the dictionary on every single
-            // call — as an earlier version of this client did — pays real native setup
-            // cost per request instead of once.
             try (ZstdDecompressContext dctx = new ZstdDecompressContext();
                  ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
                 for (int i = 0; i < 3; i++) {
@@ -156,8 +159,8 @@ public class Rfc9842Client {
     }
 
     /// Verifies and decompresses a `dcz` response body, touching native
-    /// memory once and the JVM heap once — see `PerfTest.decodeDcz`, which
-    /// this mirrors, for why the straightforward `unwrap`-then-`decompress`
+    /// memory once and the JVM heap once — see `PerfTestDemo.decodeDcz`,
+    /// which this mirrors, for why the straightforward `unwrap`-then-`decompress`
     /// byte[] path it replaces copies the frame three times instead.
     private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, Rfc9842DictionaryHash dictionaryHash,
                                      ZstdDecompressDictionary decompressDictionary) {

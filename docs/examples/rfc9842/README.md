@@ -1,41 +1,51 @@
 # RFC 9842 (Compression Dictionary Transport) demo
 
-Four standalone JDK single-file programs — no build, no third-party
-dependency, only `zstd`/`zstd-rfc9842` and JDK-standard classes
-(`com.sun.net.httpserver` for the server, `java.net.http` for the clients,
-`java.util.zip` for gzip).
+Four small `main()` programs living in
+[`rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842`](../../../rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842)
+— test-classpath residents of the `zstd-rfc9842` module, built on embedded
+Jetty (`jetty-server` + `jetty-http2-server`, test-scoped) rather than the
+JDK's HTTP/1.1-only `com.sun.net.httpserver`, so the server speaks real
+HTTP/1.1 **and** real HTTP/2 (h2c) on the same port.
 
-- **`Server.java`** — serves `/dictionary` (with `Use-As-Dictionary`) and
+- **`ServerDemo`** — serves `/dictionary` (with `Use-As-Dictionary`) and
   `/api/data`, negotiated via `Accept-Encoding` with a four-rung ladder, best
   first: `dcz` (zstd + dictionary, RFC 9842) if the request offers a matching
   `Available-Dictionary`/`Dictionary-ID`, else plain `zstd` (RFC 8878) if
   accepted, else `gzip` if accepted, else a plain body.
-- **`NaiveClient.java`** — no RFC 9842 awareness. Sends `Accept-Encoding:
+- **`NaiveClientDemo`** — no RFC 9842 awareness. Sends `Accept-Encoding:
   gzip`, the one negotiation nearly every HTTP client does by default, and
   gets the `gzip` tier.
-- **`Rfc9842Client.java`** — fetches the dictionary once, offers it on every
+- **`Rfc9842ClientDemo`** — fetches the dictionary once, offers it on every
   request it applies to, and decodes whatever comes back. Reports what the
-  negotiation costs in request-header bytes.
-- **`PerfTest.java`** — hits all four tiers, reporting requests/second, the
-  latency distribution (p50/p90/p95/p99/max plus a histogram) and bytes
+  negotiation costs in request-header bytes. Pass `--http2` to run it over
+  HTTP/2 instead of the default HTTP/1.1 — the by-eye version of what
+  `DczHttpVersionComparisonTest` (same directory) measures automatically.
+- **`PerfTestDemo`** — hits all four encoding tiers, reporting requests/second,
+  the latency distribution (p50/p90/p95/p99/max plus a histogram) and bytes
   transferred for each.
+
+`DczTestServer` in that same package is the shared Jetty engine behind
+`ServerDemo` and the package's JUnit tests — not something you run directly.
 
 ## Build
 
 Once, from the repository root:
 
 ```bash
-./mvnw -q compile
+./mvnw -q -pl rfc9842 test-compile
 ```
 
 ## Run
 
-`run.sh` computes the classpath and JVM flags. Start the server in one
-terminal:
+No wrapper script: `exec:java` (already a build plugin in this repo) runs a
+test-classpath `main()` directly. Start the server in one terminal:
 
 ```bash
-docs/examples/rfc9842/run.sh Server                            # defaults
-docs/examples/rfc9842/run.sh Server 8192 --dict 4 --level 6    # all three knobs
+mvn -q -pl rfc9842 exec:java -Dexec.classpathScope=test \
+    -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.ServerDemo             # defaults
+mvn -q -pl rfc9842 exec:java -Dexec.classpathScope=test \
+    -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.ServerDemo \
+    -Dexec.args="8192 --dict 4 --level 6"                               # all three knobs
 ```
 
 | Server argument | Default | What it does |
@@ -43,7 +53,7 @@ docs/examples/rfc9842/run.sh Server 8192 --dict 4 --level 6    # all three knobs
 | *(bare number)* | 2800 | response size in bytes |
 | `--dict <KiB>` | 4 | dictionary size cap for `ZstdDictionary.train` |
 | `--level <n>` | 3 | zstd compression level for the `zstd` and `dcz` tiers |
-| `--quiet` | off | stop logging every request — **required for `PerfTest`** |
+| `--quiet` | off | stop logging every request — **required for `PerfTestDemo`** |
 
 Logging each request's and response's headers is a synchronous `System.out`
 write on the request path and is the most expensive thing the server does per
@@ -53,29 +63,23 @@ clients, where the headers are the point; pass `--quiet` whenever you measure.
 Then, in another terminal:
 
 ```bash
-docs/examples/rfc9842/run.sh NaiveClient      # gets the gzip tier
-docs/examples/rfc9842/run.sh Rfc9842Client    # gets the dcz tier
-docs/examples/rfc9842/run.sh PerfTest 8192    # all four tiers; size is a label only
+mvn -q -pl rfc9842 exec:java -Dexec.classpathScope=test \
+    -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.NaiveClientDemo         # gets the gzip tier
+mvn -q -pl rfc9842 exec:java -Dexec.classpathScope=test \
+    -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.Rfc9842ClientDemo       # gets the dcz tier
+mvn -q -pl rfc9842 exec:java -Dexec.classpathScope=test \
+    -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.Rfc9842ClientDemo \
+    -Dexec.args="--http2"                                                # same, over real HTTP/2
+mvn -q -pl rfc9842 exec:java -Dexec.classpathScope=test \
+    -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.PerfTestDemo \
+    -Dexec.args="8192"                                                   # all four tiers; size is a label only
 ```
 
-<details>
-<summary>Running <code>java</code> directly, without <code>run.sh</code></summary>
-
-```bash
-CP="$(find . -path '*/target/classes' | tr '\n' ':')"
-
-java --enable-native-access=ALL-UNNAMED --add-modules jdk.httpserver \
-     --class-path "$CP" docs/examples/rfc9842/Server.java 8192 --quiet
-
-# in another terminal:
-java --class-path "$CP" docs/examples/rfc9842/NaiveClient.java
-java --enable-native-access=ALL-UNNAMED --class-path "$CP" \
-     docs/examples/rfc9842/Rfc9842Client.java
-java --enable-native-access=ALL-UNNAMED --class-path "$CP" \
-     docs/examples/rfc9842/PerfTest.java 8192
-```
-
-</details>
+`exec:java` runs in Maven's own JVM, so `--enable-native-access=ALL-UNNAMED`
+isn't available as a JVM flag here the way the old single-file launcher took
+it — the FFM calls just emit the JDK's native-access warning instead of
+failing. Running from an IDE (or `exec:exec`, which forks a real `java`
+process) lets you pass it.
 
 ## Should you use `dcz`?
 
@@ -109,11 +113,29 @@ same latency as 1 KiB), so err upward.
 ### 2. Count the negotiation headers
 
 `Available-Dictionary` + `Dictionary-ID` + the `, dcz` in `Accept-Encoding`
-cost **101 bytes on every request** (as `Rfc9842Client` reports). On HTTP/1.1
-that is paid in full, every time. Under HTTP/2 and HTTP/3 these are constant
-headers that HPACK/QPACK index to a couple of bytes after the first request.
+cost **101 bytes on every request** (as `Rfc9842ClientDemo` reports). On
+HTTP/1.1 that is paid in full, every time. Under HTTP/2 and HTTP/3 these are
+constant headers that HPACK/QPACK index to a couple of bytes after the first
+request — no longer just the analytical argument it used to be here:
+`DczHttpVersionComparisonTest` (same package as the demos) measures real wire
+bytes, both directions, for 20 identical `dcz`-negotiated `/api/data` requests
+over a warmed-up connection, HTTP/1.1 versus HTTP/2 (h2c) against the same
+`DczTestServer` logic. One representative run:
 
-Net wire bytes per request versus plain `zstd`, best dictionary per size:
+| | total bytes (20 requests) | bytes/request |
+|---|---|---|
+| HTTP/1.1 | 13,681 | 684.1 |
+| HTTP/2 | 8,841 | 442.1 |
+
+**−35% on the wire**, HTTP/2 versus HTTP/1.1, for the identical repeated
+negotiation — this is a measurement, so treat the exact numbers as indicative
+(payload bytes vary run to run per [#1](#1-size-the-dictionary-to-the-payload)'s
+counter-driven traffic) and the direction as the robust finding.
+
+Net wire bytes per request versus plain `zstd`, best dictionary per size
+(this table's own numbers are still the HTTP/1.1-vs-HTTP/2+ *arithmetic*
+argument — HPACK/QPACK indexing the same fixed header set the measurement
+above confirms actually happens):
 
 | payload | response saving | net on HTTP/1.1 | net on HTTP/2+ |
 |---|---|---|---|
@@ -183,7 +205,7 @@ the 8 KB / `--dict 4` cell above is −10% against plain zstd at level 3, but
   refetch than it ever saves.
 - **Do not advertise `dcz` without offering a dictionary** (§6.1): a client
   with no matching dictionary "MUST NOT send its dictionary-aware content
-  encodings", since it could not decode the response. `Rfc9842Client` makes
+  encodings", since it could not decode the response. `Rfc9842ClientDemo` makes
   `dcz` conditional on `Use-As-Dictionary`'s `match` pattern for this reason.
 
 ## See also

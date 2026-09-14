@@ -1,3 +1,5 @@
+package io.github.dfa1.zstd.rfc9842;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
@@ -9,28 +11,30 @@ import java.util.Optional;
 import java.util.zip.GZIPInputStream;
 
 /// An HTTP client with **no** RFC 9842 (Compression Dictionary Transport)
-/// awareness — the counterpart to `Rfc9842Client` in this directory, against
-/// the same Server.java. It never fetches `/dictionary` and never sends
+/// awareness — the counterpart to [Rfc9842ClientDemo], against the same
+/// [ServerDemo]. It never fetches `/dictionary` and never sends
 /// `Available-Dictionary`/`Dictionary-ID`, so the server never sends it a
 /// `dcz` or plain-`zstd` response. It does send `Accept-Encoding: gzip` —
 /// the one compression negotiation nearly every real HTTP client does by
 /// default — so it still gets HTTP's universal baseline.
 ///
-/// Run from the repository root (see README.md in this directory for the
-/// one-time build step and the exact classpath), after starting Server.java:
+/// Run from the repository root, after starting [ServerDemo]:
 /// {@snippet :
-/// java --class-path "$(find . -path '*/target/classes' | tr '\n' ':')" \
-///      docs/examples/rfc9842/NaiveClient.java
+/// mvn -q -pl rfc9842 exec:java -Dexec.mainClass=io.github.dfa1.zstd.rfc9842.NaiveClientDemo \
+///     -Dexec.classpathScope=test
 /// }
-public class NaiveClient {
+public final class NaiveClientDemo {
 
     private static final URI BASE = URI.create("http://localhost:9842");
 
     private static final String DATA_PATH = "/api/data";
 
+    private NaiveClientDemo() {
+    }
+
     public static void main(String[] args) throws Exception {
-        // Pinned to HTTP/1.1 (the JDK HttpServer speaks nothing else) and
-        // closed at the end — HttpClient is AutoCloseable since JDK 21.
+        // Pinned to HTTP/1.1 and closed at the end — HttpClient is
+        // AutoCloseable since JDK 21.
         try (HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()) {
             // Immutable, so built once and sent three times.
             HttpRequest request = HttpRequest.newBuilder(BASE.resolve(DATA_PATH))

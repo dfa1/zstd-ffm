@@ -18,5 +18,6 @@
 @SuppressWarnings("module") // dfa1 is my username in github
 module io.github.dfa1.zstd.rfc9842 {
     requires transitive io.github.dfa1.zstd;
+    requires static java.net.http; // test-only: HTTP/2 interop tests, not used by main
     exports io.github.dfa1.zstd.rfc9842;
 }
