@@ -5,7 +5,7 @@ import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
-import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Exception;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -92,7 +92,7 @@ class Rfc9842WptVectorTest {
         // Given
         byte[] dcz = HexFormat.of().parseHex(hex);
         ZstdDictionary dictionary = ZstdDictionary.of(DICTIONARY);
-        Rfc9842DictionaryHash hash = Rfc9842DictionaryHash.of(dictionary);
+        AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(dictionary);
 
         // When
         byte[] frame = Rfc9842Frame.unwrap(dcz, hash);
@@ -111,7 +111,7 @@ class Rfc9842WptVectorTest {
     void carriesNoDictionaryIdBecauseTheDictionaryIsRawContent(String hex, String ignoredExpected) {
         // Given
         byte[] dcz = HexFormat.of().parseHex(hex);
-        Rfc9842DictionaryHash hash = Rfc9842DictionaryHash.of(ZstdDictionary.of(DICTIONARY));
+        AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(ZstdDictionary.of(DICTIONARY));
 
         // When
         byte[] frame = Rfc9842Frame.unwrap(dcz, hash);
@@ -128,7 +128,7 @@ class Rfc9842WptVectorTest {
         // after the 8-byte magic zeroed out.
         byte[] dcz = HexFormat.of().parseHex(DCZ);
         java.util.Arrays.fill(dcz, 8, 40, (byte) 0);
-        Rfc9842DictionaryHash hash = Rfc9842DictionaryHash.of(ZstdDictionary.of(DICTIONARY));
+        AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(ZstdDictionary.of(DICTIONARY));
 
         // When
         ThrowingCallable result = () -> Rfc9842Frame.unwrap(dcz, hash);
@@ -145,7 +145,7 @@ class Rfc9842WptVectorTest {
         // from 14 to 13, which is no longer a dcz header.
         byte[] dcz = HexFormat.of().parseHex(DCZ);
         dcz[0] = 0x5d;
-        Rfc9842DictionaryHash hash = Rfc9842DictionaryHash.of(ZstdDictionary.of(DICTIONARY));
+        AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(ZstdDictionary.of(DICTIONARY));
 
         // When
         ThrowingCallable result = () -> Rfc9842Frame.unwrap(dcz, hash);

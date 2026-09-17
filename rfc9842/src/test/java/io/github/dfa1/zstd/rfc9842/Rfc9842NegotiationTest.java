@@ -11,7 +11,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class NegotiatedDictionaryTest {
+class Rfc9842NegotiationTest {
 
     private static final byte[] DICT_BYTES =
             "dictionary sample payload ".repeat(64).getBytes(StandardCharsets.UTF_8);
@@ -22,14 +22,14 @@ class NegotiatedDictionaryTest {
         String useAsDictionary = "match=\"/api/*\", id=\"test-v1\"";
 
         // When
-        NegotiatedDictionary sut = NegotiatedDictionary.from(DICT_BYTES, useAsDictionary);
+        Rfc9842Negotiation sut = Rfc9842Negotiation.from(DICT_BYTES, useAsDictionary);
 
         // Then the dictionary parses, the header parses, and the hash matches an
         // independently computed one for the same bytes
         assertThat(sut.dictionary().toByteArray()).isEqualTo(DICT_BYTES);
         assertThat(sut.useAsDictionary().match()).isEqualTo("/api/*");
         assertThat(sut.useAsDictionary().id()).isEqualTo("test-v1");
-        assertThat(sut.hash()).isEqualTo(AvailableDictionaryHeader.of(ZstdDictionary.of(DICT_BYTES)));
+        assertThat(sut.availableDictionary()).isEqualTo(AvailableDictionaryHeader.of(ZstdDictionary.of(DICT_BYTES)));
         assertThat(sut.dictionaryId()).contains(new DictionaryIdHeader("test-v1"));
     }
 
@@ -39,7 +39,7 @@ class NegotiatedDictionaryTest {
         String useAsDictionary = "match=\"/api/*\"";
 
         // When
-        NegotiatedDictionary sut = NegotiatedDictionary.from(DICT_BYTES, useAsDictionary);
+        Rfc9842Negotiation sut = Rfc9842Negotiation.from(DICT_BYTES, useAsDictionary);
 
         // Then there is nothing to echo back via Dictionary-ID
         assertThat(sut.dictionaryId()).isEmpty();
@@ -47,19 +47,19 @@ class NegotiatedDictionaryTest {
 
     @Test
     void fromRejectsAMalformedUseAsDictionaryHeader() {
-        ThrowingCallable result = () -> NegotiatedDictionary.from(DICT_BYTES, "not a valid header");
+        ThrowingCallable result = () -> Rfc9842Negotiation.from(DICT_BYTES, "not a valid header");
         assertThatThrownBy(result).isInstanceOf(Rfc9842Exception.class);
     }
 
     @Test
     void fromRejectsNullDictionaryBytes() {
-        assertThatThrownBy(() -> NegotiatedDictionary.from(null, "match=\"/api/*\""))
+        assertThatThrownBy(() -> Rfc9842Negotiation.from(null, "match=\"/api/*\""))
                 .isInstanceOf(NullPointerException.class);
     }
 
     @Test
     void fromRejectsNullHeaderValue() {
-        assertThatThrownBy(() -> NegotiatedDictionary.from(DICT_BYTES, null))
+        assertThatThrownBy(() -> Rfc9842Negotiation.from(DICT_BYTES, null))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -67,15 +67,15 @@ class NegotiatedDictionaryTest {
     void constructorRejectsNullComponents() {
         ZstdDictionary dictionary = ZstdDictionary.of(DICT_BYTES);
         UseAsDictionaryHeader useAsDictionary = new UseAsDictionaryHeader("/api/*");
-        AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(dictionary);
+        AvailableDictionaryHeader availableDictionary = AvailableDictionaryHeader.of(dictionary);
 
-        assertThatThrownBy(() -> new NegotiatedDictionary(null, useAsDictionary, hash, Optional.empty()))
+        assertThatThrownBy(() -> new Rfc9842Negotiation(null, useAsDictionary, availableDictionary, Optional.empty()))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new NegotiatedDictionary(dictionary, null, hash, Optional.empty()))
+        assertThatThrownBy(() -> new Rfc9842Negotiation(dictionary, null, availableDictionary, Optional.empty()))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new NegotiatedDictionary(dictionary, useAsDictionary, null, Optional.empty()))
+        assertThatThrownBy(() -> new Rfc9842Negotiation(dictionary, useAsDictionary, null, Optional.empty()))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new NegotiatedDictionary(dictionary, useAsDictionary, hash, null))
+        assertThatThrownBy(() -> new Rfc9842Negotiation(dictionary, useAsDictionary, availableDictionary, null))
                 .isInstanceOf(NullPointerException.class);
     }
 }

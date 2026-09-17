@@ -15,23 +15,24 @@ import java.util.Optional;
 /// header's raw value, not an HTTP client's response type, so any HTTP
 /// client's caller can build one from what it already fetched.
 ///
-/// @param dictionary     the parsed dictionary
-/// @param useAsDictionary where/how this dictionary applies, from the `Use-As-Dictionary` response header
-/// @param hash           the dictionary's hash — both the `Available-Dictionary` header
-///                        value ([AvailableDictionaryHeader#toHeaderValue()]) and the `dcz` wire-format
-///                        hash [Rfc9842Frame#wrap(byte[], AvailableDictionaryHeader)]/
-///                        [Rfc9842Frame#unwrap(byte[], AvailableDictionaryHeader)] verify against
-/// @param dictionaryId   the `Dictionary-ID` header value to echo back, or empty if
-///                        [UseAsDictionaryHeader#id()] was empty (the server assigned no id)
-public record NegotiatedDictionary(ZstdDictionary dictionary, UseAsDictionaryHeader useAsDictionary,
-                                    AvailableDictionaryHeader hash, Optional<DictionaryIdHeader> dictionaryId) {
+/// @param dictionary          the parsed dictionary
+/// @param useAsDictionary     where/how this dictionary applies, from the `Use-As-Dictionary` response header
+/// @param availableDictionary the dictionary's hash — both the `Available-Dictionary` header
+///                            value ([AvailableDictionaryHeader#toHeaderValue()]) and the `dcz`
+///                            wire-format hash [Rfc9842Frame#wrap(byte[], AvailableDictionaryHeader)]/
+///                            [Rfc9842Frame#unwrap(byte[], AvailableDictionaryHeader)] verify against
+/// @param dictionaryId        the `Dictionary-ID` header value to echo back, or empty if
+///                            [UseAsDictionaryHeader#id()] was empty (the server assigned no id)
+public record Rfc9842Negotiation(ZstdDictionary dictionary, UseAsDictionaryHeader useAsDictionary,
+                                    AvailableDictionaryHeader availableDictionary,
+                                    Optional<DictionaryIdHeader> dictionaryId) {
 
     /// Validates every component is present (use [#from(byte[], String)] for
     /// hostile/unparsed input — this constructor assumes already-valid parts).
-    public NegotiatedDictionary {
+    public Rfc9842Negotiation {
         Objects.requireNonNull(dictionary, "dictionary");
         Objects.requireNonNull(useAsDictionary, "useAsDictionary");
-        Objects.requireNonNull(hash, "hash");
+        Objects.requireNonNull(availableDictionary, "availableDictionary");
         Objects.requireNonNull(dictionaryId, "dictionaryId");
     }
 
@@ -45,15 +46,15 @@ public record NegotiatedDictionary(ZstdDictionary dictionary, UseAsDictionaryHea
     /// @param useAsDictionaryHeaderValue the `Use-As-Dictionary` response header's raw value
     /// @return everything derived from them
     /// @throws Rfc9842Exception if `useAsDictionaryHeaderValue` is not a valid `Use-As-Dictionary` header
-    public static NegotiatedDictionary from(byte[] dictionaryBytes, String useAsDictionaryHeaderValue) {
+    public static Rfc9842Negotiation from(byte[] dictionaryBytes, String useAsDictionaryHeaderValue) {
         Objects.requireNonNull(dictionaryBytes, "dictionaryBytes");
         Objects.requireNonNull(useAsDictionaryHeaderValue, "useAsDictionaryHeaderValue");
         ZstdDictionary dictionary = ZstdDictionary.of(dictionaryBytes);
         UseAsDictionaryHeader useAsDictionary = UseAsDictionaryHeader.parse(useAsDictionaryHeaderValue);
-        AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(dictionary);
+        AvailableDictionaryHeader availableDictionary = AvailableDictionaryHeader.of(dictionary);
         Optional<DictionaryIdHeader> dictionaryId = useAsDictionary.id().isEmpty()
                 ? Optional.empty()
                 : Optional.of(new DictionaryIdHeader(useAsDictionary.id()));
-        return new NegotiatedDictionary(dictionary, useAsDictionary, hash, dictionaryId);
+        return new Rfc9842Negotiation(dictionary, useAsDictionary, availableDictionary, dictionaryId);
     }
 }

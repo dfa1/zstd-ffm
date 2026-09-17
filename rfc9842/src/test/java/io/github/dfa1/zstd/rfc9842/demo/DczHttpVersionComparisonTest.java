@@ -2,7 +2,7 @@ package io.github.dfa1.zstd.rfc9842.demo;
 
 import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
 import io.github.dfa1.zstd.rfc9842.DictionaryIdHeader;
-import io.github.dfa1.zstd.rfc9842.NegotiatedDictionary;
+import io.github.dfa1.zstd.rfc9842.Rfc9842Negotiation;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionaryHeader;
 
 import org.junit.jupiter.api.Test;
@@ -55,12 +55,12 @@ class DczHttpVersionComparisonTest {
             HttpRequest dictionaryRequest = HttpRequest.newBuilder(server.dictionaryUri()).GET().build();
             HttpResponse<byte[]> dictionaryResponse =
                     http.send(dictionaryRequest, HttpResponse.BodyHandlers.ofByteArray());
-            NegotiatedDictionary negotiated = NegotiatedDictionary.from(dictionaryResponse.body(),
+            Rfc9842Negotiation negotiated = Rfc9842Negotiation.from(dictionaryResponse.body(),
                     dictionaryResponse.headers().firstValue(UseAsDictionaryHeader.HTTP_HEADER).orElseThrow());
 
             HttpRequest.Builder dataRequestBuilder = HttpRequest.newBuilder(server.dataUri()).GET()
                     .header("Accept-Encoding", "gzip, zstd, dcz")
-                    .header(AvailableDictionaryHeader.HTTP_HEADER, negotiated.hash().toHeaderValue());
+                    .header(AvailableDictionaryHeader.HTTP_HEADER, negotiated.availableDictionary().toHeaderValue());
             negotiated.dictionaryId().ifPresent(id ->
                     dataRequestBuilder.header(DictionaryIdHeader.HTTP_HEADER, id.toHeaderValue()));
             HttpRequest dataRequest = dataRequestBuilder.build();
