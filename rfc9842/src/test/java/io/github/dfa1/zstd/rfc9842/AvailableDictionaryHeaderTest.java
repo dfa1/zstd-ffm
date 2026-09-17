@@ -32,7 +32,6 @@ class AvailableDictionaryHeaderTest {
 
         // Then it round-trips back to the identical wire form
         assertThat(sut.toHeaderValue()).isEqualTo(":pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:");
-        assertThat(sut.hash()).hasSize(32);
     }
 
     @Test
@@ -43,9 +42,10 @@ class AvailableDictionaryHeaderTest {
         // When
         AvailableDictionaryHeader sut = AvailableDictionaryHeader.of(dict);
 
-        // Then it matches an independently computed SHA-256
+        // Then it matches an independently computed SHA-256, via the one public
+        // way to read this type's content back out
         byte[] expected = MessageDigest.getInstance("SHA-256").digest(DICT_BYTES);
-        assertThat(sut.hash()).isEqualTo(expected);
+        assertThat(sut.toHeaderValue()).isEqualTo(Sfv.serializeByteSequence(expected));
     }
 
     @Test
@@ -60,7 +60,7 @@ class AvailableDictionaryHeaderTest {
 
         // Then it matches the hash embedded in the dcz header (bytes 8..40)
         byte[] embeddedHash = Arrays.copyOfRange(dcz, 8, 40);
-        assertThat(sut.hash()).isEqualTo(embeddedHash);
+        assertThat(sut.toHeaderValue()).isEqualTo(Sfv.serializeByteSequence(embeddedHash));
     }
 
     @Test
@@ -110,9 +110,11 @@ class AvailableDictionaryHeaderTest {
         byte[] original = new byte[32];
         AvailableDictionaryHeader sut = new AvailableDictionaryHeader(original);
 
-        original[0] = 42; // mutate the array after construction
+        original[0] = 42; // mutate the caller's array after construction
 
-        assertThat(sut.hash()[0]).isZero();
+        // sut kept its own snapshot: it still equals a fresh instance built from
+        // the all-zero bytes original started as, not the now-mutated array
+        assertThat(sut).isEqualTo(new AvailableDictionaryHeader(new byte[32]));
     }
 
     @Test
@@ -141,16 +143,6 @@ class AvailableDictionaryHeaderTest {
     }
 
     @Test
-    void hashReturnsADefensiveCopy() {
-        byte[] original = new byte[32];
-        AvailableDictionaryHeader sut = new AvailableDictionaryHeader(original);
-
-        sut.hash()[0] = 42; // mutate the returned copy
-
-        assertThat(sut.hash()[0]).isZero();
-    }
-
-    @Test
     void notEqualToADifferentHash() {
         AvailableDictionaryHeader a = new AvailableDictionaryHeader(new byte[32]);
         byte[] differentBytes = new byte[32];
@@ -158,7 +150,6 @@ class AvailableDictionaryHeaderTest {
         AvailableDictionaryHeader b = new AvailableDictionaryHeader(differentBytes);
 
         assertThat(a).isNotEqualTo(b);
-        assertThat(Arrays.equals(a.hash(), b.hash())).isFalse();
     }
 
     @Test

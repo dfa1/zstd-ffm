@@ -25,6 +25,18 @@ import java.util.Objects;
 /// hot path — once per HTTP request, say — is pure waste once the dictionary
 /// itself is fixed.
 ///
+/// A plain class, not a record: a record's canonical accessor for a `byte[]`
+/// component is forced public and — unless explicitly overridden — returns
+/// the live array, silently breaking immutability for anyone holding an
+/// instance. Overriding it (as an earlier version of this type did) closes
+/// that specific hole but not the underlying one: the accessor still can't
+/// be made *less* visible than the record itself, so there is no way to keep
+/// the bytes internal-only the way [#raw()] does here. A hand-written class
+/// has no such constraint — `hash` is a private field, `raw()` is
+/// package-private for `Rfc9842Frame`'s hot path, and there is no public way
+/// to read the bytes back out at all (nothing needs one: `toHeaderValue()`,
+/// `equals()`, and `toString()` cover every real use).
+///
 /// {@snippet :
 /// AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(dictionary); // once, at startup
 /// // ... per request, on the wire-format side:
@@ -32,32 +44,31 @@ import java.util.Objects;
 /// // ... and/or on the HTTP header side:
 /// String availableDictionary = hash.toHeaderValue();
 /// }
-///
-/// @param hash the dictionary's SHA-256 hash, exactly 32 bytes
-public record AvailableDictionaryHeader(byte[] hash) {
+public final class AvailableDictionaryHeader {
 
     /// The HTTP header name this type's value belongs on.
     public static final String HTTP_HEADER = "Available-Dictionary";
 
     private static final int HASH_LENGTH = 32;
 
+    private final byte[] hash;
+
     /// Validates `hash` is exactly a SHA-256-length digest and defensively
-    /// copies it so this record owns its bytes.
-    public AvailableDictionaryHeader {
+    /// copies it so this instance owns its bytes.
+    ///
+    /// Package-private: [#of(ZstdDictionary)] and [#parse(String)] are the
+    /// only public ways to get an instance, so every one is either a freshly
+    /// computed digest or a value someone actually received on the wire —
+    /// never an arbitrary 32 bytes a caller decided to call a hash.
+    ///
+    /// @param hash the dictionary's SHA-256 hash, exactly 32 bytes
+    AvailableDictionaryHeader(byte[] hash) {
         Objects.requireNonNull(hash, "hash");
         if (hash.length != HASH_LENGTH) {
             throw new IllegalArgumentException(
                     "hash must be " + HASH_LENGTH + " bytes (SHA-256), was " + hash.length);
         }
-        hash = hash.clone();
-    }
-
-    /// The hash bytes, as a fresh copy so the record stays immutable.
-    ///
-    /// @return a copy of the SHA-256 hash
-    @Override
-    public byte[] hash() {
-        return hash.clone();
+        this.hash = hash.clone();
     }
 
     /// Computes the `Available-Dictionary` value for `dictionary` — its
@@ -103,18 +114,13 @@ public record AvailableDictionaryHeader(byte[] hash) {
         return Sfv.serializeByteSequence(hash);
     }
 
-    /// Internal: direct view of the hash bytes for `Rfc9842Frame`'s hot path. Not exposed.
+    /// Internal: direct view of the hash bytes for `Rfc9842Frame`'s hot path.
+    /// Not, and never, exposed publicly — see the class doc.
     byte[] raw() {
         return hash;
     }
 
-    /// Value equality over the hash bytes rather than array identity (the record default).
-    ///
-    /// A record pattern here would invoke the [#hash()] accessor, which clones
-    /// defensively — silently allocating on every comparison, including the
-    /// per-request check a dictionary-aware server makes against each
-    /// incoming `Available-Dictionary` header. Reading the private field
-    /// directly (same class, so permitted) avoids that clone.
+    /// Value equality over the hash bytes.
     ///
     /// @param o the object to compare with
     /// @return `true` if `o` is an [AvailableDictionaryHeader] with an equal hash
@@ -131,11 +137,11 @@ public record AvailableDictionaryHeader(byte[] hash) {
         return Arrays.hashCode(hash);
     }
 
-    /// Short description carrying the hash's base64 form rather than the array's identity hash.
+    /// String representation carrying the hash's base64 form rather than the
+    /// array field's identity hash.
     ///
     /// @return a string with the base64-encoded hash
     @Override
-    @SuppressWarnings("NullableProblems") // toString never returns null; we just don't pull in JB @NotNull
     public String toString() {
         return "AvailableDictionaryHeader[hash=" + toHeaderValue() + "]";
     }
