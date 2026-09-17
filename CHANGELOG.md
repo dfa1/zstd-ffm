@@ -38,7 +38,7 @@ git tags, which trigger publication to Maven Central.
     `Use-As-Dictionary`'s `match` pattern restricted to literal text plus
     `*` wildcards (a deliberate subset of WHATWG URL Pattern — named/optional
     groups are not supported, matching literally instead of failing to
-    compile). `NegotiatedDictionary.from(byte[], String)` composes a fetched
+    compile). `Rfc9842Negotiation.from(byte[], String)` composes a fetched
     dictionary's bytes and its `Use-As-Dictionary` header into everything a
     client needs for later requests — the dictionary, where it applies, its
     hash, and the `Dictionary-ID` to echo back if the server assigned one —

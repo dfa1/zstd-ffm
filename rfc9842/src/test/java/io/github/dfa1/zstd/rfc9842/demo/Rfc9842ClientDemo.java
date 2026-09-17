@@ -6,8 +6,8 @@ import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
 import io.github.dfa1.zstd.rfc9842.DictionaryIdHeader;
-import io.github.dfa1.zstd.rfc9842.NegotiatedDictionary;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
+import io.github.dfa1.zstd.rfc9842.Rfc9842Negotiation;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionaryHeader;
 
 import java.io.ByteArrayInputStream;
@@ -70,10 +70,10 @@ public final class Rfc9842ClientDemo {
             System.out.println("[rfc9842-client] GET /dictionary response headers: " + dictResponse.headers().map());
 
             // Everything the request needs, derived once up front rather than per
-            // call: NegotiatedDictionary.from parses the dictionary once (not the
+            // call: Rfc9842Negotiation.from parses the dictionary once (not the
             // dictionary's SHA-256 twice, for the header value and the wire-format
             // hash separately) — see its own doc.
-            NegotiatedDictionary negotiated = NegotiatedDictionary.from(dictResponse.body(),
+            Rfc9842Negotiation negotiated = Rfc9842Negotiation.from(dictResponse.body(),
                     dictResponse.headers().firstValue(UseAsDictionaryHeader.HTTP_HEADER).orElseThrow());
             System.out.println("[rfc9842-client] stored dictionary (" + dictResponse.body().length
                     + " bytes), applies to '" + negotiated.useAsDictionary().match()
@@ -88,7 +88,7 @@ public final class Rfc9842ClientDemo {
             try (ZstdDecompressContext dctx = new ZstdDecompressContext();
                  ZstdDecompressDictionary decompressDictionary = negotiated.dictionary().decompressDict()) {
                 for (int i = 0; i < 3; i++) {
-                    fetchData(http, dataRequest, dctx, negotiated.hash(), decompressDictionary);
+                    fetchData(http, dataRequest, dctx, negotiated.availableDictionary(), decompressDictionary);
                 }
             }
         }
@@ -101,7 +101,7 @@ public final class Rfc9842ClientDemo {
     /// advertised: a client that has no dictionary matching the request "MUST
     /// NOT send its dictionary-aware content encodings in the `Accept-Encoding`
     /// request header" — asking for an encoding it could not then decode.
-    private static DataRequest dataRequest(NegotiatedDictionary negotiated) {
+    private static DataRequest dataRequest(Rfc9842Negotiation negotiated) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(DATA_PATH)).GET();
         boolean offeringDictionary = negotiated.useAsDictionary().matchesPath(DATA_PATH);
         String baseAcceptEncoding = "gzip, zstd";
@@ -115,7 +115,7 @@ public final class Rfc9842ClientDemo {
         // price of RFC 9842 by about 30 bytes a request.
         int extraHeaderBytes = 0;
         if (offeringDictionary) {
-            String availableDictionary = negotiated.hash().toHeaderValue();
+            String availableDictionary = negotiated.availableDictionary().toHeaderValue();
             builder.header(AvailableDictionaryHeader.HTTP_HEADER, availableDictionary);
             extraHeaderBytes = headerBytes(AvailableDictionaryHeader.HTTP_HEADER, availableDictionary)
                     + (acceptEncoding.length() - baseAcceptEncoding.length());
@@ -131,7 +131,7 @@ public final class Rfc9842ClientDemo {
     }
 
     private static void fetchData(HttpClient http, DataRequest dataRequest, ZstdDecompressContext dctx,
-                                   AvailableDictionaryHeader dictionaryHash,
+                                   AvailableDictionaryHeader availableDictionary,
                                    ZstdDecompressDictionary decompressDictionary) throws Exception {
         // Round trip starts here: send, receive, and (below) verify/decompress
         // are all part of what this request actually costs the caller.
@@ -143,7 +143,7 @@ public final class Rfc9842ClientDemo {
         int receivedBytes = response.body().length;
 
         byte[] payload = switch (contentEncoding) {
-            case "dcz" -> decodeDcz(response.body(), dctx, dictionaryHash, decompressDictionary);
+            case "dcz" -> decodeDcz(response.body(), dctx, availableDictionary, decompressDictionary);
             case "zstd" -> dctx.decompress(response.body());
             case "gzip" -> {
                 try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(response.body()))) {
@@ -170,13 +170,14 @@ public final class Rfc9842ClientDemo {
     /// memory once and the JVM heap once — see `PerfTestDemo.decodeDcz`,
     /// which this mirrors, for why the straightforward `unwrap`-then-`decompress`
     /// byte[] path it replaces copies the frame three times instead.
-    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, AvailableDictionaryHeader dictionaryHash,
+    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx,
+                                     AvailableDictionaryHeader availableDictionary,
                                      ZstdDecompressDictionary decompressDictionary) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment dcz = arena.allocate(body.length);
             MemorySegment.copy(body, 0, dcz, JAVA_BYTE, 0, body.length);
 
-            MemorySegment frame = Rfc9842Frame.unwrap(dcz, dictionaryHash);
+            MemorySegment frame = Rfc9842Frame.unwrap(dcz, availableDictionary);
             ZstdByteSize size = ZstdFrame.decompressedSize(frame);
             MemorySegment out = arena.allocate(size.value());
             long written = dctx.decompress(out, frame, decompressDictionary);

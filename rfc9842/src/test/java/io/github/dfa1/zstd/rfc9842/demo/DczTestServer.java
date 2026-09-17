@@ -96,8 +96,8 @@ final class DczTestServer implements AutoCloseable {
         byte[] dictionaryBytes = dictionary.toByteArray();
         // One hash, reused as both the dcz wire-format hash and the
         // Available-Dictionary header value — see AvailableDictionaryHeader's doc.
-        AvailableDictionaryHeader dictionaryHash = AvailableDictionaryHeader.of(dictionary);
-        String expectedAvailableDictionary = dictionaryHash.toHeaderValue();
+        AvailableDictionaryHeader availableDictionary = AvailableDictionaryHeader.of(dictionary);
+        String expectedAvailableDictionary = availableDictionary.toHeaderValue();
         String useAsDictionary = new UseAsDictionaryHeader("/api/*", DICTIONARY_ID).toHeaderValue();
 
         this.compressDictionary = dictionary.compressDict(level);
@@ -143,8 +143,8 @@ final class DczTestServer implements AutoCloseable {
                     byte[] body;
                     String contentEncoding = null;
                     if (accepts(acceptEncoding, "dcz")
-                            && hasMatchingDictionary(request, expectedAvailableDictionary, dictionaryHash)) {
-                        body = compressDcz(payload, cctxRef, compressDictionaryRef, dictionaryHash);
+                            && hasMatchingDictionary(request, expectedAvailableDictionary, availableDictionary)) {
+                        body = compressDcz(payload, cctxRef, compressDictionaryRef, availableDictionary);
                         contentEncoding = "dcz";
                     } else if (accepts(acceptEncoding, "zstd")) {
                         body = cctxRef.compress(payload);
@@ -314,7 +314,7 @@ final class DczTestServer implements AutoCloseable {
     }
 
     private static byte[] compressDcz(byte[] payload, ZstdCompressContext cctx, ZstdCompressDictionary dictionary,
-                                       AvailableDictionaryHeader dictionaryHash) {
+                                       AvailableDictionaryHeader availableDictionary) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = arena.allocate(payload.length);
             MemorySegment.copy(payload, 0, in, JAVA_BYTE, 0, payload.length);
@@ -323,7 +323,7 @@ final class DczTestServer implements AutoCloseable {
             MemorySegment dst = arena.allocate(Rfc9842Frame.HEADER_SIZE + bound.value());
             MemorySegment frameOut = dst.asSlice(Rfc9842Frame.HEADER_SIZE, bound.value());
             long written = cctx.compress(frameOut, in, dictionary);
-            long total = Rfc9842Frame.wrap(dst, frameOut.asSlice(0, written), dictionaryHash);
+            long total = Rfc9842Frame.wrap(dst, frameOut.asSlice(0, written), availableDictionary);
 
             byte[] body = new byte[(int) total];
             MemorySegment.copy(dst, JAVA_BYTE, 0, body, 0, body.length);
