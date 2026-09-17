@@ -7,7 +7,7 @@ import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
-import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 
 import java.io.ByteArrayInputStream;
@@ -74,7 +74,7 @@ public class DictionaryTransportBenchmark {
     private ZstdDictionary dictionary;
     private ZstdCompressDictionary compressDictionary;
     private ZstdDecompressDictionary decompressDictionary;
-    private Rfc9842DictionaryHash dictionaryHash;
+    private AvailableDictionaryHeader availableDictionary;
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
@@ -88,7 +88,7 @@ public class DictionaryTransportBenchmark {
         dictionary = ZstdDictionary.train(trainingSamples, MAX_DICT_BYTES);
         compressDictionary = dictionary.compressDict();
         decompressDictionary = dictionary.decompressDict();
-        dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
+        availableDictionary = AvailableDictionaryHeader.of(dictionary);
         cctx = new ZstdCompressContext();
         dctx = new ZstdDecompressContext();
 
@@ -98,7 +98,7 @@ public class DictionaryTransportBenchmark {
         payload = eventBatch(targetBytes, new Random(0xC0FFEE));
         gzipped = gzip(payload);
         zstdCompressed = cctx.compress(payload);
-        dczFramed = Rfc9842Frame.wrap(cctx.compress(payload, compressDictionary), dictionaryHash);
+        dczFramed = Rfc9842Frame.wrap(cctx.compress(payload, compressDictionary), availableDictionary);
     }
 
     @TearDown(Level.Trial)
@@ -121,7 +121,7 @@ public class DictionaryTransportBenchmark {
 
     @Benchmark
     public byte[] dczCompress() {
-        return Rfc9842Frame.wrap(cctx.compress(payload, compressDictionary), dictionaryHash);
+        return Rfc9842Frame.wrap(cctx.compress(payload, compressDictionary), availableDictionary);
     }
 
     @Benchmark
@@ -136,7 +136,7 @@ public class DictionaryTransportBenchmark {
 
     @Benchmark
     public byte[] dczDecompress() {
-        byte[] frame = Rfc9842Frame.unwrap(dczFramed, dictionaryHash);
+        byte[] frame = Rfc9842Frame.unwrap(dczFramed, availableDictionary);
         ZstdByteSize contentSize = ZstdFrame.decompressedSize(frame);
         return dctx.decompress(frame, contentSize, decompressDictionary);
     }
