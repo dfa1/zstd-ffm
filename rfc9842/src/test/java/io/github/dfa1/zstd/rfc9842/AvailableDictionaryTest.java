@@ -59,9 +59,55 @@ class AvailableDictionaryTest {
     }
 
     @Test
+    void wrapWithAPrecomputedHashMatchesWrapWithTheDictionary() {
+        // Given a dictionary and a precomputed hash for it
+        ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
+        AvailableDictionary hash = AvailableDictionary.of(dict);
+        byte[] frame = {1, 2, 3, 4};
+
+        // When wrapped through both the ZstdDictionary and precomputed-hash overloads
+        byte[] viaDictionary = Rfc9842Frame.wrap(frame, dict);
+        byte[] viaHash = Rfc9842Frame.wrap(frame, hash);
+
+        // Then the results are byte-for-byte identical
+        assertThat(viaHash).isEqualTo(viaDictionary);
+    }
+
+    @Test
+    void unwrapWithAPrecomputedHashRoundTripsLikeUnwrapWithTheDictionary() {
+        // Given a dcz-framed blob and a precomputed hash for the dictionary it was wrapped against
+        ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
+        AvailableDictionary hash = AvailableDictionary.of(dict);
+        byte[] frame = {1, 2, 3, 4};
+        byte[] dcz = Rfc9842Frame.wrap(frame, dict);
+
+        // When unwrapped via the precomputed hash
+        byte[] unwrapped = Rfc9842Frame.unwrap(dcz, hash);
+
+        // Then it recovers the original frame, same as unwrapping via the dictionary
+        assertThat(unwrapped).isEqualTo(frame);
+        assertThat(unwrapped).isEqualTo(Rfc9842Frame.unwrap(dcz, dict));
+    }
+
+    @Test
     void constructorRejectsAWrongLengthHash() {
         ThrowingCallable result = () -> new AvailableDictionary(new byte[16]);
         assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void constructorRejectsNullHash() {
+        assertThatThrownBy(() -> new AvailableDictionary(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void constructorDefensivelyCopiesTheInputArray() {
+        byte[] original = new byte[32];
+        AvailableDictionary sut = new AvailableDictionary(original);
+
+        original[0] = 42; // mutate the array after construction
+
+        assertThat(sut.hash()[0]).isZero();
     }
 
     @Test
@@ -97,6 +143,30 @@ class AvailableDictionaryTest {
         sut.hash()[0] = 42; // mutate the returned copy
 
         assertThat(sut.hash()[0]).isZero();
+    }
+
+    @Test
+    void notEqualToADifferentHash() {
+        AvailableDictionary a = new AvailableDictionary(new byte[32]);
+        byte[] differentBytes = new byte[32];
+        differentBytes[0] = 1;
+        AvailableDictionary b = new AvailableDictionary(differentBytes);
+
+        assertThat(a).isNotEqualTo(b);
+        assertThat(Arrays.equals(a.hash(), b.hash())).isFalse();
+    }
+
+    @Test
+    void toStringShowsTheHashContentBase64Encoded() {
+        // Given
+        AvailableDictionary sut = AvailableDictionary.parse(":pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:");
+
+        // When
+        String result = sut.toString();
+
+        // Then the content is the header's base64 form, not the array's default reference form
+        assertThat(result).isEqualTo("AvailableDictionary[hash=:pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:]")
+                .doesNotContain("@");
     }
 
     @Test

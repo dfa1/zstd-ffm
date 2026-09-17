@@ -7,7 +7,6 @@ import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
 import io.github.dfa1.zstd.rfc9842.DictionaryId;
-import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
 
@@ -77,11 +76,12 @@ public final class Rfc9842ClientDemo {
                     + " bytes), applies to '" + useAsDictionary.match() + "', id=" + useAsDictionary.id());
 
             // Everything the request needs, built once up front rather than per
-            // call: the hashes (AvailableDictionary.of/Rfc9842DictionaryHash.of
-            // both re-hash the whole dictionary on every call) and the request
-            // itself, which is immutable and documented as sendable repeatedly.
-            String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
-            Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
+            // call: one hash (AvailableDictionary.of re-hashes the whole
+            // dictionary on every call), reused as both the Available-Dictionary
+            // header value and the wire-format hash, and the request itself,
+            // which is immutable and documented as sendable repeatedly.
+            AvailableDictionary dictionaryHash = AvailableDictionary.of(dictionary);
+            String availableDictionary = dictionaryHash.toHeaderValue();
             DataRequest dataRequest = dataRequest(availableDictionary, useAsDictionary);
             System.out.println("[rfc9842-client] GET " + DATA_PATH + " request headers:  "
                     + dataRequest.request().headers().map());
@@ -128,7 +128,7 @@ public final class Rfc9842ClientDemo {
     }
 
     private static void fetchData(HttpClient http, DataRequest dataRequest, ZstdDecompressContext dctx,
-                                   Rfc9842DictionaryHash dictionaryHash,
+                                   AvailableDictionary dictionaryHash,
                                    ZstdDecompressDictionary decompressDictionary) throws Exception {
         // Round trip starts here: send, receive, and (below) verify/decompress
         // are all part of what this request actually costs the caller.
@@ -167,7 +167,7 @@ public final class Rfc9842ClientDemo {
     /// memory once and the JVM heap once — see `PerfTestDemo.decodeDcz`,
     /// which this mirrors, for why the straightforward `unwrap`-then-`decompress`
     /// byte[] path it replaces copies the frame three times instead.
-    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, Rfc9842DictionaryHash dictionaryHash,
+    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, AvailableDictionary dictionaryHash,
                                      ZstdDecompressDictionary decompressDictionary) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment dcz = arena.allocate(body.length);

@@ -216,7 +216,7 @@ class Rfc9842FrameTest {
         void wrapAndUnwrapWithAPrecomputedHashMatchTheDictionaryOverloads() {
             // Given a dictionary, its precomputed hash, and an arbitrary "frame"
             ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
-            Rfc9842DictionaryHash hash = Rfc9842DictionaryHash.of(dict);
+            AvailableDictionary hash = AvailableDictionary.of(dict);
             byte[] frame = {1, 2, 3, 4};
 
             try (Arena arena = Arena.ofConfined()) {

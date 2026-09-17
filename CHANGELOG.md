@@ -26,12 +26,16 @@ git tags, which trigger publication to Maven Central.
   - `UseAsDictionary`, `AvailableDictionary`, and `DictionaryId` parse/build
     the values of the three HTTP headers (`Use-As-Dictionary`,
     `Available-Dictionary`, `Dictionary-ID`) as a framework-agnostic model —
-    zero dependency on any HTTP framework or servlet API. Includes a minimal
-    hand-rolled RFC 8941 (Structured Field Values) parser/serializer scoped to
-    what these headers use, and path matching against `Use-As-Dictionary`'s
-    `match` pattern restricted to literal text plus `*` wildcards (a deliberate
-    subset of WHATWG URL Pattern — named/optional groups are not supported,
-    matching literally instead of failing to compile).
+    zero dependency on any HTTP framework or servlet API. `AvailableDictionary`
+    also embeds/verifies the same SHA-256 hash in `Rfc9842Frame`'s `dcz` wire
+    format — one type for both, rather than an HTTP-header-specific type and
+    a separate wire-format type independently hashing the identical
+    dictionary bytes. Includes a minimal hand-rolled RFC 8941 (Structured
+    Field Values) parser/serializer scoped to what these headers use, and
+    path matching against `Use-As-Dictionary`'s `match` pattern restricted
+    to literal text plus `*` wildcards (a deliberate subset of
+    WHATWG URL Pattern — named/optional groups are not supported, matching
+    literally instead of failing to compile).
     ([#92](https://github.com/dfa1/zstd-ffm/issues/92))
   - A runnable demo (`ServerDemo`/`NaiveClientDemo`/`Rfc9842ClientDemo`/
     `PerfTestDemo`, `rfc9842`'s test classpath) on embedded Jetty, so it speaks

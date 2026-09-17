@@ -12,6 +12,27 @@ import java.util.Objects;
 /// already has, so the server can decide whether to compress the response
 /// against it.
 ///
+/// This is also the value [Rfc9842Frame#wrap(byte[], AvailableDictionary)]/
+/// [Rfc9842Frame#unwrap(byte[], AvailableDictionary)] embed in and verify
+/// against a `dcz` header — the identical 32 bytes either way (§2.2 defines
+/// `Available-Dictionary` as this same SHA-256 hash), so one type serves
+/// both rather than hashing the dictionary twice for two separately-typed
+/// wrappers around the same digest.
+///
+/// Precomputing this once and reusing it matters for exactly the reason
+/// [io.github.dfa1.zstd.ZstdCompressDictionary] exists: hashing a dictionary
+/// is cheap for a single call, but redoing it on every `wrap`/`unwrap` in a
+/// hot path — once per HTTP request, say — is pure waste once the dictionary
+/// itself is fixed.
+///
+/// {@snippet :
+/// AvailableDictionary hash = AvailableDictionary.of(dictionary); // once, at startup
+/// // ... per request, on the wire-format side:
+/// byte[] dcz = Rfc9842Frame.wrap(frame, hash);
+/// // ... and/or on the HTTP header side:
+/// String availableDictionary = hash.toHeaderValue();
+/// }
+///
 /// @param hash the dictionary's SHA-256 hash, exactly 32 bytes
 public record AvailableDictionary(byte[] hash) {
 
@@ -77,6 +98,11 @@ public record AvailableDictionary(byte[] hash) {
     /// @return the header value, e.g. `:pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:`
     public String toHeaderValue() {
         return Sfv.serializeByteSequence(hash);
+    }
+
+    /// Internal: direct view of the hash bytes for `Rfc9842Frame`'s hot path. Not exposed.
+    byte[] raw() {
+        return hash;
     }
 
     /// Value equality over the hash bytes rather than array identity (the record default).

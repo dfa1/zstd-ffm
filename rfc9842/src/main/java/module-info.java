@@ -3,7 +3,11 @@
 ///
 /// [io.github.dfa1.zstd.rfc9842.Rfc9842Frame] wraps/verifies the
 /// skippable-frame header that identifies which dictionary a zstd frame was
-/// compressed against (§5). [io.github.dfa1.zstd.rfc9842.UseAsDictionary],
+/// compressed against (§5), embedding the same
+/// [io.github.dfa1.zstd.rfc9842.AvailableDictionary] hash the
+/// `Available-Dictionary` header carries — one type for both, since §2.2
+/// defines them as the identical SHA-256 hash.
+/// [io.github.dfa1.zstd.rfc9842.UseAsDictionary],
 /// [io.github.dfa1.zstd.rfc9842.AvailableDictionary], and
 /// [io.github.dfa1.zstd.rfc9842.DictionaryId] parse/build the values of the
 /// `Use-As-Dictionary`, `Available-Dictionary`, and `Dictionary-ID` headers

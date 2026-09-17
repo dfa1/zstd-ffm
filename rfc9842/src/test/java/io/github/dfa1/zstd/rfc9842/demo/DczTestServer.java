@@ -7,7 +7,6 @@ import io.github.dfa1.zstd.ZstdCompressDictionary;
 import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
-import io.github.dfa1.zstd.rfc9842.Rfc9842DictionaryHash;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Exception;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
@@ -94,10 +93,11 @@ final class DczTestServer implements AutoCloseable {
         }
         ZstdDictionary dictionary = ZstdDictionary.train(trainingSamples, ZstdByteSize.ofKiB(dictKiB));
         byte[] dictionaryBytes = dictionary.toByteArray();
-        AvailableDictionary expectedHash = AvailableDictionary.of(dictionary);
-        String expectedAvailableDictionary = expectedHash.toHeaderValue();
+        // One hash, reused as both the dcz wire-format hash and the
+        // Available-Dictionary header value — see AvailableDictionary's doc.
+        AvailableDictionary dictionaryHash = AvailableDictionary.of(dictionary);
+        String expectedAvailableDictionary = dictionaryHash.toHeaderValue();
         String useAsDictionary = new UseAsDictionary("/api/*", DICTIONARY_ID).toHeaderValue();
-        Rfc9842DictionaryHash dictionaryHash = Rfc9842DictionaryHash.of(dictionary);
 
         this.compressDictionary = dictionary.compressDict(level);
         this.cctx = new ZstdCompressContext().level(level);
@@ -142,7 +142,7 @@ final class DczTestServer implements AutoCloseable {
                     byte[] body;
                     String contentEncoding = null;
                     if (accepts(acceptEncoding, "dcz")
-                            && hasMatchingDictionary(request, expectedAvailableDictionary, expectedHash)) {
+                            && hasMatchingDictionary(request, expectedAvailableDictionary, dictionaryHash)) {
                         body = compressDcz(payload, cctxRef, compressDictionaryRef, dictionaryHash);
                         contentEncoding = "dcz";
                     } else if (accepts(acceptEncoding, "zstd")) {
@@ -313,7 +313,7 @@ final class DczTestServer implements AutoCloseable {
     }
 
     private static byte[] compressDcz(byte[] payload, ZstdCompressContext cctx, ZstdCompressDictionary dictionary,
-                                       Rfc9842DictionaryHash dictionaryHash) {
+                                       AvailableDictionary dictionaryHash) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = arena.allocate(payload.length);
             MemorySegment.copy(payload, 0, in, JAVA_BYTE, 0, payload.length);
