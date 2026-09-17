@@ -6,14 +6,19 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class DictionaryIdTest {
+class DictionaryIdHeaderTest {
+
+    @Test
+    void httpHeaderIsTheRfc9842HeaderName() {
+        assertThat(DictionaryIdHeader.HTTP_HEADER).isEqualTo("Dictionary-ID");
+    }
 
     @Test
     void parseMatchesTheRfc9842ExampleHeaderValue() {
         // Given the RFC's own example header value
 
         // When
-        DictionaryId sut = DictionaryId.parse("\"dictionary-12345\"");
+        DictionaryIdHeader sut = DictionaryIdHeader.parse("\"dictionary-12345\"");
 
         // Then
         assertThat(sut.value()).isEqualTo("dictionary-12345");
@@ -23,11 +28,11 @@ class DictionaryIdTest {
     @Test
     void roundTripsAValueNeedingEscaping() {
         // Given
-        DictionaryId sut = new DictionaryId("has \"quotes\" and \\backslashes\\");
+        DictionaryIdHeader sut = new DictionaryIdHeader("has \"quotes\" and \\backslashes\\");
 
         // When
         String header = sut.toHeaderValue();
-        DictionaryId parsed = DictionaryId.parse(header);
+        DictionaryIdHeader parsed = DictionaryIdHeader.parse(header);
 
         // Then
         assertThat(parsed).isEqualTo(sut);
@@ -37,39 +42,39 @@ class DictionaryIdTest {
     void acceptsExactlyTheMaximumLength() {
         String maxLength = "a".repeat(1024);
 
-        DictionaryId sut = new DictionaryId(maxLength);
+        DictionaryIdHeader sut = new DictionaryIdHeader(maxLength);
 
         assertThat(sut.value()).hasSize(1024);
     }
 
     @Test
     void rejectsOneCharacterOverTheMaximumLength() {
-        ThrowingCallable result = () -> new DictionaryId("a".repeat(1025));
+        ThrowingCallable result = () -> new DictionaryIdHeader("a".repeat(1025));
 
         assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void parseRejectsMalformedStringSyntax() {
-        ThrowingCallable result = () -> DictionaryId.parse("not a quoted string");
+        ThrowingCallable result = () -> DictionaryIdHeader.parse("not a quoted string");
 
         assertThatThrownBy(result).isInstanceOf(Rfc9842Exception.class);
     }
 
     @Test
     void parseRejectsTrailingDataAfterTheString() {
-        ThrowingCallable result = () -> DictionaryId.parse("\"ok\" extra");
+        ThrowingCallable result = () -> DictionaryIdHeader.parse("\"ok\" extra");
 
         assertThatThrownBy(result).isInstanceOf(Rfc9842Exception.class);
     }
 
     @Test
     void constructorRejectsNullValue() {
-        assertThatThrownBy(() -> new DictionaryId(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new DictionaryIdHeader(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
     void parseRejectsNullHeaderValue() {
-        assertThatThrownBy(() -> DictionaryId.parse(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> DictionaryIdHeader.parse(null)).isInstanceOf(NullPointerException.class);
     }
 }

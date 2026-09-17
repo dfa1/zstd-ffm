@@ -23,19 +23,27 @@ git tags, which trigger publication to Maven Central.
     HTTP dependency: composes with either the per-call dictionary path or a
     pre-digested `ZstdCompressDictionary`/`ZstdDecompressDictionary`.
     ([#91](https://github.com/dfa1/zstd-ffm/issues/91))
-  - `UseAsDictionary`, `AvailableDictionary`, and `DictionaryId` parse/build
+  - `UseAsDictionaryHeader`, `AvailableDictionaryHeader`, and `DictionaryIdHeader` parse/build
     the values of the three HTTP headers (`Use-As-Dictionary`,
     `Available-Dictionary`, `Dictionary-ID`) as a framework-agnostic model —
-    zero dependency on any HTTP framework or servlet API. `AvailableDictionary`
-    also embeds/verifies the same SHA-256 hash in `Rfc9842Frame`'s `dcz` wire
-    format — one type for both, rather than an HTTP-header-specific type and
-    a separate wire-format type independently hashing the identical
-    dictionary bytes. Includes a minimal hand-rolled RFC 8941 (Structured
-    Field Values) parser/serializer scoped to what these headers use, and
-    path matching against `Use-As-Dictionary`'s `match` pattern restricted
-    to literal text plus `*` wildcards (a deliberate subset of
-    WHATWG URL Pattern — named/optional groups are not supported, matching
-    literally instead of failing to compile).
+    zero dependency on any HTTP framework or servlet API. Each exposes an
+    `HTTP_HEADER` constant naming its header, so callers wire an HTTP
+    client's `.header(...)`/`.getHeader(...)` calls without duplicating the
+    literal. `AvailableDictionaryHeader` also embeds/verifies the same
+    SHA-256 hash in `Rfc9842Frame`'s `dcz` wire format — one type for both,
+    rather than an HTTP-header-specific type and a separate wire-format type
+    independently hashing the identical dictionary bytes. Includes a minimal
+    hand-rolled RFC 8941 (Structured Field Values) parser/serializer scoped
+    to what these headers use, and path matching against
+    `Use-As-Dictionary`'s `match` pattern restricted to literal text plus
+    `*` wildcards (a deliberate subset of WHATWG URL Pattern — named/optional
+    groups are not supported, matching literally instead of failing to
+    compile). `NegotiatedDictionary.from(byte[], String)` composes a fetched
+    dictionary's bytes and its `Use-As-Dictionary` header into everything a
+    client needs for later requests — the dictionary, where it applies, its
+    hash, and the `Dictionary-ID` to echo back if the server assigned one —
+    from a single hash rather than the two independent ones each of
+    `Rfc9842ClientDemo`/`PerfTestDemo` used to compute by hand.
     ([#92](https://github.com/dfa1/zstd-ffm/issues/92))
   - A runnable demo (`ServerDemo`/`NaiveClientDemo`/`Rfc9842ClientDemo`/
     `PerfTestDemo`, `rfc9842`'s test classpath) on embedded Jetty, so it speaks

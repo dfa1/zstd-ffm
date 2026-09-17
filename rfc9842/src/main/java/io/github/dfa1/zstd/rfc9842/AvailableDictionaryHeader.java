@@ -12,8 +12,8 @@ import java.util.Objects;
 /// already has, so the server can decide whether to compress the response
 /// against it.
 ///
-/// This is also the value [Rfc9842Frame#wrap(byte[], AvailableDictionary)]/
-/// [Rfc9842Frame#unwrap(byte[], AvailableDictionary)] embed in and verify
+/// This is also the value [Rfc9842Frame#wrap(byte[], AvailableDictionaryHeader)]/
+/// [Rfc9842Frame#unwrap(byte[], AvailableDictionaryHeader)] embed in and verify
 /// against a `dcz` header — the identical 32 bytes either way (§2.2 defines
 /// `Available-Dictionary` as this same SHA-256 hash), so one type serves
 /// both rather than hashing the dictionary twice for two separately-typed
@@ -26,7 +26,7 @@ import java.util.Objects;
 /// itself is fixed.
 ///
 /// {@snippet :
-/// AvailableDictionary hash = AvailableDictionary.of(dictionary); // once, at startup
+/// AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(dictionary); // once, at startup
 /// // ... per request, on the wire-format side:
 /// byte[] dcz = Rfc9842Frame.wrap(frame, hash);
 /// // ... and/or on the HTTP header side:
@@ -34,13 +34,16 @@ import java.util.Objects;
 /// }
 ///
 /// @param hash the dictionary's SHA-256 hash, exactly 32 bytes
-public record AvailableDictionary(byte[] hash) {
+public record AvailableDictionaryHeader(byte[] hash) {
+
+    /// The HTTP header name this type's value belongs on.
+    public static final String HTTP_HEADER = "Available-Dictionary";
 
     private static final int HASH_LENGTH = 32;
 
     /// Validates `hash` is exactly a SHA-256-length digest and defensively
     /// copies it so this record owns its bytes.
-    public AvailableDictionary {
+    public AvailableDictionaryHeader {
         Objects.requireNonNull(hash, "hash");
         if (hash.length != HASH_LENGTH) {
             throw new IllegalArgumentException(
@@ -62,10 +65,10 @@ public record AvailableDictionary(byte[] hash) {
     ///
     /// @param dictionary the dictionary content to hash
     /// @return the resulting header value
-    public static AvailableDictionary of(ZstdDictionary dictionary) {
+    public static AvailableDictionaryHeader of(ZstdDictionary dictionary) {
         Objects.requireNonNull(dictionary, "dictionary");
         try {
-            return new AvailableDictionary(MessageDigest.getInstance("SHA-256").digest(dictionary.toByteArray()));
+            return new AvailableDictionaryHeader(MessageDigest.getInstance("SHA-256").digest(dictionary.toByteArray()));
         } catch (NoSuchAlgorithmException e) {
             // SHA-256 is a mandatory algorithm every JDK implementation must support
             // (Java Cryptography Architecture Standard Algorithm Names).
@@ -79,7 +82,7 @@ public record AvailableDictionary(byte[] hash) {
     /// @return the parsed hash
     /// @throws Rfc9842Exception if `headerValue` is not a valid byte-sequence
     ///                          structured field value, or not 32 bytes
-    public static AvailableDictionary parse(String headerValue) {
+    public static AvailableDictionaryHeader parse(String headerValue) {
         Objects.requireNonNull(headerValue, "headerValue");
         Sfv.Cursor c = Sfv.cursor(headerValue.strip());
         byte[] bytes = Sfv.parseByteSequence(c);
@@ -87,7 +90,7 @@ public record AvailableDictionary(byte[] hash) {
             throw new Rfc9842Exception("malformed Available-Dictionary header: trailing data after the byte sequence");
         }
         try {
-            return new AvailableDictionary(bytes);
+            return new AvailableDictionaryHeader(bytes);
         } catch (IllegalArgumentException e) {
             throw new Rfc9842Exception(e.getMessage(), e);
         }
@@ -114,10 +117,10 @@ public record AvailableDictionary(byte[] hash) {
     /// directly (same class, so permitted) avoids that clone.
     ///
     /// @param o the object to compare with
-    /// @return `true` if `o` is an [AvailableDictionary] with an equal hash
+    /// @return `true` if `o` is an [AvailableDictionaryHeader] with an equal hash
     @Override
     public boolean equals(Object o) {
-        return o instanceof AvailableDictionary other && Arrays.equals(hash, other.hash);
+        return o instanceof AvailableDictionaryHeader other && Arrays.equals(hash, other.hash);
     }
 
     /// Hash code consistent with [#equals(Object)], derived from the hash bytes.
@@ -134,6 +137,6 @@ public record AvailableDictionary(byte[] hash) {
     @Override
     @SuppressWarnings("NullableProblems") // toString never returns null; we just don't pull in JB @NotNull
     public String toString() {
-        return "AvailableDictionary[hash=" + toHeaderValue() + "]";
+        return "AvailableDictionaryHeader[hash=" + toHeaderValue() + "]";
     }
 }

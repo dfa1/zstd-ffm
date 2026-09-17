@@ -6,10 +6,11 @@ import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
 import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdDictionary;
-import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
+import io.github.dfa1.zstd.rfc9842.DictionaryIdHeader;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Exception;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
-import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
+import io.github.dfa1.zstd.rfc9842.UseAsDictionaryHeader;
 
 import org.eclipse.jetty.http2.server.HTTP2CServerConnectionFactory;
 import org.eclipse.jetty.io.Connection;
@@ -94,10 +95,10 @@ final class DczTestServer implements AutoCloseable {
         ZstdDictionary dictionary = ZstdDictionary.train(trainingSamples, ZstdByteSize.ofKiB(dictKiB));
         byte[] dictionaryBytes = dictionary.toByteArray();
         // One hash, reused as both the dcz wire-format hash and the
-        // Available-Dictionary header value — see AvailableDictionary's doc.
-        AvailableDictionary dictionaryHash = AvailableDictionary.of(dictionary);
+        // Available-Dictionary header value — see AvailableDictionaryHeader's doc.
+        AvailableDictionaryHeader dictionaryHash = AvailableDictionaryHeader.of(dictionary);
         String expectedAvailableDictionary = dictionaryHash.toHeaderValue();
-        String useAsDictionary = new UseAsDictionary("/api/*", DICTIONARY_ID).toHeaderValue();
+        String useAsDictionary = new UseAsDictionaryHeader("/api/*", DICTIONARY_ID).toHeaderValue();
 
         this.compressDictionary = dictionary.compressDict(level);
         this.cctx = new ZstdCompressContext().level(level);
@@ -126,7 +127,7 @@ final class DczTestServer implements AutoCloseable {
                             + " request headers: " + request.getHeaders());
                 }
                 if (DICTIONARY_PATH.equals(path)) {
-                    response.getHeaders().put("Use-As-Dictionary", useAsDictionary);
+                    response.getHeaders().put(UseAsDictionaryHeader.HTTP_HEADER, useAsDictionary);
                     response.getHeaders().put("Cache-Control", "max-age=604800");
                     response.getHeaders().put("Content-Type", "application/octet-stream");
                     if (verbose) {
@@ -235,9 +236,9 @@ final class DczTestServer implements AutoCloseable {
     }
 
     private static boolean hasMatchingDictionary(Request request, String expectedAvailableDictionary,
-                                                  AvailableDictionary expectedHash) {
-        String availableDictionary = request.getHeaders().get("Available-Dictionary");
-        String dictionaryId = request.getHeaders().get("Dictionary-ID");
+                                                  AvailableDictionaryHeader expectedHash) {
+        String availableDictionary = request.getHeaders().get(AvailableDictionaryHeader.HTTP_HEADER);
+        String dictionaryId = request.getHeaders().get(DictionaryIdHeader.HTTP_HEADER);
         if (availableDictionary == null || dictionaryId == null || !DICTIONARY_ID.equals(unquote(dictionaryId))) {
             return false;
         }
@@ -245,7 +246,7 @@ final class DczTestServer implements AutoCloseable {
             return true;
         }
         try {
-            return expectedHash.equals(AvailableDictionary.parse(availableDictionary));
+            return expectedHash.equals(AvailableDictionaryHeader.parse(availableDictionary));
         } catch (Rfc9842Exception e) {
             return false;
         }
@@ -313,7 +314,7 @@ final class DczTestServer implements AutoCloseable {
     }
 
     private static byte[] compressDcz(byte[] payload, ZstdCompressContext cctx, ZstdCompressDictionary dictionary,
-                                       AvailableDictionary dictionaryHash) {
+                                       AvailableDictionaryHeader dictionaryHash) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = arena.allocate(payload.length);
             MemorySegment.copy(payload, 0, in, JAVA_BYTE, 0, payload.length);

@@ -30,10 +30,13 @@ import java.util.regex.Pattern;
 /// @param match the URL pattern text (percent-encoded path), matched against
 ///              request paths via [#matchesPath(String)]
 /// @param id    an opaque identifier the client echoes back via
-///              [DictionaryId], or `""` if none
+///              [DictionaryIdHeader], or `""` if none
 /// @param type  the dictionary content type, or `"raw"` (the only type this
 ///              library — or RFC 9842 itself, currently — defines)
-public record UseAsDictionary(String match, String id, String type) {
+public record UseAsDictionaryHeader(String match, String id, String type) {
+
+    /// The HTTP header name this type's value belongs on.
+    public static final String HTTP_HEADER = "Use-As-Dictionary";
 
     /// The default, and only currently defined, dictionary content type.
     public static final String TYPE_RAW = "raw";
@@ -41,7 +44,7 @@ public record UseAsDictionary(String match, String id, String type) {
     private static final int MAX_ID_LENGTH = 1024;
 
     /// Validates `match`/`id`/`type`.
-    public UseAsDictionary {
+    public UseAsDictionaryHeader {
         Objects.requireNonNull(match, "match");
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(type, "type");
@@ -57,16 +60,16 @@ public record UseAsDictionary(String match, String id, String type) {
     /// default `"raw"` type.
     ///
     /// @param match the URL pattern text
-    public UseAsDictionary(String match) {
+    public UseAsDictionaryHeader(String match) {
         this(match, "", TYPE_RAW);
     }
 
     /// A `Use-As-Dictionary` value with a match pattern and an id to echo
-    /// back via [DictionaryId] — the default `"raw"` type.
+    /// back via [DictionaryIdHeader] — the default `"raw"` type.
     ///
     /// @param match the URL pattern text
     /// @param id    the identifier the client should echo back
-    public UseAsDictionary(String match, String id) {
+    public UseAsDictionaryHeader(String match, String id) {
         this(match, id, TYPE_RAW);
     }
 
@@ -89,7 +92,7 @@ public record UseAsDictionary(String match, String id, String type) {
     /// @throws Rfc9842Exception if `headerValue` is malformed, missing the
     ///                          required `match` member, or uses a member
     ///                          this implementation does not recognize
-    public static UseAsDictionary parse(String headerValue) {
+    public static UseAsDictionaryHeader parse(String headerValue) {
         Objects.requireNonNull(headerValue, "headerValue");
         Sfv.Cursor c = Sfv.cursor(headerValue.strip());
         String match = null;
@@ -124,7 +127,7 @@ public record UseAsDictionary(String match, String id, String type) {
             throw new Rfc9842Exception("malformed Use-As-Dictionary header: missing required 'match' member");
         }
         try {
-            return new UseAsDictionary(match, id, type);
+            return new UseAsDictionaryHeader(match, id, type);
         } catch (IllegalArgumentException e) {
             throw new Rfc9842Exception(e.getMessage(), e);
         }

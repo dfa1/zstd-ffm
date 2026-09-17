@@ -7,7 +7,12 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class UseAsDictionaryTest {
+class UseAsDictionaryHeaderTest {
+
+    @Test
+    void httpHeaderIsTheRfc9842HeaderName() {
+        assertThat(UseAsDictionaryHeader.HTTP_HEADER).isEqualTo("Use-As-Dictionary");
+    }
 
     @Nested
     class Parsing {
@@ -18,12 +23,12 @@ class UseAsDictionaryTest {
             String header = "match=\"/app/*/main.js\"";
 
             // When
-            UseAsDictionary sut = UseAsDictionary.parse(header);
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.parse(header);
 
             // Then
             assertThat(sut.match()).isEqualTo("/app/*/main.js");
             assertThat(sut.id()).isEmpty();
-            assertThat(sut.type()).isEqualTo(UseAsDictionary.TYPE_RAW);
+            assertThat(sut.type()).isEqualTo(UseAsDictionaryHeader.TYPE_RAW);
             assertThat(sut.toHeaderValue()).isEqualTo(header);
         }
 
@@ -34,7 +39,7 @@ class UseAsDictionaryTest {
             String header = "match=\"/product/*\", match-dest=(\"document\")";
 
             // When
-            UseAsDictionary sut = UseAsDictionary.parse(header);
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.parse(header);
 
             // Then
             assertThat(sut.match()).isEqualTo("/product/*");
@@ -47,7 +52,7 @@ class UseAsDictionaryTest {
             String header = "match=\"/app/*/main.js\", id=\"dictionary-12345\"";
 
             // When
-            UseAsDictionary sut = UseAsDictionary.parse(header);
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.parse(header);
 
             // Then
             assertThat(sut.id()).isEqualTo("dictionary-12345");
@@ -60,7 +65,7 @@ class UseAsDictionaryTest {
             String header = "match=\"/x/*\", id=\"abc\", type=custom";
 
             // When
-            UseAsDictionary sut = UseAsDictionary.parse(header);
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.parse(header);
 
             // Then
             assertThat(sut.match()).isEqualTo("/x/*");
@@ -71,19 +76,19 @@ class UseAsDictionaryTest {
 
         @Test
         void rejectsAHeaderMissingMatch() {
-            ThrowingCallable result = () -> UseAsDictionary.parse("id=\"abc\"");
+            ThrowingCallable result = () -> UseAsDictionaryHeader.parse("id=\"abc\"");
             assertThatThrownBy(result).isInstanceOf(Rfc9842Exception.class).hasMessageContaining("match");
         }
 
         @Test
         void rejectsAnUnrecognizedMember() {
-            ThrowingCallable result = () -> UseAsDictionary.parse("match=\"/x\", bogus=\"y\"");
+            ThrowingCallable result = () -> UseAsDictionaryHeader.parse("match=\"/x\", bogus=\"y\"");
             assertThatThrownBy(result).isInstanceOf(Rfc9842Exception.class).hasMessageContaining("bogus");
         }
 
         @Test
         void rejectsATrailingComma() {
-            ThrowingCallable result = () -> UseAsDictionary.parse("match=\"/x\",");
+            ThrowingCallable result = () -> UseAsDictionaryHeader.parse("match=\"/x\",");
             assertThatThrownBy(result).isInstanceOf(Rfc9842Exception.class);
         }
 
@@ -92,14 +97,14 @@ class UseAsDictionaryTest {
             // Given a header repeating "match" — per RFC 8941, the later occurrence wins
             String header = "match=\"/first\", match=\"/second\"";
 
-            UseAsDictionary sut = UseAsDictionary.parse(header);
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.parse(header);
 
             assertThat(sut.match()).isEqualTo("/second");
         }
 
         @Test
         void rejectsNullHeaderValue() {
-            assertThatThrownBy(() -> UseAsDictionary.parse(null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> UseAsDictionaryHeader.parse(null)).isInstanceOf(NullPointerException.class);
         }
     }
 
@@ -108,29 +113,29 @@ class UseAsDictionaryTest {
 
         @Test
         void matchOnlyConvenienceConstructorUsesDefaults() {
-            UseAsDictionary sut = new UseAsDictionary("/x/*");
+            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/x/*");
 
             assertThat(sut.id()).isEmpty();
-            assertThat(sut.type()).isEqualTo(UseAsDictionary.TYPE_RAW);
+            assertThat(sut.type()).isEqualTo(UseAsDictionaryHeader.TYPE_RAW);
         }
 
         @Test
         void matchAndIdConvenienceConstructorUsesDefaults() {
-            UseAsDictionary sut = new UseAsDictionary("/x/*", "abc");
+            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/x/*", "abc");
 
             assertThat(sut.id()).isEqualTo("abc");
-            assertThat(sut.type()).isEqualTo(UseAsDictionary.TYPE_RAW);
+            assertThat(sut.type()).isEqualTo(UseAsDictionaryHeader.TYPE_RAW);
         }
 
         @Test
         void rejectsAnEmptyMatch() {
-            ThrowingCallable result = () -> new UseAsDictionary("");
+            ThrowingCallable result = () -> new UseAsDictionaryHeader("");
             assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
         void rejectsAnIdOverTheMaximumLength() {
-            ThrowingCallable result = () -> new UseAsDictionary("/x", "a".repeat(1025), "raw");
+            ThrowingCallable result = () -> new UseAsDictionaryHeader("/x", "a".repeat(1025), "raw");
             assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -140,7 +145,7 @@ class UseAsDictionaryTest {
 
         @Test
         void matchesAWildcardInTheMiddleOfThePattern() {
-            UseAsDictionary sut = new UseAsDictionary("/app/*/main.js");
+            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/app/*/main.js");
 
             assertThat(sut.matchesPath("/app/v2/main.js")).isTrue();
             assertThat(sut.matchesPath("/app/main.js")).isFalse();
@@ -149,7 +154,7 @@ class UseAsDictionaryTest {
 
         @Test
         void matchesATrailingWildcard() {
-            UseAsDictionary sut = new UseAsDictionary("/product/*");
+            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/product/*");
 
             assertThat(sut.matchesPath("/product/123")).isTrue();
             assertThat(sut.matchesPath("/product/")).isTrue();
@@ -159,7 +164,7 @@ class UseAsDictionaryTest {
 
         @Test
         void aLiteralPatternWithNoWildcardMatchesOnlyItself() {
-            UseAsDictionary sut = new UseAsDictionary("/exact/path");
+            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/exact/path");
 
             assertThat(sut.matchesPath("/exact/path")).isTrue();
             assertThat(sut.matchesPath("/exact/path/extra")).isFalse();
@@ -170,7 +175,7 @@ class UseAsDictionaryTest {
             // Documented gap: this implementation's '*' matches any characters,
             // including further path separators — not segment-scoped like full
             // WHATWG URL Pattern semantics.
-            UseAsDictionary sut = new UseAsDictionary("/a/*/z");
+            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/a/*/z");
 
             assertThat(sut.matchesPath("/a/b/c/z")).isTrue();
         }

@@ -1,9 +1,9 @@
 package io.github.dfa1.zstd.rfc9842.demo;
 
-import io.github.dfa1.zstd.ZstdDictionary;
-import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
-import io.github.dfa1.zstd.rfc9842.DictionaryId;
-import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
+import io.github.dfa1.zstd.rfc9842.DictionaryIdHeader;
+import io.github.dfa1.zstd.rfc9842.NegotiatedDictionary;
+import io.github.dfa1.zstd.rfc9842.UseAsDictionaryHeader;
 
 import org.junit.jupiter.api.Test;
 
@@ -55,17 +55,15 @@ class DczHttpVersionComparisonTest {
             HttpRequest dictionaryRequest = HttpRequest.newBuilder(server.dictionaryUri()).GET().build();
             HttpResponse<byte[]> dictionaryResponse =
                     http.send(dictionaryRequest, HttpResponse.BodyHandlers.ofByteArray());
-            ZstdDictionary dictionary = ZstdDictionary.of(dictionaryResponse.body());
-            UseAsDictionary useAsDictionary = UseAsDictionary.parse(
-                    dictionaryResponse.headers().firstValue("Use-As-Dictionary").orElseThrow());
-            String availableDictionary = AvailableDictionary.of(dictionary).toHeaderValue();
-            String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
+            NegotiatedDictionary negotiated = NegotiatedDictionary.from(dictionaryResponse.body(),
+                    dictionaryResponse.headers().firstValue(UseAsDictionaryHeader.HTTP_HEADER).orElseThrow());
 
-            HttpRequest dataRequest = HttpRequest.newBuilder(server.dataUri()).GET()
+            HttpRequest.Builder dataRequestBuilder = HttpRequest.newBuilder(server.dataUri()).GET()
                     .header("Accept-Encoding", "gzip, zstd, dcz")
-                    .header("Available-Dictionary", availableDictionary)
-                    .header("Dictionary-ID", dictionaryId)
-                    .build();
+                    .header(AvailableDictionaryHeader.HTTP_HEADER, negotiated.hash().toHeaderValue());
+            negotiated.dictionaryId().ifPresent(id ->
+                    dataRequestBuilder.header(DictionaryIdHeader.HTTP_HEADER, id.toHeaderValue()));
+            HttpRequest dataRequest = dataRequestBuilder.build();
 
             long before = server.wireBytes();
             for (int i = 0; i < WARMED_UP_REQUESTS; i++) {

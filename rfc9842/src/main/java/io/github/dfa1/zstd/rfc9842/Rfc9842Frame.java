@@ -49,11 +49,11 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 ///
 /// `wrap`/`unwrap` hash `dictionary` fresh on every call above — fine for
 /// occasional use, wasteful in a hot path against a fixed dictionary (once
-/// per HTTP request, say). Precompute an [AvailableDictionary] once and pass
+/// per HTTP request, say). Precompute an [AvailableDictionaryHeader] once and pass
 /// it instead, exactly like pre-digesting a `ZstdCompressDictionary`:
 ///
 /// {@snippet :
-/// AvailableDictionary hash = AvailableDictionary.of(dict); // once, at startup
+/// AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(dict); // once, at startup
 /// byte[] dcz = Rfc9842Frame.wrap(frame, hash);                 // per call, no re-hashing
 /// }
 public final class Rfc9842Frame {
@@ -129,15 +129,15 @@ public final class Rfc9842Frame {
     }
 
     /// Wraps `compressedFrame` with the RFC 9842 `dcz` header, using an
-    /// [AvailableDictionary] computed once up front instead of hashing
+    /// [AvailableDictionaryHeader] computed once up front instead of hashing
     /// `dictionary` again on every call — the hot-path counterpart of
     /// [#wrap(byte[], ZstdDictionary)], for a fixed dictionary reused across
     /// many calls (e.g. once per HTTP request against the same dictionary).
     ///
     /// @param compressedFrame a zstd frame compressed against the hashed dictionary
-    /// @param hash            the dictionary's precomputed hash, from [AvailableDictionary#of(ZstdDictionary)]
+    /// @param hash            the dictionary's precomputed hash, from [AvailableDictionaryHeader#of(ZstdDictionary)]
     /// @return the `dcz` header followed by `compressedFrame`
-    public static byte[] wrap(byte[] compressedFrame, AvailableDictionary hash) {
+    public static byte[] wrap(byte[] compressedFrame, AvailableDictionaryHeader hash) {
         Objects.requireNonNull(compressedFrame, "compressedFrame");
         Objects.requireNonNull(hash, "hash");
         byte[] result = new byte[HEADER_SIZE + compressedFrame.length];
@@ -148,16 +148,16 @@ public final class Rfc9842Frame {
     }
 
     /// Verifies and strips the RFC 9842 `dcz` header from `dcz`, using an
-    /// [AvailableDictionary] computed once up front instead of hashing the
+    /// [AvailableDictionaryHeader] computed once up front instead of hashing the
     /// dictionary again on every call — the hot-path counterpart of
     /// [#unwrap(byte[], ZstdDictionary)].
     ///
-    /// @param dcz  a `dcz`-framed blob produced by [#wrap(byte[], AvailableDictionary)]
+    /// @param dcz  a `dcz`-framed blob produced by [#wrap(byte[], AvailableDictionaryHeader)]
     /// @param hash the dictionary's precomputed hash to verify `dcz` against
     /// @return the compressed zstd frame, with the header stripped
     /// @throws Rfc9842Exception if `dcz` does not carry a `dcz` header, or its
     ///                           hash does not match `hash`
-    public static byte[] unwrap(byte[] dcz, AvailableDictionary hash) {
+    public static byte[] unwrap(byte[] dcz, AvailableDictionaryHeader hash) {
         Objects.requireNonNull(dcz, "dcz");
         Objects.requireNonNull(hash, "hash");
         validateHeader(dcz);
@@ -203,7 +203,7 @@ public final class Rfc9842Frame {
         return dst;
     }
 
-    /// Wraps `compressedFrame` into `dst`, using an [AvailableDictionary]
+    /// Wraps `compressedFrame` into `dst`, using an [AvailableDictionaryHeader]
     /// computed once up front instead of hashing the dictionary again on
     /// every call — the hot-path counterpart of
     /// [#wrap(MemorySegment, MemorySegment, ZstdDictionary)].
@@ -211,10 +211,10 @@ public final class Rfc9842Frame {
     /// @param dst             the destination segment, at least
     ///                        [#HEADER_SIZE]` + compressedFrame.byteSize()` bytes
     /// @param compressedFrame a zstd frame compressed against the hashed dictionary
-    /// @param hash            the dictionary's precomputed hash, from [AvailableDictionary#of(ZstdDictionary)]
+    /// @param hash            the dictionary's precomputed hash, from [AvailableDictionaryHeader#of(ZstdDictionary)]
     /// @return the number of bytes written to `dst`
     ///         (always `HEADER_SIZE + compressedFrame.byteSize()`)
-    public static long wrap(MemorySegment dst, MemorySegment compressedFrame, AvailableDictionary hash) {
+    public static long wrap(MemorySegment dst, MemorySegment compressedFrame, AvailableDictionaryHeader hash) {
         Objects.requireNonNull(dst, "dst");
         Objects.requireNonNull(compressedFrame, "compressedFrame");
         Objects.requireNonNull(hash, "hash");
@@ -225,14 +225,14 @@ public final class Rfc9842Frame {
     }
 
     /// Wraps `compressedFrame`, allocating the result in `arena`, using an
-    /// [AvailableDictionary] computed once up front — the hot-path
+    /// [AvailableDictionaryHeader] computed once up front — the hot-path
     /// counterpart of [#wrap(Arena, MemorySegment, ZstdDictionary)].
     ///
     /// @param arena           the arena to allocate the result in
     /// @param compressedFrame a zstd frame compressed against the hashed dictionary
-    /// @param hash            the dictionary's precomputed hash, from [AvailableDictionary#of(ZstdDictionary)]
+    /// @param hash            the dictionary's precomputed hash, from [AvailableDictionaryHeader#of(ZstdDictionary)]
     /// @return the `dcz` header followed by `compressedFrame`, an arena-owned segment
-    public static MemorySegment wrap(Arena arena, MemorySegment compressedFrame, AvailableDictionary hash) {
+    public static MemorySegment wrap(Arena arena, MemorySegment compressedFrame, AvailableDictionaryHeader hash) {
         Objects.requireNonNull(arena, "arena");
         Objects.requireNonNull(compressedFrame, "compressedFrame");
         MemorySegment dst = arena.allocate(HEADER_SIZE + compressedFrame.byteSize());
@@ -263,18 +263,18 @@ public final class Rfc9842Frame {
     }
 
     /// Verifies the RFC 9842 `dcz` header in `dcz` and returns a slice with
-    /// it stripped, using an [AvailableDictionary] computed once up front
+    /// it stripped, using an [AvailableDictionaryHeader] computed once up front
     /// instead of hashing the dictionary again on every call — the hot-path
     /// counterpart of [#unwrap(MemorySegment, ZstdDictionary)]. Still
     /// genuinely zero-allocation: the returned segment is a view of `dcz`.
     ///
     /// @param dcz  a `dcz`-framed segment produced by
-    ///             [#wrap(MemorySegment, MemorySegment, AvailableDictionary)]
+    ///             [#wrap(MemorySegment, MemorySegment, AvailableDictionaryHeader)]
     /// @param hash the dictionary's precomputed hash to verify `dcz` against
     /// @return a slice of `dcz`: the compressed zstd frame, with the header stripped
     /// @throws Rfc9842Exception if `dcz` does not carry a `dcz` header, or its
     ///                           hash does not match `hash`
-    public static MemorySegment unwrap(MemorySegment dcz, AvailableDictionary hash) {
+    public static MemorySegment unwrap(MemorySegment dcz, AvailableDictionaryHeader hash) {
         Objects.requireNonNull(dcz, "dcz");
         Objects.requireNonNull(hash, "hash");
         validateHeader(dcz);

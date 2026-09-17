@@ -3,12 +3,12 @@ package io.github.dfa1.zstd.rfc9842.demo;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
-import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
-import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
-import io.github.dfa1.zstd.rfc9842.DictionaryId;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
+import io.github.dfa1.zstd.rfc9842.DictionaryIdHeader;
+import io.github.dfa1.zstd.rfc9842.NegotiatedDictionary;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
-import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
+import io.github.dfa1.zstd.rfc9842.UseAsDictionaryHeader;
 
 import java.io.ByteArrayInputStream;
 import java.lang.foreign.Arena;
@@ -69,28 +69,26 @@ public final class Rfc9842ClientDemo {
             HttpResponse<byte[]> dictResponse = http.send(dictRequest, HttpResponse.BodyHandlers.ofByteArray());
             System.out.println("[rfc9842-client] GET /dictionary response headers: " + dictResponse.headers().map());
 
-            ZstdDictionary dictionary = ZstdDictionary.of(dictResponse.body());
-            UseAsDictionary useAsDictionary = UseAsDictionary.parse(
-                    dictResponse.headers().firstValue("Use-As-Dictionary").orElseThrow());
+            // Everything the request needs, derived once up front rather than per
+            // call: NegotiatedDictionary.from parses the dictionary once (not the
+            // dictionary's SHA-256 twice, for the header value and the wire-format
+            // hash separately) — see its own doc.
+            NegotiatedDictionary negotiated = NegotiatedDictionary.from(dictResponse.body(),
+                    dictResponse.headers().firstValue(UseAsDictionaryHeader.HTTP_HEADER).orElseThrow());
             System.out.println("[rfc9842-client] stored dictionary (" + dictResponse.body().length
-                    + " bytes), applies to '" + useAsDictionary.match() + "', id=" + useAsDictionary.id());
+                    + " bytes), applies to '" + negotiated.useAsDictionary().match()
+                    + "', id=" + negotiated.useAsDictionary().id());
 
-            // Everything the request needs, built once up front rather than per
-            // call: one hash (AvailableDictionary.of re-hashes the whole
-            // dictionary on every call), reused as both the Available-Dictionary
-            // header value and the wire-format hash, and the request itself,
-            // which is immutable and documented as sendable repeatedly.
-            AvailableDictionary dictionaryHash = AvailableDictionary.of(dictionary);
-            String availableDictionary = dictionaryHash.toHeaderValue();
-            DataRequest dataRequest = dataRequest(availableDictionary, useAsDictionary);
+            // The request itself, immutable and documented as sendable repeatedly.
+            DataRequest dataRequest = dataRequest(negotiated);
             System.out.println("[rfc9842-client] GET " + DATA_PATH + " request headers:  "
                     + dataRequest.request().headers().map());
 
             // Step 2 & 3: fetch data, advertising the dictionary when it applies.
             try (ZstdDecompressContext dctx = new ZstdDecompressContext();
-                 ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
+                 ZstdDecompressDictionary decompressDictionary = negotiated.dictionary().decompressDict()) {
                 for (int i = 0; i < 3; i++) {
-                    fetchData(http, dataRequest, dctx, dictionaryHash, decompressDictionary);
+                    fetchData(http, dataRequest, dctx, negotiated.hash(), decompressDictionary);
                 }
             }
         }
@@ -103,32 +101,37 @@ public final class Rfc9842ClientDemo {
     /// advertised: a client that has no dictionary matching the request "MUST
     /// NOT send its dictionary-aware content encodings in the `Accept-Encoding`
     /// request header" — asking for an encoding it could not then decode.
-    private static DataRequest dataRequest(String availableDictionary, UseAsDictionary useAsDictionary) {
+    private static DataRequest dataRequest(NegotiatedDictionary negotiated) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(BASE.resolve(DATA_PATH)).GET();
-        boolean offeringDictionary = useAsDictionary.matchesPath(DATA_PATH);
+        boolean offeringDictionary = negotiated.useAsDictionary().matchesPath(DATA_PATH);
         String baseAcceptEncoding = "gzip, zstd";
         String acceptEncoding = offeringDictionary ? baseAcceptEncoding + ", dcz" : baseAcceptEncoding;
         builder.header("Accept-Encoding", acceptEncoding);
 
-        // Only what offering a dictionary *adds*: the two negotiation headers,
-        // plus the ", dcz" this request's Accept-Encoding grew by. The
-        // Accept-Encoding line itself is not part of the cost — every client
-        // sends one, dictionary or not — and counting the whole line would
-        // overstate the price of RFC 9842 by about 30 bytes a request.
+        // Only what offering a dictionary *adds*: the negotiation headers, plus
+        // the ", dcz" this request's Accept-Encoding grew by. The Accept-Encoding
+        // line itself is not part of the cost — every client sends one,
+        // dictionary or not — and counting the whole line would overstate the
+        // price of RFC 9842 by about 30 bytes a request.
         int extraHeaderBytes = 0;
         if (offeringDictionary) {
-            String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
-            builder.header("Available-Dictionary", availableDictionary)
-                    .header("Dictionary-ID", dictionaryId);
-            extraHeaderBytes = headerBytes("Available-Dictionary", availableDictionary)
-                    + headerBytes("Dictionary-ID", dictionaryId)
+            String availableDictionary = negotiated.hash().toHeaderValue();
+            builder.header(AvailableDictionaryHeader.HTTP_HEADER, availableDictionary);
+            extraHeaderBytes = headerBytes(AvailableDictionaryHeader.HTTP_HEADER, availableDictionary)
                     + (acceptEncoding.length() - baseAcceptEncoding.length());
+            // Dictionary-ID is optional (RFC 9842 §2.3): only echoed back when
+            // the server actually assigned one via Use-As-Dictionary's id.
+            if (negotiated.dictionaryId().isPresent()) {
+                String dictionaryId = negotiated.dictionaryId().get().toHeaderValue();
+                builder.header(DictionaryIdHeader.HTTP_HEADER, dictionaryId);
+                extraHeaderBytes += headerBytes(DictionaryIdHeader.HTTP_HEADER, dictionaryId);
+            }
         }
         return new DataRequest(builder.build(), extraHeaderBytes);
     }
 
     private static void fetchData(HttpClient http, DataRequest dataRequest, ZstdDecompressContext dctx,
-                                   AvailableDictionary dictionaryHash,
+                                   AvailableDictionaryHeader dictionaryHash,
                                    ZstdDecompressDictionary decompressDictionary) throws Exception {
         // Round trip starts here: send, receive, and (below) verify/decompress
         // are all part of what this request actually costs the caller.
@@ -167,7 +170,7 @@ public final class Rfc9842ClientDemo {
     /// memory once and the JVM heap once — see `PerfTestDemo.decodeDcz`,
     /// which this mirrors, for why the straightforward `unwrap`-then-`decompress`
     /// byte[] path it replaces copies the frame three times instead.
-    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, AvailableDictionary dictionaryHash,
+    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, AvailableDictionaryHeader dictionaryHash,
                                      ZstdDecompressDictionary decompressDictionary) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment dcz = arena.allocate(body.length);

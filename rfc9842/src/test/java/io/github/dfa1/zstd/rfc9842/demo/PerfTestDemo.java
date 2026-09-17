@@ -3,12 +3,12 @@ package io.github.dfa1.zstd.rfc9842.demo;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
-import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdFrame;
-import io.github.dfa1.zstd.rfc9842.AvailableDictionary;
-import io.github.dfa1.zstd.rfc9842.DictionaryId;
+import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
+import io.github.dfa1.zstd.rfc9842.DictionaryIdHeader;
+import io.github.dfa1.zstd.rfc9842.NegotiatedDictionary;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
-import io.github.dfa1.zstd.rfc9842.UseAsDictionary;
+import io.github.dfa1.zstd.rfc9842.UseAsDictionaryHeader;
 
 import java.io.ByteArrayInputStream;
 import java.lang.foreign.Arena;
@@ -91,17 +91,12 @@ public final class PerfTestDemo {
             HttpResponse<byte[]> dictResponse = http.send(
                     HttpRequest.newBuilder(BASE.resolve("/dictionary")).GET().build(),
                     HttpResponse.BodyHandlers.ofByteArray());
-            ZstdDictionary dictionary = ZstdDictionary.of(dictResponse.body());
-            UseAsDictionary useAsDictionary = UseAsDictionary.parse(
-                    dictResponse.headers().firstValue("Use-As-Dictionary").orElseThrow());
-            // One hash, reused as both the Available-Dictionary header value and
-            // the wire-format hash Rfc9842Frame.unwrap verifies against — see
-            // AvailableDictionary's doc. Precomputed once: hashing on every call,
-            // like dctx.decompress(byte[], ZstdByteSize, ZstdDictionary) was fixed
-            // for below, is pure per-request waste once the dictionary is fixed.
-            AvailableDictionary dictionaryHash = AvailableDictionary.of(dictionary);
-            String availableDictionary = dictionaryHash.toHeaderValue();
-            String dictionaryId = new DictionaryId(useAsDictionary.id()).toHeaderValue();
+            // NegotiatedDictionary.from derives everything from one hash — see its
+            // own doc — rather than hashing the dictionary twice for the
+            // Available-Dictionary header value and the dcz wire-format hash
+            // separately.
+            NegotiatedDictionary negotiated = NegotiatedDictionary.from(dictResponse.body(),
+                    dictResponse.headers().firstValue(UseAsDictionaryHeader.HTTP_HEADER).orElseThrow());
 
             System.out.printf("%-6s %-10s %10s %14s %9s %9s %9s %9s %9s %12s%n",
                     "size", "encoding", "req/s", "avg bytes/req", "p50 µs", "p90 µs", "p95 µs", "p99 µs", "max µs",
@@ -111,18 +106,16 @@ public final class PerfTestDemo {
             // single call. Passing the raw ZstdDictionary there on every request was silently
             // taxing the dcz tier's decode cost here, the same bug fixed server-side earlier.
             try (ZstdDecompressContext dctx = new ZstdDecompressContext();
-                 ZstdDecompressDictionary decompressDictionary = dictionary.decompressDict()) {
-                runAllTiers(size, DATA, http, dctx, dictionaryHash, decompressDictionary, availableDictionary,
-                        dictionaryId);
+                 ZstdDecompressDictionary decompressDictionary = negotiated.dictionary().decompressDict()) {
+                runAllTiers(size, DATA, http, dctx, decompressDictionary, negotiated);
             }
         }
     }
 
     private static void runAllTiers(String size, URI data, HttpClient http, ZstdDecompressContext dctx,
-                                     AvailableDictionary dictionaryHash,
-                                     ZstdDecompressDictionary decompressDictionary,
-                                     String availableDictionary, String dictionaryId)
+                                     ZstdDecompressDictionary decompressDictionary, NegotiatedDictionary negotiated)
             throws Exception {
+        AvailableDictionaryHeader dictionaryHash = negotiated.hash();
         // Built once per tier, not per request: HttpRequest is immutable and
         // documented as sendable more than once, so rebuilding it 12,000 times
         // only re-runs header validation and re-allocates the header map inside
@@ -136,17 +129,17 @@ public final class PerfTestDemo {
                 HttpRequest.newBuilder(data).header("Accept-Encoding", "zstd").GET().build());
         // RFC 9842 §6.1: `dcz` is only offered together with the dictionary it
         // needs — advertising it without an `Available-Dictionary` would ask for
-        // an encoding this client could not decode.
-        run(size, "dcz", http, dctx, dictionaryHash, decompressDictionary,
-                HttpRequest.newBuilder(data)
-                        .header("Accept-Encoding", "dcz")
-                        .header("Available-Dictionary", availableDictionary)
-                        .header("Dictionary-ID", dictionaryId)
-                        .GET().build());
+        // an encoding this client could not decode. Dictionary-ID is optional
+        // (§2.3): only echoed back when the server actually assigned one.
+        HttpRequest.Builder dczRequest = HttpRequest.newBuilder(data)
+                .header("Accept-Encoding", "dcz")
+                .header(AvailableDictionaryHeader.HTTP_HEADER, dictionaryHash.toHeaderValue());
+        negotiated.dictionaryId().ifPresent(id -> dczRequest.header(DictionaryIdHeader.HTTP_HEADER, id.toHeaderValue()));
+        run(size, "dcz", http, dctx, dictionaryHash, decompressDictionary, dczRequest.GET().build());
     }
 
     private static void run(String size, String label, HttpClient http, ZstdDecompressContext dctx,
-                             AvailableDictionary dictionaryHash, ZstdDecompressDictionary decompressDictionary,
+                             AvailableDictionaryHeader dictionaryHash, ZstdDecompressDictionary decompressDictionary,
                              HttpRequest request) throws Exception {
         // Warm up: JIT compilation and first-call native library loading skew
         // the first few requests badly (each dcz/zstd call otherwise pays it) —
@@ -218,7 +211,7 @@ public final class PerfTestDemo {
     }
 
     private static byte[] decode(HttpResponse<byte[]> response, ZstdDecompressContext dctx,
-                                  AvailableDictionary dictionaryHash, ZstdDecompressDictionary decompressDictionary)
+                                  AvailableDictionaryHeader dictionaryHash, ZstdDecompressDictionary decompressDictionary)
             throws Exception {
         String contentEncoding = response.headers().firstValue("Content-Encoding").orElse("identity");
         return switch (contentEncoding) {
@@ -248,7 +241,7 @@ public final class PerfTestDemo {
     /// unavoidable given `HttpResponse.BodyHandlers.ofByteArray()`, plus the
     /// one copy back out to a `byte[]` that keeps this tier's cost
     /// comparable to the others' (they all materialize the payload too).
-    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, AvailableDictionary dictionaryHash,
+    private static byte[] decodeDcz(byte[] body, ZstdDecompressContext dctx, AvailableDictionaryHeader dictionaryHash,
                                      ZstdDecompressDictionary decompressDictionary) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment dcz = arena.allocate(body.length);
