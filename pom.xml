@@ -4,7 +4,7 @@
 
 	<groupId>io.github.dfa1.zstd</groupId>
 	<artifactId>zstd-ffm</artifactId>
-	<version>0.14-SNAPSHOT</version>
+	<version>0.14</version>
 	<packaging>pom</packaging>
 
 	<name>zstd-ffm</name>

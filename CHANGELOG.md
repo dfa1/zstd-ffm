@@ -6,6 +6,8 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+## [0.14] - 2026-09-18
+
 ### Added
 - [docs/how-to.md](docs/how-to.md): "Stream over pooled `DirectByteBuffer`s
   (Netty-style)" recipe, combining the existing `ByteBuffer`-wrapping and
