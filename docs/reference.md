@@ -43,6 +43,38 @@ instead of the module path works unchanged (it becomes part of the unnamed
 module and the descriptor is ignored). See
 [ADR 0011](../adr/0011-jpms-module-descriptor.md) for the design rationale.
 
+## RFC 9842 (Compression Dictionary Transport)
+
+`io.github.dfa1.zstd:zstd-rfc9842` — a separate module, on top of `zstd`:
+
+```xml
+<dependency>
+  <groupId>io.github.dfa1.zstd</groupId>
+  <artifactId>zstd-rfc9842</artifactId>
+  <version>0.13</version>
+</dependency>
+```
+
+| Type | Role |
+|---|---|
+| `Rfc9842Frame` | wraps/unwraps the `dcz` wire format (§5): a 40-byte header (skippable-frame magic + SHA-256 dictionary hash) around a compressed zstd frame |
+| `UseAsDictionaryHeader` | the `Use-As-Dictionary` response header (§2.1): where/how a dictionary applies, its id, its type |
+| `AvailableDictionaryHeader` | the `Available-Dictionary` request header (§2.2): a dictionary's SHA-256 hash — also the value embedded in a `dcz` header |
+| `DictionaryIdHeader` | the `Dictionary-ID` header (§2.3): the id a client echoes back |
+| `Rfc9842Negotiation` | everything a client needs after fetching a dictionary once, derived from its bytes plus the `Use-As-Dictionary` value it arrived with |
+| `Rfc9842Exception` | thrown for malformed header values or a `dcz` header that doesn't verify |
+
+Each header type exposes its HTTP header name as a `HTTP_HEADER` constant
+(e.g. `AvailableDictionaryHeader.HTTP_HEADER`), and `parse(String)` /
+`toHeaderValue()` for round-tripping the raw header value.
+
+The module is [sans-io](https://sans-io.readthedocs.io/): everything above is
+pure framing/parsing/hashing over `byte[]`/`MemorySegment`, with no `java.net`
+dependency — enforced by an
+[ArchUnit rule](../rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842/ArchitectureTest.java).
+See the [how-to guide](how-to.md#negotiate-and-use-an-rfc-9842-dictionary) to
+wire it into an actual client/server.
+
 ## Build from source
 
 Building from source is for contributors — consumers should use the published

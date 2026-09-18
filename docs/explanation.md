@@ -26,6 +26,23 @@ does not matter, is in [zero-copy.md](zero-copy.md).
 Throughput and allocation versus zstd-jni (JNI) and aircompressor (pure Java),
 including an async-profiler breakdown: [benchmarks.md](benchmarks.md).
 
+## Why RFC 9842 is sans-io
+
+`zstd-rfc9842` only frames, parses, and hashes — it never opens a socket.
+Baking in an HTTP client or server would force every caller onto that choice;
+staying [sans-io](https://sans-io.readthedocs.io/) means the same header/frame
+logic works whether the caller is the JDK's `HttpClient`, Jetty, Netty, or a
+non-HTTP transport that just happens to reuse the `dcz` framing. The
+[reference](reference.md#rfc-9842-compression-dictionary-transport) has the
+type overview; a repository-wide ArchUnit rule keeps it true as the module
+grows, not just documented.
+
+One `AvailableDictionaryHeader` type serves both the `Available-Dictionary`
+header value and the hash embedded in a `dcz` frame, rather than two
+separately-typed wrappers around the same SHA-256 digest — RFC 9842 §2.2
+defines them as the identical 32 bytes, so modeling them as two types would
+just be two places to keep in sync for one fact.
+
 ## Architecture decisions
 
 The reasoning above is distilled from the full set of Architecture Decision
