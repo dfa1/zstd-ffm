@@ -14,12 +14,12 @@ runs on any OS/arch:
 <dependency>
   <groupId>io.github.dfa1.zstd</groupId>
   <artifactId>zstd-platform</artifactId>
-  <version>0.13</version>
+  <version>0.14</version>
 </dependency>
 ```
 
 ```groovy
-implementation("io.github.dfa1.zstd:zstd-platform:0.13")
+implementation("io.github.dfa1.zstd:zstd-platform:0.14")
 ```
 
 That pulls all six natives (~3.8 MB, five unused per platform). When you target a
@@ -32,7 +32,7 @@ the matching classifier:
     <dependency>
       <groupId>io.github.dfa1.zstd</groupId>
       <artifactId>zstd-bom</artifactId>
-      <version>0.13</version>
+      <version>0.14</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -53,7 +53,7 @@ the matching classifier:
 ```
 
 ```groovy
-implementation(platform("io.github.dfa1.zstd:zstd-bom:0.13"))
+implementation(platform("io.github.dfa1.zstd:zstd-bom:0.14"))
 implementation("io.github.dfa1.zstd:zstd")
 runtimeOnly("io.github.dfa1.zstd:zstd-native-osx-aarch64")
 ```

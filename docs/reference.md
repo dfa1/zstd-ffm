@@ -51,7 +51,7 @@ module and the descriptor is ignored). See
 <dependency>
   <groupId>io.github.dfa1.zstd</groupId>
   <artifactId>zstd-rfc9842</artifactId>
-  <version>0.13</version>
+  <version>0.14</version>
 </dependency>
 ```
 
