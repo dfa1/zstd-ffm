@@ -4,7 +4,7 @@
 
 	<groupId>io.github.dfa1.zstd</groupId>
 	<artifactId>zstd-ffm</artifactId>
-	<version>0.14</version>
+	<version>0.15-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
 	<name>zstd-ffm</name>
@@ -340,13 +340,26 @@
 				</plugins>
 			</build>
 		</profile>
-		<!-- Cut a release with maven-release-plugin (configured in build above):
-		       ./mvnw release:prepare
-		     drops -SNAPSHOT, commits, tags v<version> (pushChanges=false), then
-		     bumps to the next snapshot. Push the commits and the tag; the v* tag
-		     triggers .github/workflows/publish.yml, which runs
-		       ./mvnw deploy -Prelease
-		     to sign and upload to Maven Central.
+		<!-- Cut a release manually (the maven-release-plugin below only supplies
+		     the release profile's signing/attach plugins, not the workflow;
+		     release:prepare assumes a version already ending in -SNAPSHOT to drop,
+		     which the steps below keep true release over release):
+		       1. Bump stale version literals in README.md/docs/*.md dependency
+		          snippets to the target release version (commit: "docs: bump
+		          stale dependency-snippet versions to X").
+		       2. versions:set -DnewVersion=X (drops -SNAPSHOT) across the reactor;
+		          in CHANGELOG.md insert "## [X] - date" right after
+		          "## [Unreleased]", leaving Unreleased empty above it.
+		       3. Commit as "release: X", tag vX, push the commit then the tag;
+		          the v* tag triggers .github/workflows/publish.yml, which runs
+		            ./mvnw deploy -Prelease
+		          to sign and upload to Maven Central and create the GitHub release.
+		       4. versions:set -DnewVersion=(X+1)-SNAPSHOT across the reactor and
+		          push (commit: "build: bump to (X+1)-SNAPSHOT for the next
+		          development iteration"); without this, main is left carrying
+		          the just-released version number, indistinguishable from the
+		          release itself (this bit main after 0.13; see the "build: bump
+		          to 0.14-SNAPSHOT" / "build: bump to 0.15-SNAPSHOT" commits).
 		     Prerequisites:
 		       1. Register namespace io.github.dfa1 at central.sonatype.com.
 		       2. A Central user token (Account / User Tokens); in CI it comes from
