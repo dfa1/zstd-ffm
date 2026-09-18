@@ -1,6 +1,5 @@
 package io.github.dfa1.zstd.rfc9842.demo;
 
-import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
@@ -9,7 +8,6 @@ import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
 import io.github.dfa1.zstd.rfc9842.DictionaryIdHeader;
 import io.github.dfa1.zstd.rfc9842.Rfc9842Exception;
-import io.github.dfa1.zstd.rfc9842.Rfc9842Frame;
 import io.github.dfa1.zstd.rfc9842.UseAsDictionaryHeader;
 
 import org.eclipse.jetty.http2.server.HTTP2CServerConnectionFactory;
@@ -25,8 +23,6 @@ import org.eclipse.jetty.util.Callback;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -36,8 +32,6 @@ import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
-
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
 /// An embedded-Jetty port of `Server.java`'s dcz negotiation logic (same
 /// four-rung `Accept-Encoding` ladder: `dcz`, `zstd`, `gzip`, identity), so
@@ -144,7 +138,7 @@ final class DczTestServer implements AutoCloseable {
                     String contentEncoding = null;
                     if (accepts(acceptEncoding, "dcz")
                             && hasMatchingDictionary(request, expectedAvailableDictionary, availableDictionary)) {
-                        body = compressDcz(payload, cctxRef, compressDictionaryRef, availableDictionary);
+                        body = DczCodec.compress(payload, cctxRef, compressDictionaryRef, availableDictionary);
                         contentEncoding = "dcz";
                     } else if (accepts(acceptEncoding, "zstd")) {
                         body = cctxRef.compress(payload);
@@ -311,24 +305,6 @@ final class DczTestServer implements AutoCloseable {
 
     private static String unquote(String sfvString) {
         return sfvString.length() >= 2 ? sfvString.substring(1, sfvString.length() - 1) : sfvString;
-    }
-
-    private static byte[] compressDcz(byte[] payload, ZstdCompressContext cctx, ZstdCompressDictionary dictionary,
-                                       AvailableDictionaryHeader availableDictionary) {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment in = arena.allocate(payload.length);
-            MemorySegment.copy(payload, 0, in, JAVA_BYTE, 0, payload.length);
-
-            ZstdByteSize bound = Zstd.compressBound(new ZstdByteSize(payload.length));
-            MemorySegment dst = arena.allocate(Rfc9842Frame.HEADER_SIZE + bound.value());
-            MemorySegment frameOut = dst.asSlice(Rfc9842Frame.HEADER_SIZE, bound.value());
-            long written = cctx.compress(frameOut, in, dictionary);
-            long total = Rfc9842Frame.wrap(dst, frameOut.asSlice(0, written), availableDictionary);
-
-            byte[] body = new byte[(int) total];
-            MemorySegment.copy(dst, JAVA_BYTE, 0, body, 0, body.length);
-            return body;
-        }
     }
 
     private static byte[] gzip(byte[] data) throws IOException {

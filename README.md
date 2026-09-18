@@ -147,6 +147,18 @@ detail in the [tutorial](docs/tutorial.md). Requires JDK 25+ and
 `--enable-native-access=ALL-UNNAMED` at runtime. Building from source is for
 contributors — see the [reference](docs/reference.md).
 
+## RFC 9842 (Compression Dictionary Transport)
+
+The `zstd-rfc9842` module implements [RFC 9842](https://www.rfc-editor.org/rfc/rfc9842)
+on top of `zstd`: the `dcz` wire format plus the `Use-As-Dictionary`/
+`Available-Dictionary`/`Dictionary-ID` header values, so a server and client
+can agree on a shared dictionary and compress every response against it. It's
+[sans-io](https://sans-io.readthedocs.io/) — no HTTP client or server of its
+own — so it wires into the JDK's `HttpClient`/`HttpServer`, Jetty, Netty, or
+whatever you're already using. See the [how-to guide](docs/how-to.md#negotiate-and-use-an-rfc-9842-dictionary)
+to use it, or the [reference](docs/reference.md#rfc-9842-compression-dictionary-transport)
+for the Maven coordinate and type overview.
+
 ## Documentation
 
 The docs follow the [Diátaxis](https://diataxis.fr) framework:
@@ -160,13 +172,6 @@ The docs follow the [Diátaxis](https://diataxis.fr) framework:
 
 Architecture decisions are recorded as [ADRs](adr/ADR.md) (MADR 3.0) — the
 foundational choices and their trade-offs, one file per decision.
-
-A runnable RFC 9842 (Compression Dictionary Transport) demo — a server plus
-two clients, one RFC-9842-aware and one plain, against the same endpoints,
-built on embedded Jetty so it speaks both real HTTP/1.1 and real HTTP/2 —
-lives in `rfc9842`'s test classpath
-([`ServerDemo`](rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842/demo/ServerDemo.java)
-and friends).
 
 ## License
 

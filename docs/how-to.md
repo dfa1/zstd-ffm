@@ -276,6 +276,54 @@ Pledge whenever the producer streams but the total is known (file length, record
 count, `Content-Length`). A pledge that doesn't match the bytes written errors on
 close.
 
+## Negotiate and use an RFC 9842 dictionary
+
+`zstd-rfc9842` (a separate module — see the [reference](reference.md#rfc-9842-compression-dictionary-transport))
+implements RFC 9842's `dcz` wire format and header values. It's sans-io: pure
+framing/parsing/hashing, no HTTP client or server — wire it into whatever
+you're already using.
+
+**Server** — advertise a dictionary once, then wrap every response compressed against it:
+
+```java
+import io.github.dfa1.zstd.*;
+import io.github.dfa1.zstd.rfc9842.*;
+
+ZstdDictionary dict = ZstdDictionary.train(samples, ZstdByteSize.ofKiB(8));
+UseAsDictionaryHeader useAsDictionary = new UseAsDictionaryHeader("/api/*");
+AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(dict); // once, at startup
+
+// first response — advertise the dictionary:
+// Use-As-Dictionary: useAsDictionary.toHeaderValue()
+
+// every later response, once the client has fetched it:
+try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+    byte[] frame = cctx.compress(payload, dict);
+    byte[] dcz = Rfc9842Frame.wrap(frame, hash); // send with Content-Encoding: dcz
+}
+```
+
+**Client** — negotiate once from the fetched dictionary, then unwrap and verify each response:
+
+```java
+Rfc9842Negotiation negotiation = Rfc9842Negotiation.from(dictionaryBytes, useAsDictionaryHeaderValue);
+
+// every request:
+// Available-Dictionary: negotiation.availableDictionary().toHeaderValue()
+// Dictionary-ID: negotiation.dictionaryId(), if present, echoed back
+
+try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+    byte[] frame = Rfc9842Frame.unwrap(dcz, negotiation.availableDictionary()); // verifies the hash
+    byte[] payload = dctx.decompress(frame, ZstdByteSize.ofMiB(16), negotiation.dictionary());
+}
+```
+
+A full runnable demo — a server plus two clients, one RFC-9842-aware and one
+plain, against the same endpoints, built on embedded Jetty so it speaks both
+real HTTP/1.1 and real HTTP/2 — lives in `rfc9842`'s test classpath
+([`ServerDemo`](../rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842/demo/ServerDemo.java)
+and friends).
+
 ## Run against a self-built libzstd
 
 The loader only ever loads the library bundled in the platform native jar on the
