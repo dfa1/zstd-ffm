@@ -10,6 +10,7 @@ import java.util.List;
 /// grammar for a Dictionary's keys. Not a general-purpose SFV library:
 /// Integers, Decimals, Booleans, and per-member Parameters are not
 /// implemented, since none of RFC 9842's headers use them.
+@SuppressWarnings({"WhileCanBeDoWhile", "BooleanMethodIsAlwaysInverted"})
 final class Sfv {
 
     private Sfv() {
@@ -120,7 +121,7 @@ final class Sfv {
         out.append('"');
         for (int i = 0; i < value.length(); i++) {
             char ch = value.charAt(i);
-            if (ch > 0x7e || (ch < 0x20 && ch != ' ') || ch == 0x7f) {
+            if (ch > 0x7e || ch < 0x20) {
                 throw new Rfc9842Exception(
                         "cannot serialize as a structured field string: non-ASCII/control character");
             }
