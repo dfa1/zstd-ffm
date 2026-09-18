@@ -147,6 +147,71 @@ detail in the [tutorial](docs/tutorial.md). Requires JDK 25+ and
 `--enable-native-access=ALL-UNNAMED` at runtime. Building from source is for
 contributors — see the [reference](docs/reference.md).
 
+## RFC 9842 (Compression Dictionary Transport)
+
+The `zstd-rfc9842` module implements [RFC 9842](https://www.rfc-editor.org/rfc/rfc9842)
+on top of `zstd`: the `dcz` wire format plus the `Use-As-Dictionary`/
+`Available-Dictionary`/`Dictionary-ID` header values, so a server and client
+can agree on a shared dictionary and compress every response against it
+instead of paying the per-message dictionary cost — the win RFC 9842 targets
+on repetitive small HTTP responses (JSON APIs, event streams).
+
+It is [sans-io](https://sans-io.readthedocs.io/): pure framing, header
+parsing, and hash verification over `byte[]`/`MemorySegment`, with no HTTP
+client or server of its own (enforced by an
+[ArchUnit rule](rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842/ArchitectureTest.java))
+— wire it into the JDK's `HttpClient`/`HttpServer`, Jetty, Netty, or whatever
+you're already using.
+
+```xml
+<dependency>
+  <groupId>io.github.dfa1.zstd</groupId>
+  <artifactId>zstd-rfc9842</artifactId>
+  <version>0.13</version>
+</dependency>
+```
+
+**Server** — advertise a dictionary once, then wrap every response compressed against it:
+
+```java
+import io.github.dfa1.zstd.*;
+import io.github.dfa1.zstd.rfc9842.*;
+
+ZstdDictionary dict = ZstdDictionary.train(samples, ZstdByteSize.ofKiB(8));
+UseAsDictionaryHeader useAsDictionary = new UseAsDictionaryHeader("/api/*");
+AvailableDictionaryHeader hash = AvailableDictionaryHeader.of(dict); // once, at startup
+
+// first response — advertise the dictionary:
+// Use-As-Dictionary: useAsDictionary.toHeaderValue()
+
+// every later response, once the client has fetched it:
+try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+    byte[] frame = cctx.compress(payload, dict);
+    byte[] dcz = Rfc9842Frame.wrap(frame, hash); // send with Content-Encoding: dcz
+}
+```
+
+**Client** — negotiate once from the fetched dictionary, then unwrap and verify each response:
+
+```java
+Rfc9842Negotiation negotiation = Rfc9842Negotiation.from(dictionaryBytes, useAsDictionaryHeaderValue);
+
+// every request:
+// Available-Dictionary: negotiation.availableDictionary().toHeaderValue()
+// Dictionary-ID: negotiation.dictionaryId(), if present, echoed back
+
+try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+    byte[] frame = Rfc9842Frame.unwrap(dcz, negotiation.availableDictionary()); // verifies the hash
+    byte[] payload = dctx.decompress(frame, ZstdByteSize.ofMiB(16), negotiation.dictionary());
+}
+```
+
+A full runnable demo — a server plus two clients, one RFC-9842-aware and one
+plain, against the same endpoints, built on embedded Jetty so it speaks both
+real HTTP/1.1 and real HTTP/2 — lives in `rfc9842`'s test classpath
+([`ServerDemo`](rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842/demo/ServerDemo.java)
+and friends).
+
 ## Documentation
 
 The docs follow the [Diátaxis](https://diataxis.fr) framework:
@@ -160,13 +225,6 @@ The docs follow the [Diátaxis](https://diataxis.fr) framework:
 
 Architecture decisions are recorded as [ADRs](adr/ADR.md) (MADR 3.0) — the
 foundational choices and their trade-offs, one file per decision.
-
-A runnable RFC 9842 (Compression Dictionary Transport) demo — a server plus
-two clients, one RFC-9842-aware and one plain, against the same endpoints,
-built on embedded Jetty so it speaks both real HTTP/1.1 and real HTTP/2 —
-lives in `rfc9842`'s test classpath
-([`ServerDemo`](rfc9842/src/test/java/io/github/dfa1/zstd/rfc9842/demo/ServerDemo.java)
-and friends).
 
 ## License
 
