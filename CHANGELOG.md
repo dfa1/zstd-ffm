@@ -51,6 +51,15 @@ git tags, which trigger publication to Maven Central.
     `DczHttpVersionComparisonTest` measures actual wire bytes for the same
     negotiated `dcz` request sequence over each, rather than arguing from
     HPACK-indexing theory alone.
+  - An ArchUnit rule (`ArchitectureTest`) enforces the module's sans-io
+    design: no class under `io.github.dfa1.zstd.rfc9842` may depend on
+    `java.net`/`java.nio.channels`/`javax.net` — only the test-only demo
+    package touches a socket. ([#124](https://github.com/dfa1/zstd-ffm/pull/124))
+  - Usage docs: a how-to recipe for negotiating and using a dictionary
+    ([docs/how-to.md](docs/how-to.md#negotiate-and-use-an-rfc-9842-dictionary)),
+    a reference entry with the type table and Maven coordinate
+    ([docs/reference.md](docs/reference.md#rfc-9842-compression-dictionary-transport)),
+    and the sans-io/single-hash-type rationale ([docs/explanation.md](docs/explanation.md)).
 
 ## [0.13] - 2026-09-12
 
