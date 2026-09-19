@@ -11,57 +11,29 @@ git tags, which trigger publication to Maven Central.
 ### Added
 - [docs/how-to.md](docs/how-to.md): "Stream over pooled `DirectByteBuffer`s
   (Netty-style)" recipe, combining the existing `ByteBuffer`-wrapping and
-  `ZstdCompressStream` recipes into the zero-allocation pattern a pooled-buffer
-  network stack needs — the same ground covered by upstream zstd's deprecated
-  buffer-less `ZSTD_compressBegin`/`compressContinue`/`compressEnd` API, which
-  `ZSTD_compressStream2` (already wrapped by `ZstdCompressStream`) supersedes.
-  No new API. ([#99](https://github.com/dfa1/zstd-ffm/issues/99))
+  `ZstdCompressStream` recipes into a zero-allocation pattern for pooled-buffer
+  network stacks. No new API. ([#99](https://github.com/dfa1/zstd-ffm/issues/99))
 - New module `io.github.dfa1.zstd:zstd-rfc9842` — RFC 9842 (Compression
   Dictionary Transport) support.
-  - `Rfc9842Frame.wrap`/`unwrap` add or verify the `dcz` wire format: a 40-byte
-    header (skippable-frame magic + SHA-256 dictionary hash) around a zstd
-    frame, so a decoder can self-verify the right dictionary is in hand before
-    decompressing — independent of any HTTP headers that negotiated it. No
-    HTTP dependency: composes with either the per-call dictionary path or a
-    pre-digested `ZstdCompressDictionary`/`ZstdDecompressDictionary`.
+  - `Rfc9842Frame.wrap`/`unwrap` add or verify the `dcz` wire format (a
+    skippable-frame header carrying a SHA-256 dictionary hash around a zstd
+    frame), so a decoder can self-verify the right dictionary is in hand
+    before decompressing. No HTTP dependency.
     ([#91](https://github.com/dfa1/zstd-ffm/issues/91))
-  - `UseAsDictionaryHeader`, `AvailableDictionaryHeader`, and `DictionaryIdHeader` parse/build
-    the values of the three HTTP headers (`Use-As-Dictionary`,
-    `Available-Dictionary`, `Dictionary-ID`) as a framework-agnostic model —
-    zero dependency on any HTTP framework or servlet API. Each exposes an
-    `HTTP_HEADER` constant naming its header, so callers wire an HTTP
-    client's `.header(...)`/`.getHeader(...)` calls without duplicating the
-    literal. `AvailableDictionaryHeader` also embeds/verifies the same
-    SHA-256 hash in `Rfc9842Frame`'s `dcz` wire format — one type for both,
-    rather than an HTTP-header-specific type and a separate wire-format type
-    independently hashing the identical dictionary bytes. Includes a minimal
-    hand-rolled RFC 8941 (Structured Field Values) parser/serializer scoped
-    to what these headers use, and path matching against
-    `Use-As-Dictionary`'s `match` pattern restricted to literal text plus
-    `*` wildcards (a deliberate subset of WHATWG URL Pattern — named/optional
-    groups are not supported, matching literally instead of failing to
-    compile). `Rfc9842Negotiation.from(byte[], String)` composes a fetched
-    dictionary's bytes and its `Use-As-Dictionary` header into everything a
-    client needs for later requests — the dictionary, where it applies, its
-    hash, and the `Dictionary-ID` to echo back if the server assigned one —
-    from a single hash rather than the two independent ones each of
-    `Rfc9842ClientDemo`/`PerfTestDemo` used to compute by hand.
+  - `UseAsDictionaryHeader`, `AvailableDictionaryHeader`, and
+    `DictionaryIdHeader` parse/build the three RFC 9842 HTTP headers as a
+    framework-agnostic model, backed by a minimal hand-rolled RFC 8941
+    (Structured Field Values) parser and `Use-As-Dictionary` path matching.
+    `Rfc9842Negotiation.from(byte[], String)` composes a fetched dictionary
+    and its header into everything a client needs for later requests.
     ([#92](https://github.com/dfa1/zstd-ffm/issues/92))
-  - A runnable demo (`ServerDemo`/`NaiveClientDemo`/`Rfc9842ClientDemo`/
-    `PerfTestDemo`, `rfc9842`'s test classpath) on embedded Jetty, so it speaks
-    real HTTP/1.1 and real HTTP/2 (h2c, no TLS needed) on one port —
-    `DczHttpVersionComparisonTest` measures actual wire bytes for the same
-    negotiated `dcz` request sequence over each, rather than arguing from
-    HPACK-indexing theory alone.
-  - An ArchUnit rule (`ArchitectureTest`) enforces the module's sans-io
-    design: no class under `io.github.dfa1.zstd.rfc9842` may depend on
-    `java.net`/`java.nio.channels`/`javax.net` — only the test-only demo
-    package touches a socket. ([#124](https://github.com/dfa1/zstd-ffm/pull/124))
-  - Usage docs: a how-to recipe for negotiating and using a dictionary
-    ([docs/how-to.md](docs/how-to.md#negotiate-and-use-an-rfc-9842-dictionary)),
-    a reference entry with the type table and Maven coordinate
-    ([docs/reference.md](docs/reference.md#rfc-9842-compression-dictionary-transport)),
-    and the sans-io/single-hash-type rationale ([docs/explanation.md](docs/explanation.md)).
+  - A runnable HTTP/1.1 + HTTP/2 (h2c) demo on embedded Jetty (`rfc9842`'s
+    test classpath), and an ArchUnit rule enforcing the module's sans-io
+    design (no `java.net`/`java.nio.channels`/`javax.net` outside the demo).
+    ([#124](https://github.com/dfa1/zstd-ffm/pull/124))
+  - Usage docs: a [how-to recipe](docs/how-to.md#negotiate-and-use-an-rfc-9842-dictionary),
+    a [reference entry](docs/reference.md#rfc-9842-compression-dictionary-transport),
+    and the sans-io rationale in [docs/explanation.md](docs/explanation.md).
 
 ## [0.13] - 2026-09-12
 
