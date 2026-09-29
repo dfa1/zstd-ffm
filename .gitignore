@@ -8,6 +8,7 @@ native/*/src/main/resources/native/
 *.iml
 .DS_Store
 dependency-reduced-pom.xml
+.flattened-pom.xml
 
 private-key.asc
 *.asc

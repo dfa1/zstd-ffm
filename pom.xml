@@ -12,11 +12,10 @@
 	<description>Java FFM (Foreign Function &amp; Memory) bindings for zstd</description>
 	<!-- inherit.append.path="false" on <project> above and <scm> below: this is one
 	     git repo, not one per module, so children inherit these URLs verbatim
-	     instead of getting their artifactId appended. (Maven 4 reads the project
-	     URL flag as an attribute of <project>; Maven 3 read it off <url>.) It
-	     matters now that zstd-bom uses `bom` packaging: its flattened consumer
-	     POM materializes the inherited values, and the appended form
-	     (…/zstd-ffm.git/zstd-bom) points nowhere. -->
+	     instead of getting their artifactId appended. Matters for zstd-bom:
+	     flatten-maven-plugin materializes the inherited values into its
+	     published consumer POM, and the appended form (…/zstd-ffm.git/zstd-bom)
+	     points nowhere. -->
 	<url>https://github.com/dfa1/zstd-ffm</url>
 
 	<licenses>
@@ -63,6 +62,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.compiler.release>25</maven.compiler.release>
 		<central-publishing-plugin.version>0.11.0</central-publishing-plugin.version>
+		<flatten-maven-plugin.version>1.7.0</flatten-maven-plugin.version>
 		<maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
 		<maven-source-plugin.version>3.4.0</maven-source-plugin.version>
 		<maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
@@ -296,24 +296,6 @@
 							</configuration>
 						</execution>
 					</executions>
-				</plugin>
-				<!-- Pinned only to silence Maven 4's "Version not locked for default
-				     bindings plugins" warning; these are the versions its default
-				     lifecycle bindings already resolve, so nothing changes. -->
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-clean-plugin</artifactId>
-					<version>3.5.0</version>
-				</plugin>
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-resources-plugin</artifactId>
-					<version>3.5.0</version>
-				</plugin>
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-install-plugin</artifactId>
-					<version>3.2.0</version>
 				</plugin>
 			</plugins>
 		</pluginManagement>

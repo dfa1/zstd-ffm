@@ -10,13 +10,7 @@
 	</parent>
 
 	<artifactId>zstd-bom</artifactId>
-	<!-- Maven 4's first-class BOM packaging. The build treats it exactly like
-	     `pom` (same install/deploy-only lifecycle), but the consumer POM Maven
-	     publishes is flattened: no parent reference, every managed version
-	     written out literally. Importers get the BOM without also resolving the
-	     zstd-ffm parent. Consumers still import it as
-	     `<type>pom</type><scope>import</scope>`. -->
-	<packaging>bom</packaging>
+	<packaging>pom</packaging>
 	<name>zstd-bom</name>
 	<description>Bill of materials for the zstd-ffm modules</description>
 
@@ -69,4 +63,40 @@
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
+
+	<build>
+		<plugins>
+			<!-- Flattens the published POM: drops the zstd-ffm parent reference and
+			     writes every managed dependency's ${project.version} out literally.
+			     Importers get the BOM without also resolving the zstd-ffm parent.
+			     Consumers still import it as <type>pom</type><scope>import</scope>. -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>flatten-maven-plugin</artifactId>
+				<version>${flatten-maven-plugin.version}</version>
+				<configuration>
+					<flattenMode>bom</flattenMode>
+					<pomElements>
+						<properties>remove</properties>
+					</pomElements>
+				</configuration>
+				<executions>
+					<execution>
+						<id>flatten</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>flatten</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>flatten.clean</id>
+						<phase>clean</phase>
+						<goals>
+							<goal>clean</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>
