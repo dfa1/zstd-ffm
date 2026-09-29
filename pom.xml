@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         child.project.url.inherit.append.path="false">
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>io.github.dfa1.zstd</groupId>
@@ -9,6 +10,13 @@
 
 	<name>zstd-ffm</name>
 	<description>Java FFM (Foreign Function &amp; Memory) bindings for zstd</description>
+	<!-- inherit.append.path="false" on <project> above and <scm> below: this is one
+	     git repo, not one per module, so children inherit these URLs verbatim
+	     instead of getting their artifactId appended. (Maven 4 reads the project
+	     URL flag as an attribute of <project>; Maven 3 read it off <url>.) It
+	     matters now that zstd-bom uses `bom` packaging: its flattened consumer
+	     POM materializes the inherited values, and the appended form
+	     (…/zstd-ffm.git/zstd-bom) points nowhere. -->
 	<url>https://github.com/dfa1/zstd-ffm</url>
 
 	<licenses>
@@ -27,7 +35,9 @@
 		</developer>
 	</developers>
 
-	<scm>
+	<scm child.scm.connection.inherit.append.path="false"
+	     child.scm.developerConnection.inherit.append.path="false"
+	     child.scm.url.inherit.append.path="false">
 		<connection>scm:git:https://github.com/dfa1/zstd-ffm.git</connection>
 		<developerConnection>scm:git:git@github.com:dfa1/zstd-ffm.git</developerConnection>
 		<url>https://github.com/dfa1/zstd-ffm</url>

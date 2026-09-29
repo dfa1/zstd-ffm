@@ -6,6 +6,14 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Changed
+- `zstd-bom` now uses Maven 4's first-class `bom` packaging instead of the
+  `pom`-packaged convention. The published POM is unchanged in kind — still
+  `<type>pom</type><scope>import</scope>` for consumers — but Maven 4 now
+  flattens it: the parent reference is gone and every managed version is
+  written out literally, so importing the BOM no longer drags in the
+  `zstd-ffm` parent POM.
+
 ## [0.14] - 2026-09-18
 
 ### Added
