@@ -6,6 +6,8 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+## [0.15] - 2026-09-29
+
 ### Changed
 - `zstd-bom`'s published POM is now flattened via `flatten-maven-plugin`: no
   `zstd-ffm` parent reference, every managed version written out literally.
