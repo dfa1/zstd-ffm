@@ -6,6 +6,8 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+## [0.15] - 2026-09-29
+
 ### Changed
 - Build moved to Maven 4 (wrapper `4.0.0-rc-7`), with the default-lifecycle
   plugin versions pinned. ([#130](https://github.com/dfa1/zstd-ffm/pull/130))
