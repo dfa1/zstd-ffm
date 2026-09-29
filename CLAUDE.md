@@ -34,6 +34,14 @@ Windows (do **not** use hidden visibility there — it suppresses the PE exports
 
 Built `.dylib/.so/.dll` are git-ignored; they are regenerated from the submodule.
 
+## Running Maven
+
+Use `./mvnw` (not `mvn`) to ensure the correct Maven version is used.
+**NEVER run `mvn install`/`deploy` or `./mvnw install`/`deploy`** — they pollute
+`~/.m2` with local artifacts. Use `compile`, `test`, `package`, or `verify`
+instead; `verify` is the full gate (checkstyle, tests, javadoc, jacoco).
+Never mutate `~/.m2/repository` by hand either.
+
 ## Code conventions
 
 - Checkstyle-clean (`./mvnw validate` runs it); see the Code style section below.
