@@ -21,7 +21,7 @@
 
 	<properties>
 		<jmh.version>1.37</jmh.version>
-		<zstd-jni.version>1.5.7-17</zstd-jni.version>
+		<zstd-jni.version>1.5.7-20</zstd-jni.version>
 		<aircompressor.version>3.10</aircompressor.version>
 		<!-- Benchmark code is exempt from the Javadoc gate; checkstyle still applies. -->
 		<maven.javadoc.skip>true</maven.javadoc.skip>
