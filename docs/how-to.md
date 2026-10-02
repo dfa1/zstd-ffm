@@ -135,7 +135,7 @@ try (Arena arena = Arena.ofConfined();
 
 There are matching `compress(dst, src)` / `decompress(dst, src)` overloads (plus
 dictionary variants) returning the number of bytes written. For *why and when*
-this pays off, see the [explanation](zero-copy.md).
+this pays off, see the [explanation](explanation.md#zero-copy-with-memorysegment).
 
 The segment-API map:
 
@@ -261,7 +261,7 @@ API is deprecated upstream in favor of `ZSTD_compressStream2` /
 
 A streamed frame does **not** record its decompressed size, so it cannot be decoded
 zero-copy — `Zstd.decompressedSize(frame)` throws and `decompress(arena, frame)`
-can't size the arena (see [the explanation](zero-copy.md)). Tell the encoder the
+can't size the arena (see [the explanation](explanation.md#why-a-streamed-frame-cant-be-decoded-zero-copy)). Tell the encoder the
 total up front and it stamps the content size into the header:
 
 ```java

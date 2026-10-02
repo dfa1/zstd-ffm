@@ -13,7 +13,7 @@ Always read `CLAUDE.md` first; it is the source of truth. Honor it exactly. High
 - Native handles live in `Bindings`. `size_t`/`unsigned long long` map to `JAVA_LONG`.
 - Native pointers wrap in `NativeObject` (`AutoCloseable`, idempotent close).
 - Guard zstd's negative sentinels in every public method.
-- API is **segment-first** (zero-copy `MemorySegment` fast path) **with thin `byte[]` overloads**. Never allocate a `byte[]` for decode output on a hot path. See `docs/zero-copy.md`.
+- API is **segment-first** (zero-copy `MemorySegment` fast path) **with thin `byte[]` overloads**. Never allocate a `byte[]` for decode output on a hot path. See `docs/explanation.md`.
 - Run requires `--enable-native-access=ALL-UNNAMED`.
 
 ## Style (build-enforced)

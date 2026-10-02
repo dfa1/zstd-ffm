@@ -11,7 +11,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 /// stream of concatenated frames, sizing buffers, or routing by dictionary id.
 ///
 /// Each method has a `byte[]` form and a zero-copy [MemorySegment] form for
-/// data already off-heap (e.g. an mmap slice); see `docs/zero-copy.md`.
+/// data already off-heap (e.g. an mmap slice); see `docs/explanation.md`.
 public final class ZstdFrame {
 
     /// Tests whether `data` begins with a valid zstd frame (standard or skippable).

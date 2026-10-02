@@ -293,7 +293,7 @@ public final class ZstdCompressContext extends NativeObject {
     /// `dst`, both native [MemorySegment]s the caller owns. No heap
     /// `byte[]` bounce — hand zstd the segment addresses directly. This is
     /// the fast path when your bytes are already off-heap (e.g. an mmap slice and
-    /// an arena-allocated output); see `docs/zero-copy.md`.
+    /// an arena-allocated output); see `docs/explanation.md`.
     ///
     /// Size `dst` with [Zstd#compressBound(ZstdByteSize)] to guarantee it fits.
     ///

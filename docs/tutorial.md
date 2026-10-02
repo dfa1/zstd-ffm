@@ -93,20 +93,13 @@ an arena buffer — that copy is pure waste. This is the library's strong point:
 the `MemorySegment` overloads hand zstd the segment address directly, so there is
 **no copy in, no copy out, and no per-call heap allocation** (hence no GC churn).
 
-```java
-try (Arena arena = Arena.ofConfined();
-     ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-    MemorySegment frame = reader.mmapSlice();   // already native — never touches the heap
-    ZstdByteSize n = Zstd.decompressedSize(frame); // read the header, no copy
-    MemorySegment out = arena.allocate(n.value()); // this segment *is* the output buffer
-    dctx.decompress(out, frame);                // native → native
-}
-```
+The recipe — with the full segment-API map — is in the how-to guide:
+[Avoid heap copies with `MemorySegment`](how-to.md#avoid-heap-copies-with-memorysegment).
 
 In benchmarks this path allocates ~0 bytes/op regardless of payload size, while
 the `byte[]` path allocates the full output every call. See
-[docs/benchmarks.md](benchmarks.md) for numbers and [docs/zero-copy.md](zero-copy.md)
-for when it pays.
+[docs/benchmarks.md](benchmarks.md) for numbers and
+[docs/explanation.md](explanation.md#zero-copy-with-memorysegment) for when it pays.
 
 ## 5. Stream data that doesn't fit in memory
 

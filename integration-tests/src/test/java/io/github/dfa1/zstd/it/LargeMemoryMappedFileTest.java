@@ -28,7 +28,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/// Proves the zero-copy claim from `docs/zero-copy.md` that the `MemorySegment`
+/// Proves the zero-copy claim from `docs/explanation.md` that the `MemorySegment`
 /// API removes the 2 GiB cap that `byte[]` / `ByteBuffer` impose, and that this
 /// project's segment-based streaming compressor round-trips a file larger than
 /// [Integer#MAX_VALUE] bytes read straight off a single memory mapping — and

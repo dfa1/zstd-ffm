@@ -263,7 +263,7 @@ public final class ZstdDecompressContext extends NativeObject {
     /// caller owns. No heap `byte[]` bounce — the segment addresses go
     /// directly to zstd. This is the fast path when input is an mmap slice and
     /// output is an arena buffer that becomes the materialized array as-is;
-    /// see `docs/zero-copy.md`.
+    /// see `docs/explanation.md`.
     ///
     /// Size `dst` to the decompressed length (read it from the frame with
     /// [Zstd#decompress(byte[])]'s header logic, or known out-of-band).

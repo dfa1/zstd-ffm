@@ -54,7 +54,7 @@ Never mutate `~/.m2/repository` by hand either.
   `ZstdStreamBuffer`.
 - API is **segment-first for the zero-copy fast path, with thin `byte[]`
   overloads** for heap callers. Never allocate a `byte[]` for decode output on a
-  hot path — see [docs/zero-copy.md](docs/zero-copy.md).
+  hot path — see [docs/explanation.md](docs/explanation.md#zero-copy-with-memorysegment).
 - Run with `--enable-native-access=ALL-UNNAMED`.
 - **Wrap naked `int`/`long`/`String` at public boundaries** when the value has a
   validity constraint, unit, or semantic identity — sizes (`ZstdByteSize`),

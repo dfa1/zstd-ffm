@@ -44,7 +44,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 /// conventional buffered-stream paths - this library's own [ZstdOutputStream]
 /// and zstd-jni's classic `ZstdOutputStream`, both over a buffered
 /// `FileInputStream` - the comparison behind the numbers in
-/// `docs/zero-copy.md`.
+/// `docs/explanation.md`.
 ///
 /// Sizes run from 4 MiB up to 10 GiB, so each `@Benchmark` invocation is one
 /// full-file compression (seconds to tens of seconds), not a tight throughput
@@ -77,7 +77,7 @@ public class LargeFileBenchmark {
     private static final MethodHandle POSIX_MADVISE = lookupPosixMadvise();
 
     // 4 MiB, 64 MiB, 2.25 GiB, 4 GiB, 10 GiB — matches the sizes historically
-    // reported in docs/zero-copy.md so the JMH numbers replace them directly.
+    // reported in docs/explanation.md so the JMH numbers replace them directly.
     @Param({"4194304", "67108864", "2415919104", "4294967296", "10737418240"})
     private long size;
 

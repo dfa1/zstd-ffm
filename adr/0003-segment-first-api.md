@@ -42,5 +42,5 @@ segment fails fast with a clear message.
 
 ## References
 
-- [docs/zero-copy.md](../docs/zero-copy.md), [docs/benchmarks.md](../docs/benchmarks.md)
+- [docs/explanation.md](../docs/explanation.md#zero-copy-with-memorysegment), [docs/benchmarks.md](../docs/benchmarks.md)
 - [ADR 0001 — FFM over JNI](0001-ffm-over-jni.md)
