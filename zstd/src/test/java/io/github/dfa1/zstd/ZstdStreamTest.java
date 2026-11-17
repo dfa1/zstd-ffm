@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 
+import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.sample;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
@@ -373,6 +374,37 @@ class ZstdStreamTest {
             assertThatThrownBy(result)
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("closed");
+        }
+    }
+
+    @Nested
+    class ConstructionFailure {
+
+        @Test
+        void outputStreamWithoutLevelFailsAfterCreatingItsContext() {
+            // Given a sink and a dictionary, but no compression level
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            ZstdDictionary dict = trainDictionary(3000);
+
+            // When constructing the stream, which fails once the native context exists
+            ThrowingCallable result = () -> new ZstdOutputStream(sink, null, dict);
+
+            // Then the failure propagates (after the half-built stream released its context)
+            assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
+            assertThat(sink.size()).isZero();
+        }
+
+        @Test
+        void inputStreamWithCorruptDictionaryFailsAfterCreatingItsContext() {
+            // Given a dictionary with a valid magic number but garbage entropy tables
+            ZstdDictionary corrupt = corruptDictionary();
+            ByteArrayInputStream source = new ByteArrayInputStream(new byte[0]);
+
+            // When constructing the stream, which digests the dictionary eagerly
+            ThrowingCallable result = () -> new ZstdInputStream(source, corrupt);
+
+            // Then the native rejection propagates as a ZstdException
+            assertThatThrownBy(result).isInstanceOf(ZstdException.class);
         }
     }
 

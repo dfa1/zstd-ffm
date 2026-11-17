@@ -74,6 +74,36 @@ class ZstdDictionaryTest {
         }
 
         @Test
+        void fastCoverTargetLevelShapesTheDictionary() {
+            // Given a subset of samples (keeps the test quick) trained for the default level
+            List<byte[]> subset = samples.subList(0, 1000);
+            ZstdDictionary defaultLevel = ZstdDictionary.trainFastCover(subset, ZstdByteSize.ofKiB(8));
+
+            // When trained for level 19
+            ZstdDictionary highLevel =
+                    ZstdDictionary.trainFastCover(subset, ZstdByteSize.ofKiB(8), new ZstdCompressionLevel(19));
+
+            // Then the target level reaches the trainer and the result still round-trips
+            assertThat(highLevel.toByteArray()).isNotEqualTo(defaultLevel.toByteArray());
+            assertRoundTrips(highLevel, samples.get(77));
+        }
+
+        @Test
+        void coverTargetLevelShapesTheDictionary() {
+            // Given a subset of samples (COVER is slow) trained for the default level
+            List<byte[]> subset = samples.subList(0, 1000);
+            ZstdDictionary defaultLevel = ZstdDictionary.trainCover(subset, ZstdByteSize.ofKiB(8));
+
+            // When trained for level 19
+            ZstdDictionary highLevel =
+                    ZstdDictionary.trainCover(subset, ZstdByteSize.ofKiB(8), new ZstdCompressionLevel(19));
+
+            // Then the target level reaches the trainer and the result still round-trips
+            assertThat(highLevel.toByteArray()).isNotEqualTo(defaultLevel.toByteArray());
+            assertRoundTrips(highLevel, samples.get(9));
+        }
+
+        @Test
         void coverFailsWithoutSamples() {
             // When COVER-training on no samples
             ThrowingCallable result = () -> ZstdDictionary.trainCover(List.of(), new ZstdByteSize(4096));
@@ -118,6 +148,23 @@ class ZstdDictionaryTest {
                 byte[] frame = cctx.compress(sample, dict);
                 assertThat(dctx.decompress(frame, new ZstdByteSize(sample.length), dict)).isEqualTo(sample);
             }
+        }
+
+        @Test
+        void targetLevelShapesTheEntropyTables() {
+            // Given raw content finalized for the default level
+            byte[] content = "{\"user\":\"\",\"event\":\"click\",\"id\":}".repeat(40)
+                    .getBytes(StandardCharsets.UTF_8);
+            ZstdDictionary defaultLevel =
+                    ZstdDictionary.finalizeFrom(content, samples, ZstdByteSize.ofKiB(16), new ZstdCompressionLevel(0));
+
+            // When the same content is finalized for level 19
+            ZstdDictionary highLevel =
+                    ZstdDictionary.finalizeFrom(content, samples, ZstdByteSize.ofKiB(16), new ZstdCompressionLevel(19));
+
+            // Then the target level reaches the finalizer and the result still round-trips
+            assertThat(highLevel.toByteArray()).isNotEqualTo(defaultLevel.toByteArray());
+            assertRoundTrips(highLevel, samples.get(11));
         }
 
         @Test
@@ -419,7 +466,9 @@ class ZstdDictionaryTest {
             ThrowingCallable result = () -> new ZstdDecompressDictionary(heap);
 
             // Then it fails fast rather than dereferencing a heap address in C
-            assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(result)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("dict must be a native");
         }
 
         @Test
@@ -431,7 +480,9 @@ class ZstdDictionaryTest {
             ThrowingCallable result = () -> new ZstdCompressDictionary(heap);
 
             // Then it fails fast
-            assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(result)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("dict must be a native");
         }
     }
 
@@ -614,4 +665,11 @@ class ZstdDictionaryTest {
         }
     }
 
+    private static void assertRoundTrips(ZstdDictionary dict, byte[] sample) {
+        try (ZstdCompressContext cctx = new ZstdCompressContext();
+             ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            byte[] frame = cctx.compress(sample, dict);
+            assertThat(dctx.decompress(frame, new ZstdByteSize(sample.length), dict)).isEqualTo(sample);
+        }
+    }
 }

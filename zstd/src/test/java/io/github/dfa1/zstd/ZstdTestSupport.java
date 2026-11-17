@@ -6,6 +6,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
@@ -57,6 +58,19 @@ final class ZstdTestSupport {
             samples.add(sample(i));
         }
         return ZstdDictionary.train(samples, ZstdByteSize.ofKiB(8));
+    }
+
+    /// A dictionary that claims to be a full zstd dictionary (it starts with the
+    /// dictionary magic number) but whose entropy tables are garbage, so any
+    /// decoder that digests it eagerly rejects it as corrupted.
+    static ZstdDictionary corruptDictionary() {
+        byte[] raw = new byte[64];
+        Arrays.fill(raw, (byte) 0xFF);
+        raw[0] = 0x37;
+        raw[1] = (byte) 0xA4;
+        raw[2] = 0x30;
+        raw[3] = (byte) 0xEC;
+        return ZstdDictionary.of(raw);
     }
 
     /// `n` pseudo-random bytes from a fixed `seed`, so a failure reproduces.
