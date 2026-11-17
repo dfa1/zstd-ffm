@@ -3,6 +3,8 @@ package io.github.dfa1.zstd;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.foreign.Arena;
@@ -10,6 +12,7 @@ import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 
 import static io.github.dfa1.zstd.ZstdTestSupport.bytesOf;
+import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.segmentOf;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
@@ -166,5 +169,93 @@ class ZstdSegmentStreamTest {
             }
         }
 
+        @Test
+        void framesCarryTheDictionaryId() {
+            // Given a compress stream built with a trained dictionary
+            ZstdDictionary dict = trainDictionary(3000);
+            byte[] sample = "{\"id\":2,\"user\":\"u\",\"event\":\"y\"}".getBytes(StandardCharsets.UTF_8);
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = new ZstdCompressStream(ZstdCompressionLevel.DEFAULT, dict)) {
+                MemorySegment src = segmentOf(arena, sample);
+                MemorySegment dst = arena.allocate(Zstd.compressBound(new ZstdByteSize(sample.length)).value());
+
+                // When a frame is compressed
+                ZstdStreamResult c = sut.compress(dst, src, ZstdEndDirective.END);
+
+                // Then the frame header names the dictionary it was compressed against
+                assertThat(ZstdFrame.dictId(dst.asSlice(0, c.bytesProduced()))).isEqualTo(dict.id());
+            }
+        }
+    }
+
+    @Nested
+    class ConstructionFailure {
+
+        @Test
+        void compressStreamWithoutLevelFailsAfterCreatingItsContext() {
+            // Given a dictionary but no compression level
+            ZstdDictionary dict = trainDictionary(3000);
+
+            // When constructing the stream, which fails once the native context exists
+            ThrowingCallable result = () -> new ZstdCompressStream(null, dict);
+
+            // Then the failure propagates (after the half-built stream closed itself)
+            assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        void decompressStreamWithCorruptDictionaryFailsAfterCreatingItsContext() {
+            // Given a dictionary with a valid magic number but garbage entropy tables
+            ZstdDictionary corrupt = corruptDictionary();
+
+            // When constructing the stream, which digests the dictionary eagerly
+            ThrowingCallable result = () -> new ZstdDecompressStream(corrupt);
+
+            // Then the native rejection propagates as a ZstdException
+            assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+        }
+    }
+
+    @Nested
+    class SegmentGuard {
+
+        @ParameterizedTest
+        @ValueSource(strings = {"dst", "src"})
+        void compressRejectsHeapSegment(String heapSide) {
+            // Given a compress stream and one heap-backed buffer
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = new ZstdCompressStream()) {
+                MemorySegment heap = MemorySegment.ofArray(new byte[64]);
+                MemorySegment dst = "dst".equals(heapSide) ? heap : arena.allocate(64);
+                MemorySegment src = "src".equals(heapSide) ? heap : arena.allocate(64);
+
+                // When compressing through it
+                ThrowingCallable result = () -> sut.compress(dst, src, ZstdEndDirective.END);
+
+                // Then the guard names the offending argument before any native call
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageStartingWith(heapSide + " must be a native");
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"dst", "src"})
+        void compressRejectsNullSegment(String nullSide) {
+            // Given a compress stream and one missing buffer
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = new ZstdCompressStream()) {
+                MemorySegment dst = "dst".equals(nullSide) ? null : arena.allocate(64);
+                MemorySegment src = "src".equals(nullSide) ? null : arena.allocate(64);
+
+                // When compressing through it
+                ThrowingCallable result = () -> sut.compress(dst, src, ZstdEndDirective.END);
+
+                // Then the guard names the missing argument
+                assertThatThrownBy(result)
+                        .isInstanceOf(NullPointerException.class)
+                        .hasMessage(nullSide);
+            }
+        }
     }
 }
