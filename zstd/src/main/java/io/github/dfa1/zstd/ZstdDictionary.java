@@ -69,6 +69,22 @@ public final class ZstdDictionary {
             JAVA_INT.withName("notificationLevel"),
             JAVA_INT.withName("dictID"));
 
+    // Each ZDICT optimizer bound to the params struct it reads and writes back, so
+    // the two are chosen together and can never mismatch: a 48-byte cover struct
+    // handed to the fastCover optimizer is an 8-byte native heap overrun (#141).
+    private enum Optimizer {
+        COVER(COVER_PARAMS, Bindings.ZDICT_OPTIMIZE_COVER),
+        FAST_COVER(FASTCOVER_PARAMS, Bindings.ZDICT_OPTIMIZE_FASTCOVER);
+
+        private final MemoryLayout params;
+        private final MethodHandle handle;
+
+        Optimizer(MemoryLayout params, MethodHandle handle) {
+            this.params = params;
+            this.handle = handle;
+        }
+    }
+
     private final byte[] bytes;
 
     private ZstdDictionary(byte[] bytes) {
@@ -123,7 +139,7 @@ public final class ZstdDictionary {
     /// @throws ZstdException if training fails, or `maxDictBytes` exceeds the
     ///                       maximum array length
     public static ZstdDictionary trainCover(List<byte[]> samples, ZstdByteSize maxDictBytes) {
-        return optimize(samples, maxDictBytes, 0, false);
+        return optimize(samples, maxDictBytes, 0, Optimizer.COVER);
     }
 
     /// Trains a COVER dictionary optimized for a specific compression level.
@@ -137,7 +153,7 @@ public final class ZstdDictionary {
     ///                       maximum array length
     public static ZstdDictionary trainCover(List<byte[]> samples, ZstdByteSize maxDictBytes,
                                             ZstdCompressionLevel compressionLevel) {
-        return optimize(samples, maxDictBytes, compressionLevel.value(), false);
+        return optimize(samples, maxDictBytes, compressionLevel.value(), Optimizer.COVER);
     }
 
     /// Trains a dictionary with the fast COVER algorithm, auto-tuning its
@@ -150,7 +166,7 @@ public final class ZstdDictionary {
     /// @throws ZstdException if training fails, or `maxDictBytes` exceeds the
     ///                       maximum array length
     public static ZstdDictionary trainFastCover(List<byte[]> samples, ZstdByteSize maxDictBytes) {
-        return optimize(samples, maxDictBytes, 0, true);
+        return optimize(samples, maxDictBytes, 0, Optimizer.FAST_COVER);
     }
 
     /// Trains a fast COVER dictionary optimized for a specific compression level.
@@ -164,26 +180,25 @@ public final class ZstdDictionary {
     ///                       maximum array length
     public static ZstdDictionary trainFastCover(List<byte[]> samples, ZstdByteSize maxDictBytes,
                                                 ZstdCompressionLevel compressionLevel) {
-        return optimize(samples, maxDictBytes, compressionLevel.value(), true);
+        return optimize(samples, maxDictBytes, compressionLevel.value(), Optimizer.FAST_COVER);
     }
 
     private static ZstdDictionary optimize(List<byte[]> samples, ZstdByteSize maxDictBytes,
-                                           int compressionLevel, boolean fast) {
+                                           int compressionLevel, Optimizer optimizer) {
         Objects.requireNonNull(samples, SAMPLES);
         requireNonEmpty(samples, "train");
         int maxDictBytesLength = maxDictBytes.toArraySize();
         try (Arena arena = Arena.ofConfined()) {
             FlatSamples in = flatten(arena, samples);
             // zeroed params (auto-tune k/d/steps); set single-threaded + target level.
-            MemoryLayout layout = fast ? FASTCOVER_PARAMS : COVER_PARAMS;
+            MemoryLayout layout = optimizer.params;
             MemorySegment params = arena.allocate(layout);
             params.set(JAVA_INT, layout.byteOffset(PathElement.groupElement(FIELD_NB_THREADS)), 1);
             params.set(JAVA_INT, layout.byteOffset(PathElement.groupElement(FIELD_COMPRESSION_LEVEL)), compressionLevel);
-            MethodHandle handle = fast ? Bindings.ZDICT_OPTIMIZE_FASTCOVER : Bindings.ZDICT_OPTIMIZE_COVER;
             MemorySegment dictBuf = arena.allocate(maxDictBytesLength);
             long produced;
             try {
-                produced = (long) handle.invokeExact(
+                produced = (long) optimizer.handle.invokeExact(
                         dictBuf, (long) maxDictBytesLength, in.data(), in.sizes(), in.count(), params);
             } catch (Throwable t) {
                 throw NativeCall.rethrow(t);
