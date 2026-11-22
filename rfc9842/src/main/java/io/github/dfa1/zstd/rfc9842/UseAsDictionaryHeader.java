@@ -200,7 +200,7 @@ public final class UseAsDictionaryHeader {
         return type;
     }
 
-    /// Value equality over all components, as a record would compare them.
+    /// Value equality over all components.
     ///
     /// @param o the object to compare with
     /// @return `true` if `o` is a [UseAsDictionaryHeader] with equal components

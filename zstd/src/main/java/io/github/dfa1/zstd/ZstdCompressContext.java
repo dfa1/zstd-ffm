@@ -17,7 +17,8 @@ import java.util.Objects;
 /// done; never keep it in a long-lived pool.
 ///
 /// {@snippet :
-/// try (ZstdCompressContext ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
+/// try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
+///     ctx.level(ZstdCompressionLevel.of(19)); // configure inside the try: a failing setter can't leak ctx
 ///     for (byte[] msg : messages) {
 ///         sink.accept(ctx.compress(msg));
 ///     }

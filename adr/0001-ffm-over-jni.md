@@ -45,3 +45,6 @@ Native symbols bind to `MethodHandle`s in `Bindings`; the library targets JDK
 
 - [Bindings.java], [NativeCall.java]
 - [ADR 0003 — segment-first API](0003-segment-first-api.md)
+
+[Bindings.java]: ../zstd/src/main/java/io/github/dfa1/zstd/Bindings.java
+[NativeCall.java]: ../zstd/src/main/java/io/github/dfa1/zstd/NativeCall.java

@@ -31,7 +31,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// per call. Contexts are not thread-safe.
 ///
 /// {@snippet :
-/// try (ZstdCompressContext ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
+/// try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
+///     ctx.level(ZstdCompressionLevel.of(19)); // configure inside the try: a failing setter can't leak ctx
 ///     byte[] frame = ctx.compress(payload);
 /// }
 /// }
@@ -255,7 +256,7 @@ public final class Zstd {
         }
     }
 
-    /// Runtime version of the linked zstd library, e.g. `1.6.0`.
+    /// Runtime version of the linked zstd library, e.g. `1.5.7` for the bundled build.
     ///
     /// Read [ZstdVersion#toString()] for the `x.y.z` string, [ZstdVersion#number()]
     /// for the packed number, or compare it (it is [Comparable]) to feature-gate

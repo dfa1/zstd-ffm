@@ -46,7 +46,7 @@ public final class ZstdWindowLog {
         return value;
     }
 
-    /// Value equality over all components, as a record would compare them.
+    /// Value equality over all components.
     ///
     /// @param o the object to compare with
     /// @return `true` if `o` is a [ZstdWindowLog] with equal components

@@ -95,7 +95,7 @@ public final class ZstdCompressionLevel {
         return value;
     }
 
-    /// Value equality over all components, as a record would compare them.
+    /// Value equality over all components.
     ///
     /// @param o the object to compare with
     /// @return `true` if `o` is a [ZstdCompressionLevel] with equal components

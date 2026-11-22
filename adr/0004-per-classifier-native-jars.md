@@ -44,3 +44,5 @@ native jar for their platform (or via the BOM).
 
 - [NativeLibrary.java], [bom/](../bom)
 - [ADR 0005 — no lib-path override](0005-no-lib-path-override.md)
+
+[NativeLibrary.java]: ../zstd/src/main/java/io/github/dfa1/zstd/NativeLibrary.java

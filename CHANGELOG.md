@@ -427,3 +427,5 @@ zstd-jni for a smaller decompress-side gain.
 ## [0.1]
 
 - [First release: JDK 25 FFM bindings for Zstandard 1.5.7, built with `zig cc`](https://github.com/dfa1/zstd-ffm/releases/tag/v0.1)
+
+[Unreleased]: https://github.com/dfa1/zstd-ffm/compare/v0.15...HEAD

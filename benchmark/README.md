@@ -3,31 +3,37 @@
 JMH microbenchmarks comparing **zstd-ffm** against the two common JVM zstd
 options:
 
-| Contestant | Binding | Modes benchmarked |
+| Contestant | Binding | Paths benchmarked |
 |------------|---------|-------------------|
-| **zstd-ffm** (this project) | FFM (no JNI) | `byte[]` and zero-copy `MemorySegment` |
-| **zstd-jni** (`com.github.luben`) | JNI | `byte[]` |
+| **zstd-ffm** (this project) | FFM (no JNI) | `byte[]`, zero-copy `MemorySegment`, `ZstdOutputStream`, and the `mmap` + segment streaming path |
+| **zstd-jni** (`com.github.luben`) | JNI | `byte[]`, direct `ByteBuffer` (`compressDirectByteBuffer` / `decompressDirectByteBuffer`), and its `ZstdOutputStream` |
 | **aircompressor** (`io.airlift:aircompressor-v3`) | pure Java | `byte[]` |
 
 The `MemorySegment` path is the one we expect to win: input and output are
 already off-heap, so there is no `byte[]` copy in or out of native code.
 
-Two suites, each across payload sizes 1 KiB / 64 KiB / 1 MiB at level 3:
+## Suites
 
-- `CompressBenchmark`
-- `DecompressBenchmark`
+| Suite | What it measures | Parameters |
+|---|---|---|
+| `CompressBenchmark` / `DecompressBenchmark` | one-shot throughput on synthetic payloads: `byte[]` and `MemorySegment`, each with a reused and a fresh context, vs zstd-jni `byte[]` and aircompressor | `size` 1 KiB / 64 KiB / 1 MiB / 64 MiB, level 3 |
+| `MultiThreadCompressBenchmark` | multithreaded compression, zero-copy `MemorySegment` path only | 1 MiB / 64 MiB × `nbWorkers` 0 / 2 / 4, level 3 |
+| `GoldenCorpusBenchmark` | per-call overhead on zstd's own vendored golden corpus (`third_party/zstd/tests/golden-compression`, 143 B to 256 KiB): `byte[]` and `MemorySegment` vs zstd-jni `byte[]` and direct `ByteBuffer` | one `file` per corpus entry, level 3 |
+| `DictionaryTransportBenchmark` | gzip vs plain zstd vs zstd with a pre-digested trained dictionary (the RFC 9842 `dcz` codec), compress and decompress, in process (no HTTP) | `size` 512 B to 64 KiB |
+| `LargeFileBenchmark` | whole-file compression (`Mode.SingleShotTime`): `mmap` + `MemorySegment` with and without a `posix_madvise(WILLNEED)` hint vs this library's `ZstdOutputStream` vs zstd-jni's `ZstdOutputStream`, both over a buffered `FileInputStream` | `size` 4 MiB / 64 MiB / 2.25 GiB / 4 GiB / 10 GiB, level 3 |
 
-Plus a multithreading suite (kept separate so the single-threaded numbers stay
+The multithreading suite is kept separate so the single-threaded numbers stay
 longitudinally comparable, and because MT is a no-op below zstd's 512 KiB job
-minimum):
+minimum. Its 1 MiB legs measure MT overhead on a single-job input (no speedup
+expected by design — at level 3 the default job size is ~8 MiB); the 64 MiB
+legs span multiple jobs and show the scaling.
 
-- `MultiThreadCompressBenchmark` — 1 MiB / 64 MiB × `nbWorkers` 0 / 2 / 4 at level 3,
-  zero-copy `MemorySegment` path only. The 1 MiB legs measure MT overhead on a
-  single-job input (no speedup expected by design — at level 3 the default job
-  size is ~8 MiB); the 64 MiB legs span multiple jobs and show the scaling.
+`LargeFileBenchmark` writes real multi-gigabyte files to the system temp
+directory (cached per size and reused across runs) and takes many minutes; run
+it deliberately, not as part of a quick pass.
 
-Payloads (`BenchData`) are deterministic, ~3x-compressible text so the ratios
-are realistic rather than all-zeros or random noise.
+Synthetic payloads (`BenchData`) are deterministic, ~3x-compressible text so the
+ratios are realistic rather than all-zeros or random noise.
 
 ## Build
 

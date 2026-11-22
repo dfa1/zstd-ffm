@@ -38,8 +38,9 @@ copy. "Zero-copy" is about the *boundary*, and applies only to the
 ### The core win: no copy at the call boundary
 
 FFM downcalls need a *stable* native pointer. A heap `byte[]` can be relocated by
-the GC, so the FFM runtime copies it into native memory for the duration of the
-call — and copies the result back. **Two copies per call.**
+the GC, so it can't be handed to zstd directly: the `byte[]` overloads copy the
+input into a short-lived native scratch arena, run zstd there, and copy the
+result back into a fresh `byte[]`. **Two copies per call.**
 
 A native `MemorySegment` already *is* a native address. You hand
 `ZSTD_compress` / `ZSTD_decompress` the pointer directly. **No boundary copy.**
@@ -246,7 +247,7 @@ this library. It is gated behind a system property, since it writes several
 gigabytes of real files to disk and is too slow/disk-hungry for a plain `mvn
 test`/`mvn verify` or CI:
 
-```
+```bash
 ./mvnw -pl integration-tests test -Dzstd.test.large=true -Dtest=LargeMemoryMappedFileTest
 ```
 
@@ -262,7 +263,7 @@ directory and is not part of `mvn test`/`mvn verify` or CI.
 
 ##### Reproduce it
 
-```
+```bash
 ./mvnw -pl benchmark -am package -DskipTests
 java -jar benchmark/target/benchmarks.jar LargeFileBenchmark -prof gc
 ```
@@ -281,12 +282,13 @@ Linux and Windows are open follow-up (same caveat as the `madvise` hint).
 ### Honest caveat
 
 If the caller hands you a heap `byte[]` (the aircompressor fallback path, or
-external input), wrapping it with `MemorySegment.ofArray(...)` still triggers the
-copy for the downcall — no free lunch. A heap `ByteBuffer` is the same: its
-`MemorySegment.ofBuffer(...)` wrap is a heap segment and still copies. Only data
-that is *already native* avoids the boundary copy. So the API is **segment-first
-for the zero-copy fast path, with a thin `byte[]` overload** for the rare heap
-caller.
+external input), there is no free lunch. The `MemorySegment` entry points accept
+only native segments: a heap segment — `MemorySegment.ofArray(...)`, or the
+`MemorySegment.ofBuffer(...)` wrap of a heap `ByteBuffer` — is rejected with an
+`IllegalArgumentException` rather than silently copied. Heap data goes through the
+`byte[]` overloads, which make the two copies explicitly. Only data that is
+*already native* avoids the boundary copy. So the API is **segment-first for the
+zero-copy fast path, with a thin `byte[]` overload** for the rare heap caller.
 
 We deliberately do **not** add a parallel `ByteBuffer` API surface: FFM already
 defines the conversions (`MemorySegment.ofBuffer` in, `segment.asByteBuffer()`

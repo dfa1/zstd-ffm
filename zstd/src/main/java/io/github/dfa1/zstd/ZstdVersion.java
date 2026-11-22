@@ -99,7 +99,7 @@ public final class ZstdVersion implements Comparable<ZstdVersion> {
         return patch;
     }
 
-    /// Value equality over all components, as a record would compare them.
+    /// Value equality over all components.
     ///
     /// @param o the object to compare with
     /// @return `true` if `o` is a [ZstdVersion] with equal components

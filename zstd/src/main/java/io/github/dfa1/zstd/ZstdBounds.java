@@ -72,7 +72,7 @@ public final class ZstdBounds {
         return upperBound;
     }
 
-    /// Value equality over all components, as a record would compare them.
+    /// Value equality over all components.
     ///
     /// @param o the object to compare with
     /// @return `true` if `o` is a [ZstdBounds] with equal components

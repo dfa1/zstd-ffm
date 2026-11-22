@@ -27,6 +27,7 @@ One-shot round-trip with `byte[]` — the convenient path:
 
 ```java
 import io.github.dfa1.zstd.Zstd;
+import io.github.dfa1.zstd.ZstdCompressionLevel;
 
 byte[] data = ...;
 byte[] frame = Zstd.compress(data);        // or Zstd.compress(data, ZstdCompressionLevel.of(19))

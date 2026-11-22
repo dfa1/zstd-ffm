@@ -124,7 +124,7 @@ public final class ZstdFrameHeader {
         return hasChecksum;
     }
 
-    /// Value equality over all components, as a record would compare them.
+    /// Value equality over all components.
     ///
     /// @param o the object to compare with
     /// @return `true` if `o` is a [ZstdFrameHeader] with equal components
