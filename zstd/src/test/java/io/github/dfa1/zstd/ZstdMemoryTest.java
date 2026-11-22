@@ -17,19 +17,19 @@ class ZstdMemoryTest {
 
         @Test
         void contextEstimatesArePositive() {
-            assertThat(Zstd.estimateCompressContextSize(new ZstdCompressionLevel(3)).value()).isPositive();
+            assertThat(Zstd.estimateCompressContextSize(ZstdCompressionLevel.of(3)).value()).isPositive();
             assertThat(Zstd.estimateDecompressContextSize().value()).isPositive();
         }
 
         @Test
         void higherLevelEstimatesAtLeastAsLarge() {
-            assertThat(Zstd.estimateCompressContextSize(new ZstdCompressionLevel(19)).value())
-                    .isGreaterThanOrEqualTo(Zstd.estimateCompressContextSize(new ZstdCompressionLevel(1)).value());
+            assertThat(Zstd.estimateCompressContextSize(ZstdCompressionLevel.of(19)).value())
+                    .isGreaterThanOrEqualTo(Zstd.estimateCompressContextSize(ZstdCompressionLevel.of(1)).value());
         }
 
         @Test
         void dictionaryEstimatesArePositive() {
-            assertThat(Zstd.estimateCompressDictSize(ZstdByteSize.ofKiB(64), new ZstdCompressionLevel(3)).value())
+            assertThat(Zstd.estimateCompressDictSize(ZstdByteSize.ofKiB(64), ZstdCompressionLevel.of(3)).value())
                     .isPositive();
             assertThat(Zstd.estimateDecompressDictSize(ZstdByteSize.ofKiB(64)).value()).isPositive();
         }
@@ -40,7 +40,7 @@ class ZstdMemoryTest {
 
         @Test
         void contextSizeGrowsAfterUse() {
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 long before = ctx.sizeOf().value();
                 ctx.compress(PAYLOAD);
                 long after = ctx.sizeOf().value();
@@ -51,7 +51,7 @@ class ZstdMemoryTest {
 
         @Test
         void decompressContextHasSize() {
-            try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
                 assertThat(ctx.sizeOf().value()).isPositive();
             }
         }
@@ -59,8 +59,8 @@ class ZstdMemoryTest {
         @Test
         void digestedDictionariesHaveSize() {
             ZstdDictionary dict = trainDictionary(2000);
-            try (ZstdCompressDictionary cdict = new ZstdCompressDictionary(dict);
-                 ZstdDecompressDictionary ddict = new ZstdDecompressDictionary(dict)) {
+            try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict);
+                 ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(dict)) {
                 assertThat(cdict.sizeOf().value()).isPositive();
                 assertThat(ddict.sizeOf().value()).isPositive();
             }
@@ -68,8 +68,8 @@ class ZstdMemoryTest {
 
         @Test
         void streamsReportContextSize() {
-            try (ZstdCompressStream cs = new ZstdCompressStream();
-                 ZstdDecompressStream ds = new ZstdDecompressStream()) {
+            try (ZstdCompressStream cs = Zstd.newCompressStream();
+                 ZstdDecompressStream ds = Zstd.newDecompressStream()) {
                 assertThat(cs.sizeOf().value()).isPositive();
                 assertThat(ds.sizeOf().value()).isPositive();
             }

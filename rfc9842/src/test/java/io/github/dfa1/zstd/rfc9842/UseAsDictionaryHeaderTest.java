@@ -113,7 +113,7 @@ class UseAsDictionaryHeaderTest {
 
         @Test
         void matchOnlyConvenienceConstructorUsesDefaults() {
-            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/x/*");
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.of("/x/*");
 
             assertThat(sut.id()).isEmpty();
             assertThat(sut.type()).isEqualTo(UseAsDictionaryHeader.TYPE_RAW);
@@ -121,7 +121,7 @@ class UseAsDictionaryHeaderTest {
 
         @Test
         void matchAndIdConvenienceConstructorUsesDefaults() {
-            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/x/*", "abc");
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.of("/x/*", "abc");
 
             assertThat(sut.id()).isEqualTo("abc");
             assertThat(sut.type()).isEqualTo(UseAsDictionaryHeader.TYPE_RAW);
@@ -129,13 +129,13 @@ class UseAsDictionaryHeaderTest {
 
         @Test
         void rejectsAnEmptyMatch() {
-            ThrowingCallable result = () -> new UseAsDictionaryHeader("");
+            ThrowingCallable result = () -> UseAsDictionaryHeader.of("");
             assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
         void rejectsAnIdOverTheMaximumLength() {
-            ThrowingCallable result = () -> new UseAsDictionaryHeader("/x", "a".repeat(1025), "raw");
+            ThrowingCallable result = () -> UseAsDictionaryHeader.of("/x", "a".repeat(1025), "raw");
             assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -145,7 +145,7 @@ class UseAsDictionaryHeaderTest {
 
         @Test
         void matchesAWildcardInTheMiddleOfThePattern() {
-            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/app/*/main.js");
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.of("/app/*/main.js");
 
             assertThat(sut.matchesPath("/app/v2/main.js")).isTrue();
             assertThat(sut.matchesPath("/app/main.js")).isFalse();
@@ -154,7 +154,7 @@ class UseAsDictionaryHeaderTest {
 
         @Test
         void matchesATrailingWildcard() {
-            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/product/*");
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.of("/product/*");
 
             assertThat(sut.matchesPath("/product/123")).isTrue();
             assertThat(sut.matchesPath("/product/")).isTrue();
@@ -164,7 +164,7 @@ class UseAsDictionaryHeaderTest {
 
         @Test
         void aLiteralPatternWithNoWildcardMatchesOnlyItself() {
-            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/exact/path");
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.of("/exact/path");
 
             assertThat(sut.matchesPath("/exact/path")).isTrue();
             assertThat(sut.matchesPath("/exact/path/extra")).isFalse();
@@ -175,7 +175,7 @@ class UseAsDictionaryHeaderTest {
             // Documented gap: this implementation's '*' matches any characters,
             // including further path separators — not segment-scoped like full
             // WHATWG URL Pattern semantics.
-            UseAsDictionaryHeader sut = new UseAsDictionaryHeader("/a/*/z");
+            UseAsDictionaryHeader sut = UseAsDictionaryHeader.of("/a/*/z");
 
             assertThat(sut.matchesPath("/a/b/c/z")).isTrue();
         }

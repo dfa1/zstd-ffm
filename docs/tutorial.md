@@ -109,12 +109,12 @@ incrementally, so memory stays flat no matter how big the payload.
 
 ```java
 // compress a file as you write it
-try (var out = new ZstdOutputStream(Files.newOutputStream(packed), new ZstdCompressionLevel(9))) {
+try (var out = Zstd.newOutputStream(Files.newOutputStream(packed), ZstdCompressionLevel.of(9))) {
     Files.copy(source, out);
 }
 
 // decompress as you read it back (transferTo loops internally until EOF)
-try (var in = new ZstdInputStream(Files.newInputStream(packed));
+try (var in = Zstd.newInputStream(Files.newInputStream(packed));
      var out = Files.newOutputStream(restored)) {
     in.transferTo(out);
 }

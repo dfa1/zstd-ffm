@@ -84,7 +84,7 @@ class GoldenCorpusTest {
 
     /// Streaming decode (handles frames that do not store content size).
     private static byte[] javaStreamDecode(byte[] frame) {
-        try (ZstdInputStream in = new ZstdInputStream(new ByteArrayInputStream(frame))) {
+        try (ZstdInputStream in = Zstd.newInputStream(new ByteArrayInputStream(frame))) {
             return in.readAllBytes();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -154,7 +154,7 @@ class GoldenCorpusTest {
             byte[] frame = com.github.luben.zstd.Zstd.compress(data, ZstdCompressionLevel.MAX.value());
 
             // Then
-            assertThat(Zstd.decompress(frame, new ZstdByteSize(data.length))).isEqualTo(data);
+            assertThat(Zstd.decompress(frame, ZstdByteSize.of(data.length))).isEqualTo(data);
         }
     }
 
@@ -211,7 +211,7 @@ class GoldenCorpusTest {
             byte[] data = payload();
             ZstdDictionary dict = ZstdDictionary.of(raw);
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 frame = ctx.compress(data, dict);
             }
 
@@ -233,8 +233,8 @@ class GoldenCorpusTest {
 
             // When
             byte[] restored;
-            try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
-                restored = ctx.decompress(frame, new ZstdByteSize(data.length), ZstdDictionary.of(raw));
+            try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
+                restored = ctx.decompress(frame, ZstdByteSize.of(data.length), ZstdDictionary.of(raw));
             }
 
             // Then
@@ -248,7 +248,7 @@ class GoldenCorpusTest {
             byte[] raw = read(file);
             ZstdDictionary dict = ZstdDictionary.of(raw);
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 frame = ctx.compress(payload(), dict);
             }
 

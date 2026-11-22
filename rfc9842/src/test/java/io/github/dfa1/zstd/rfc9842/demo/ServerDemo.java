@@ -51,7 +51,7 @@ public final class ServerDemo {
                 default -> size = Integer.parseInt(args[i]);
             }
         }
-        ZstdCompressionLevel level = new ZstdCompressionLevel(compressionLevel);
+        ZstdCompressionLevel level = ZstdCompressionLevel.of(compressionLevel);
         DczTestServer server = DczTestServer.start(true, PORT, size, dictKiB, level, !quiet);
         Runtime.getRuntime().addShutdownHook(new Thread(server::close));
 

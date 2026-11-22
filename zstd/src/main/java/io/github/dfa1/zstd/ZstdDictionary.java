@@ -26,7 +26,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 ///
 /// {@snippet :
 /// ZstdDictionary dict = ZstdDictionary.train(sampleRecords, ZstdByteSize.ofKiB(64));
-/// try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+/// try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
 ///     byte[] packed = ctx.compress(record, dict);
 /// }
 /// }
@@ -306,7 +306,7 @@ public final class ZstdDictionary {
             if (zdictIsError(size)) {
                 throw new ZstdException("not a valid dictionary: " + zdictErrorName(size));
             }
-            return new ZstdByteSize(size);
+            return ZstdByteSize.of(size);
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -323,7 +323,7 @@ public final class ZstdDictionary {
     ///
     /// @return the dictionary size in bytes
     public ZstdByteSize size() {
-        return new ZstdByteSize(bytes.length);
+        return ZstdByteSize.of(bytes.length);
     }
 
     /// Digests this dictionary once for compression at `level`, ready to share by
@@ -337,7 +337,7 @@ public final class ZstdDictionary {
     /// @param level the compression level to fix for the digested dictionary
     /// @return a digested compression dictionary the caller must close
     public ZstdCompressDictionary compressDict(ZstdCompressionLevel level) {
-        return new ZstdCompressDictionary(this, level);
+        return Zstd.newCompressDictionary(this, level);
     }
 
     /// Digests this dictionary for compression at the library default level.
@@ -345,7 +345,7 @@ public final class ZstdDictionary {
     ///
     /// @return a digested compression dictionary the caller must close
     public ZstdCompressDictionary compressDict() {
-        return new ZstdCompressDictionary(this);
+        return Zstd.newCompressDictionary(this);
     }
 
     /// Digests this dictionary once for decompression, ready to share by reference
@@ -358,7 +358,7 @@ public final class ZstdDictionary {
     ///
     /// @return a digested decompression dictionary the caller must close
     public ZstdDecompressDictionary decompressDict() {
-        return new ZstdDecompressDictionary(this);
+        return Zstd.newDecompressDictionary(this);
     }
 
     /// Internal: direct view of the bytes for native calls. Not exposed.

@@ -26,14 +26,7 @@ import java.util.regex.Pattern;
 /// regex groups are **not** interpreted specially: characters like `{`, `}`,
 /// `(`, `)`, and `:` are matched literally, so a pattern relying on them will
 /// simply fail to match as a full URL Pattern implementation would expect.
-///
-/// @param match the URL pattern text (percent-encoded path), matched against
-///              request paths via [#matchesPath(String)]
-/// @param id    an opaque identifier the client echoes back via
-///              [DictionaryIdHeader], or `""` if none
-/// @param type  the dictionary content type, or `"raw"` (the only type this
-///              library — or RFC 9842 itself, currently — defines)
-public record UseAsDictionaryHeader(String match, String id, String type) {
+public final class UseAsDictionaryHeader {
 
     /// The HTTP header name this type's value belongs on.
     public static final String HTTP_HEADER = "Use-As-Dictionary";
@@ -43,8 +36,11 @@ public record UseAsDictionaryHeader(String match, String id, String type) {
 
     private static final int MAX_ID_LENGTH = 1024;
 
-    /// Validates `match`/`id`/`type`.
-    public UseAsDictionaryHeader {
+    private final String match;
+    private final String id;
+    private final String type;
+
+    private UseAsDictionaryHeader(String match, String id, String type) {
         Objects.requireNonNull(match, "match");
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(type, "type");
@@ -54,14 +50,33 @@ public record UseAsDictionaryHeader(String match, String id, String type) {
         if (id.length() > MAX_ID_LENGTH) {
             throw new IllegalArgumentException("id must be at most " + MAX_ID_LENGTH + " characters, was " + id.length());
         }
+        this.match = match;
+        this.id = id;
+        this.type = type;
+    }
+
+    /// Creates a [UseAsDictionaryHeader] from its components, validating them.
+    ///
+    /// @param match the URL pattern text (percent-encoded path), matched against request paths
+    ///              via [#matchesPath(String)]
+    /// @param id    an opaque identifier the client echoes back via [DictionaryIdHeader], or
+    ///              `""` if none
+    /// @param type  the dictionary content type, or `"raw"` (the only type this library — or
+    ///              RFC 9842 itself, currently — defines)
+    /// @return the new [UseAsDictionaryHeader]
+    /// @throws IllegalArgumentException if `match` is empty or `id` exceeds 1024 characters
+    public static UseAsDictionaryHeader of(String match, String id, String type) {
+        return new UseAsDictionaryHeader(match, id, type);
     }
 
     /// A `Use-As-Dictionary` value with just a match pattern — no id, the
     /// default `"raw"` type.
     ///
     /// @param match the URL pattern text
-    public UseAsDictionaryHeader(String match) {
-        this(match, "", TYPE_RAW);
+    /// @return the new [UseAsDictionaryHeader]
+    /// @throws IllegalArgumentException if `match` is empty
+    public static UseAsDictionaryHeader of(String match) {
+        return new UseAsDictionaryHeader(match, "", TYPE_RAW);
     }
 
     /// A `Use-As-Dictionary` value with a match pattern and an id to echo
@@ -69,8 +84,10 @@ public record UseAsDictionaryHeader(String match, String id, String type) {
     ///
     /// @param match the URL pattern text
     /// @param id    the identifier the client should echo back
-    public UseAsDictionaryHeader(String match, String id) {
-        this(match, id, TYPE_RAW);
+    /// @return the new [UseAsDictionaryHeader]
+    /// @throws IllegalArgumentException if `match` is empty or `id` exceeds 1024 characters
+    public static UseAsDictionaryHeader of(String match, String id) {
+        return new UseAsDictionaryHeader(match, id, TYPE_RAW);
     }
 
     /// Tests whether `requestPath` matches [#match()], per this
@@ -158,5 +175,56 @@ public record UseAsDictionaryHeader(String match, String id, String type) {
         }
         regex.setLength(regex.length() - 2); // drop the trailing ".*" added after the last literal
         return Pattern.compile(regex.toString(), Pattern.DOTALL);
+    }
+
+    /// The URL pattern text (percent-encoded path), matched against request paths via
+    /// [#matchesPath(String)].
+    ///
+    /// @return the `match` component
+    public String match() {
+        return match;
+    }
+
+    /// An opaque identifier the client echoes back via [DictionaryIdHeader], or `""` if none.
+    ///
+    /// @return the `id` component
+    public String id() {
+        return id;
+    }
+
+    /// The dictionary content type, or `"raw"` (the only type this library — or RFC 9842
+    /// itself, currently — defines).
+    ///
+    /// @return the `type` component
+    public String type() {
+        return type;
+    }
+
+    /// Value equality over all components, as a record would compare them.
+    ///
+    /// @param o the object to compare with
+    /// @return `true` if `o` is a [UseAsDictionaryHeader] with equal components
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof UseAsDictionaryHeader other
+                && match.equals(other.match)
+                && id.equals(other.id)
+                && type.equals(other.type);
+    }
+
+    /// Hash code consistent with [#equals(Object)].
+    ///
+    /// @return the component-based hash code
+    @Override
+    public int hashCode() {
+        return Objects.hash(match, id, type);
+    }
+
+    /// Record-style description listing every component.
+    ///
+    /// @return `UseAsDictionaryHeader[component=value, ...]`
+    @Override
+    public String toString() {
+        return "UseAsDictionaryHeader[match=" + match + ", id=" + id + ", type=" + type + "]";
     }
 }

@@ -61,9 +61,9 @@ public class MultiThreadCompressBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         byte[] src = BenchData.generate(size);
-        int bound = Zstd.compressBound(new ZstdByteSize(size)).toArraySize();
+        int bound = Zstd.compressBound(ZstdByteSize.of(size)).toArraySize();
 
-        ctx = new ZstdCompressContext().level(new ZstdCompressionLevel(level));
+        ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(level));
         if (nbWorkers > 0) {
             ctx.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
         }

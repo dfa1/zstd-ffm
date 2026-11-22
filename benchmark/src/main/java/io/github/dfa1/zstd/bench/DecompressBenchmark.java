@@ -58,7 +58,7 @@ public class DecompressBenchmark {
         originalSize = size;
         frame = Zstd.compress(BenchData.generate(size));
 
-        ffmCtx = new ZstdDecompressContext();
+        ffmCtx = Zstd.newDecompressContext();
 
         arena = Arena.ofConfined();
         frameSeg = arena.allocate(frame.length);
@@ -77,7 +77,7 @@ public class DecompressBenchmark {
 
     @Benchmark
     public byte[] zstdJavaBytes() {
-        return ffmCtx.decompress(frame, new ZstdByteSize(originalSize));
+        return ffmCtx.decompress(frame, ZstdByteSize.of(originalSize));
     }
 
     @Benchmark
@@ -89,14 +89,14 @@ public class DecompressBenchmark {
     // ZSTD_createDCtx/ZSTD_freeDCtx cost that context reuse avoids.
     @Benchmark
     public byte[] zstdJavaBytesFreshContext() {
-        try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
-            return ctx.decompress(frame, new ZstdByteSize(originalSize));
+        try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
+            return ctx.decompress(frame, ZstdByteSize.of(originalSize));
         }
     }
 
     @Benchmark
     public long zstdJavaSegmentFreshContext() {
-        try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
+        try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
             return ctx.decompress(dstSeg, frameSeg);
         }
     }

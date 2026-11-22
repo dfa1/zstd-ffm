@@ -22,7 +22,7 @@ class ZstdCompressionLevelTest {
         void acceptsAnyLevelWithinTheLibraryRange(int value) {
             // Given a raw level inside the linked libzstd's accepted range
             // When wrapped
-            ZstdCompressionLevel sut = new ZstdCompressionLevel(value);
+            ZstdCompressionLevel sut = ZstdCompressionLevel.of(value);
 
             // Then it carries that raw value
             assertThat(sut.value()).isEqualTo(value);
@@ -60,7 +60,7 @@ class ZstdCompressionLevelTest {
             int belowMin = ZstdCompressionLevel.minCompressionLevel() - 1;
 
             // When wrapped
-            ThrowingCallable result = () -> new ZstdCompressionLevel(belowMin);
+            ThrowingCallable result = () -> ZstdCompressionLevel.of(belowMin);
 
             // Then it is rejected before reaching native code
             assertThatThrownBy(result)
@@ -74,7 +74,7 @@ class ZstdCompressionLevelTest {
             int aboveMax = ZstdCompressionLevel.maxCompressionLevel() + 1;
 
             // When wrapped
-            ThrowingCallable result = () -> new ZstdCompressionLevel(aboveMax);
+            ThrowingCallable result = () -> ZstdCompressionLevel.of(aboveMax);
 
             // Then it is rejected before reaching native code
             assertThatThrownBy(result)

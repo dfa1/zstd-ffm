@@ -49,10 +49,10 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 | `ZSTD_versionNumber`, `ZSTD_versionString` | `Zstd.version` (returns `ZstdVersion`) |
 | `ZSTD_isError`, `ZSTD_getErrorName` | internal error mapping in `Zstd` |
 | `ZSTD_getFrameContentSize` | `Zstd.decompress(byte[])`, `Zstd.decompressedSize` |
-| `ZSTD_createCCtx`, `ZSTD_freeCCtx`, `ZSTD_compressCCtx` | `ZstdCompressContext` |
-| `ZSTD_createDCtx`, `ZSTD_freeDCtx`, `ZSTD_decompressDCtx` | `ZstdDecompressContext` |
+| `ZSTD_createCCtx`, `ZSTD_freeCCtx`, `ZSTD_compressCCtx` | `Zstd.newCompressContext()` → `ZstdCompressContext` (`close()`) |
+| `ZSTD_createDCtx`, `ZSTD_freeDCtx`, `ZSTD_decompressDCtx` | `Zstd.newDecompressContext()` → `ZstdDecompressContext` (`close()`) |
 | `ZSTD_compress_usingDict` | `ZstdCompressContext.compress(byte[], ZstdDictionary)` |
-| `ZSTD_decompress_usingDict` | `ZstdDecompressContext.decompress(byte[], int, ZstdDictionary)` |
+| `ZSTD_decompress_usingDict` | `ZstdDecompressContext.decompress(byte[], ZstdByteSize, ZstdDictionary)` |
 | `ZSTD_createCDict`, `ZSTD_freeCDict`, `ZSTD_compress_usingCDict` | `ZstdCompressDictionary` |
 | `ZSTD_createDDict`, `ZSTD_freeDDict`, `ZSTD_decompress_usingDDict` | `ZstdDecompressDictionary` |
 | `ZDICT_trainFromBuffer` | `ZstdDictionary.train` |
@@ -62,12 +62,12 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 | `ZSTD_decompressStream`, `ZSTD_DStreamInSize`, `ZSTD_DStreamOutSize` | `ZstdInputStream`, `ZstdDecompressStream` |
 | `ZSTD_compress2`, `ZSTD_CCtx_setParameter` | `ZstdCompressContext.parameter` / `checksum` / `longDistanceMatching` / `windowLog` (all of `ZstdCompressParameter`) |
 | `ZSTD_DCtx_setParameter` | `ZstdDecompressContext.parameter` / `windowLogMax` (`ZstdDecompressParameter`) |
-| `ZSTD_CCtx_setPledgedSrcSize` | `ZstdOutputStream.withPledgedSize` |
+| `ZSTD_CCtx_setPledgedSrcSize` | `Zstd.newPledgedOutputStream` |
 | `ZSTD_CCtx_reset`, `ZSTD_DCtx_reset` | `ZstdCompressContext.reset` / `ZstdDecompressContext.reset` (`ZstdResetDirective`) |
 | `ZSTD_getDictID_fromCDict`, `ZSTD_getDictID_fromDDict` | `ZstdCompressDictionary.id()` / `ZstdDecompressDictionary.id()` |
 | `ZSTD_getErrorString` | `ZstdErrorCode.description()` |
 | `ZSTD_cParam_getBounds`, `ZSTD_dParam_getBounds` | `ZstdCompressParameter.bounds()` / `ZstdDecompressParameter.bounds()` (`ZstdBounds`) |
-| `ZSTD_CCtx_loadDictionary`, `ZSTD_DCtx_loadDictionary` | `ZstdCompressContext.loadDictionary` / `ZstdDecompressContext.loadDictionary`; `ZstdOutputStream` / `ZstdInputStream` dictionary constructors |
+| `ZSTD_CCtx_loadDictionary`, `ZSTD_DCtx_loadDictionary` | `ZstdCompressContext.loadDictionary` / `ZstdDecompressContext.loadDictionary`; `Zstd.newOutputStream(..., ZstdDictionary)` / `Zstd.newInputStream(..., ZstdDictionary)` overloads |
 | `ZSTD_CCtx_refCDict`, `ZSTD_DCtx_refDDict` | `ZstdCompressContext.refDictionary` / `ZstdDecompressContext.refDictionary` |
 | `ZSTD_isFrame`, `ZSTD_findFrameCompressedSize`, `ZSTD_decompressBound`, `ZSTD_getDictID_fromFrame`, `ZSTD_getFrameHeader`, `ZSTD_isSkippableFrame`, `ZSTD_writeSkippableFrame`, `ZSTD_readSkippableFrame` | `ZstdFrame` (+ `ZstdFrameHeader`, `ZstdFrameType`, `ZstdSkippableContent`) |
 | `ZSTD_getErrorCode` | `ZstdException.code()` (+ `ZstdErrorCode`) |
@@ -79,7 +79,7 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 
 ## Roadmap (priority order)
 
-1. ~~**Streaming**~~ — done: `ZstdOutputStream` / `ZstdInputStream` (`byte[]`/`java.io`, `compressStream2`, `decompressStream`, bounded buffers, dictionary constructors, `pledgedSrcSize` via `withPledgedSize`) and `ZstdCompressStream` / `ZstdDecompressStream` (zero-copy `MemorySegment` driver on the same native calls).
+1. ~~**Streaming**~~ — done: `ZstdOutputStream` / `ZstdInputStream` (`byte[]`/`java.io`, `compressStream2`, `decompressStream`, bounded buffers, dictionary overloads, `pledgedSrcSize` via `Zstd.newPledgedOutputStream`) and `ZstdCompressStream` / `ZstdDecompressStream` (zero-copy `MemorySegment` driver on the same native calls).
 2. ~~**Advanced parameters**~~ — done: every `ZSTD_cParameter`/`ZSTD_dParameter` via `ZstdCompressParameter`/`ZstdDecompressParameter` (+ `bounds()`), on both contexts; `pledgedSrcSize`. `nbWorkers` is functional (ADR 0015) and reachable from `ZstdCompressContext.parameter()` and from `ZstdCompressStream.parameter()` / `ZstdOutputStream.parameter()`.
 3. ~~**Frame inspection**~~ — done: `ZstdFrame` (`isFrame`, `header`, `compressedSize`, `decompressedBound`, `decompressedSize`, `dictId`, skippable, `getFrameProgression`); dict-id from raw/CDict/DDict.
 4. ~~**Better dictionaries**~~ — done: COVER / fast-COVER optimizers, `finalizeDictionary`, `getDictHeaderSize`.

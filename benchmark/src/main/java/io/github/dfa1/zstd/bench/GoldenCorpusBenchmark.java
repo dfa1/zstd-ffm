@@ -89,9 +89,9 @@ public class GoldenCorpusBenchmark {
         srcSize = src.length;
         frame = Zstd.compress(src);
 
-        cctx = new ZstdCompressContext().level(new ZstdCompressionLevel(level));
-        dctx = new ZstdDecompressContext();
-        bound = Zstd.compressBound(new ZstdByteSize(srcSize)).toArraySize();
+        cctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(level));
+        dctx = Zstd.newDecompressContext();
+        bound = Zstd.compressBound(ZstdByteSize.of(srcSize)).toArraySize();
 
         arena = Arena.ofConfined();
         srcSeg = arena.allocate(srcSize);
@@ -140,7 +140,7 @@ public class GoldenCorpusBenchmark {
 
     @Benchmark
     public byte[] decompressJavaBytes() {
-        return dctx.decompress(frame, new ZstdByteSize(srcSize));
+        return dctx.decompress(frame, ZstdByteSize.of(srcSize));
     }
 
     @Benchmark

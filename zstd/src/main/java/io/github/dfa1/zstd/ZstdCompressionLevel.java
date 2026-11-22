@@ -14,10 +14,8 @@ package io.github.dfa1.zstd;
 /// own clamping/error behavior.
 ///
 /// Prefer the [#DEFAULT] / [#FASTEST] / [#MAX] constants for those specific
-/// levels; construct directly for any other level.
-///
-/// @param value the raw zstd compression level
-public record ZstdCompressionLevel(int value) {
+/// levels; use [#of(int)] for any other level.
+public final class ZstdCompressionLevel {
 
     // Queried once: the linked libzstd's accepted range is fixed for the life of
     // the process, so caching it here saves two native calls
@@ -34,11 +32,22 @@ public record ZstdCompressionLevel(int value) {
     /// The slowest, highest-ratio level this linked libzstd accepts.
     public static final ZstdCompressionLevel MAX = new ZstdCompressionLevel(MAX_ACCEPTED);
 
-    /// Validates `value` against the linked libzstd's accepted range.
-    public ZstdCompressionLevel {
+    private final int value;
+
+    private ZstdCompressionLevel(int value) {
         if (value < MIN_ACCEPTED || value > MAX_ACCEPTED) {
             throw new IllegalArgumentException("level " + value + " outside [" + MIN_ACCEPTED + ", " + MAX_ACCEPTED + "]");
         }
+        this.value = value;
+    }
+
+    /// Wraps `value`, validating it.
+    ///
+    /// @param value the raw zstd compression level
+    /// @return the new [ZstdCompressionLevel]
+    /// @throws IllegalArgumentException if `value` is outside [#FASTEST]..[#MAX]
+    public static ZstdCompressionLevel of(int value) {
+        return new ZstdCompressionLevel(value);
     }
 
     /// Highest supported compression level, as a naked `int` for internal
@@ -77,5 +86,38 @@ public record ZstdCompressionLevel(int value) {
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
+    }
+
+    /// The raw zstd compression level.
+    ///
+    /// @return the raw zstd compression level
+    public int value() {
+        return value;
+    }
+
+    /// Value equality over all components, as a record would compare them.
+    ///
+    /// @param o the object to compare with
+    /// @return `true` if `o` is a [ZstdCompressionLevel] with equal components
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ZstdCompressionLevel other
+                && value == other.value;
+    }
+
+    /// Hash code consistent with [#equals(Object)].
+    ///
+    /// @return the component-based hash code
+    @Override
+    public int hashCode() {
+        return Integer.hashCode(value);
+    }
+
+    /// Record-style description listing every component.
+    ///
+    /// @return `ZstdCompressionLevel[component=value, ...]`
+    @Override
+    public String toString() {
+        return "ZstdCompressionLevel[value=" + value + "]";
     }
 }

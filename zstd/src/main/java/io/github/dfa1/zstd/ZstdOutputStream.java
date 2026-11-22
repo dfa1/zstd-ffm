@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
@@ -19,7 +20,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// Closing finishes the frame and closes the underlying stream.
 ///
 /// {@snippet :
-/// try (ZstdOutputStream zout = new ZstdOutputStream(Files.newOutputStream(path), new ZstdCompressionLevel(19))) {
+/// try (ZstdOutputStream zout = Zstd.newOutputStream(Files.newOutputStream(path), ZstdCompressionLevel.of(19))) {
 ///     source.transferTo(zout);
 /// }
 /// }
@@ -46,54 +47,70 @@ public final class ZstdOutputStream extends OutputStream {
     private final byte[] single;
     private boolean closed;
 
-    /// Wraps `out`, compressing at the library default level.
-    ///
-    /// @param out the stream to write the compressed frame to
-    public ZstdOutputStream(OutputStream out) {
+    ZstdOutputStream(OutputStream out) {
         this(out, ZstdCompressionLevel.DEFAULT);
     }
 
-    /// Wraps `out`, compressing at `level`.
-    ///
-    /// @param out   the stream to write the compressed frame to
-    /// @param level the compression level to use
-    public ZstdOutputStream(OutputStream out, ZstdCompressionLevel level) {
+    ZstdOutputStream(OutputStream out, ZstdCompressionLevel level) {
         this(out, level, null);
     }
 
-    /// Wraps `out`, compressing against `dictionary` at the default level.
-    ///
-    /// @param out        the stream to write the compressed frame to
-    /// @param dictionary the dictionary to compress against
-    public ZstdOutputStream(OutputStream out, ZstdDictionary dictionary) {
+    ZstdOutputStream(OutputStream out, ZstdDictionary dictionary) {
         this(out, ZstdCompressionLevel.DEFAULT, dictionary);
     }
 
-    /// Wraps `out` and declares the exact total number of bytes that will be
-    /// written, so the frame header records the decompressed size — letting a
-    /// reader use [Zstd#decompress(byte[])] (size known) instead of supplying a
-    /// bound. Writing a different total raises an error when the stream closes.
+    /// Builds a compressing stream that declares `pledgedSrcSize` up front; the
+    /// public entry point is [Zstd#newPledgedOutputStream(OutputStream, ZstdCompressionLevel, ZstdByteSize)].
+    ///
+    /// Arguments are validated before any native allocation, and a failure while
+    /// setting the pledged size releases the native context and arena without
+    /// touching `out`.
     ///
     /// @param out            the stream to write the compressed frame to
     /// @param level          the compression level to use
     /// @param pledgedSrcSize the exact number of uncompressed bytes that will be written
     /// @return a stream that will stamp the content size into the frame
-    public static ZstdOutputStream withPledgedSize(OutputStream out, ZstdCompressionLevel level, ZstdByteSize pledgedSrcSize) {
-        ZstdOutputStream stream = new ZstdOutputStream(out, level);
-        stream.setPledgedSrcSize(pledgedSrcSize.value());
-        return stream;
+    static ZstdOutputStream withPledgedSize(OutputStream out, ZstdCompressionLevel level, ZstdByteSize pledgedSrcSize) {
+        Objects.requireNonNull(out, "out");
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(pledgedSrcSize, "pledgedSrcSize");
+        long size = pledgedSrcSize.value();
+        return initOrRelease(new ZstdOutputStream(out, level), stream -> stream.setPledgedSrcSize(size));
+    }
+
+    /// Runs `init` on a freshly built `stream`; if it throws, frees the stream's
+    /// native resources (without writing to or closing the wrapped stream) and
+    /// rethrows, so a half-configured stream never leaks.
+    ///
+    /// @param stream the newly constructed stream
+    /// @param init   the configuration step to apply
+    /// @return `stream`, once `init` succeeded
+    static ZstdOutputStream initOrRelease(ZstdOutputStream stream, Consumer<ZstdOutputStream> init) {
+        try {
+            init.accept(stream);
+            return stream;
+        } catch (RuntimeException | Error e) {
+            stream.release();
+            throw e;
+        }
+    }
+
+    /// Frees the native context and arena without finishing the frame or closing
+    /// the wrapped stream; later writes fail as on a closed stream.
+    private void release() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        freeCctx(cctx);
+        arena.close();
     }
 
     private void setPledgedSrcSize(long pledgedSrcSize) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PLEDGED_SRC_SIZE.invokeExact(cctx, pledgedSrcSize));
     }
 
-    /// Wraps `out`, compressing against `dictionary` at `level`.
-    ///
-    /// @param out        the stream to write the compressed frame to
-    /// @param level      the compression level to use
-    /// @param dictionary the dictionary to compress against, or `null` for none
-    public ZstdOutputStream(OutputStream out, ZstdCompressionLevel level, ZstdDictionary dictionary) {
+    ZstdOutputStream(OutputStream out, ZstdCompressionLevel level, ZstdDictionary dictionary) {
         this.out = Objects.requireNonNull(out, "out");
         this.arena = Arena.ofConfined();
         this.in = new ZstdStreamBuffer(arena);

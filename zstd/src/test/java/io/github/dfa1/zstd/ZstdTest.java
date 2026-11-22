@@ -100,7 +100,7 @@ class ZstdTest {
         @ValueSource(longs = {0, 1, 1024, 1_000_000})
         void neverUndersizesTheDestination(long srcSize) {
             // When the worst-case bound is queried
-            ZstdByteSize bound = Zstd.compressBound(new ZstdByteSize(srcSize));
+            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(srcSize));
 
             // Then it is at least the input size
             assertThat(bound.value()).isGreaterThanOrEqualTo(srcSize);
@@ -128,7 +128,7 @@ class ZstdTest {
             byte[] frame = Zstd.compress("0123456789".getBytes(StandardCharsets.UTF_8));
 
             // When decompressing into too small a buffer
-            ThrowingCallable result = () -> Zstd.decompress(frame, new ZstdByteSize(1));
+            ThrowingCallable result = () -> Zstd.decompress(frame, ZstdByteSize.of(1));
 
             // Then it fails
             assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -162,7 +162,7 @@ class ZstdTest {
         @Test
         void reportsAVersionAtLeastOne() {
             // Then the linked library is at least 1.0.0 (zstd has been 1.x for years)
-            assertThat(Zstd.version()).isGreaterThanOrEqualTo(new ZstdVersion(1, 0, 0));
+            assertThat(Zstd.version()).isGreaterThanOrEqualTo(ZstdVersion.of(1, 0, 0));
         }
     }
 

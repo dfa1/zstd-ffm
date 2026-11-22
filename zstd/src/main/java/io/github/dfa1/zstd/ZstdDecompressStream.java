@@ -18,16 +18,12 @@ public final class ZstdDecompressStream extends NativeObject {
     private final ZstdStreamBuffer in;
     private final ZstdStreamBuffer out;
 
-    /// Creates a streaming decompressor.
-    public ZstdDecompressStream() {
+    ZstdDecompressStream() {
         this(null);
     }
 
-    /// Creates a streaming decompressor for frames built with `dictionary`.
-    ///
-    /// @param dictionary the dictionary the frames were compressed against, or `null` for none
     @SuppressWarnings("java:S1181") // loadDictionary wraps MethodHandle.invokeExact (throws Throwable); must catch Throwable
-    public ZstdDecompressStream(ZstdDictionary dictionary) {
+    ZstdDecompressStream(ZstdDictionary dictionary) {
         // Own the context first, so any failure setting it up is cleaned up by
         // close() — one release path, no leak on a half-built stream.
         super(createDctx());
@@ -72,7 +68,7 @@ public final class ZstdDecompressStream extends NativeObject {
         out.set(dst, dst.byteSize());
         long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_STREAM.invokeExact(
                 ptr(), out.segment(), in.segment()));
-        return new ZstdStreamResult(in.pos(), out.pos(), remaining);
+        return ZstdStreamResult.of(in.pos(), out.pos(), remaining);
     }
 
     /// Current native memory used by this stream's context, in bytes.
@@ -80,7 +76,7 @@ public final class ZstdDecompressStream extends NativeObject {
     /// @return the live context size
     public ZstdByteSize sizeOf() {
         try {
-            return new ZstdByteSize((long) Bindings.SIZEOF_DCTX.invokeExact(ptr()));
+            return ZstdByteSize.of((long) Bindings.SIZEOF_DCTX.invokeExact(ptr()));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }

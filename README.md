@@ -29,7 +29,7 @@ One-shot round-trip with `byte[]` — the convenient path:
 import io.github.dfa1.zstd.Zstd;
 
 byte[] data = ...;
-byte[] frame = Zstd.compress(data);        // or Zstd.compress(data, new ZstdCompressionLevel(19))
+byte[] frame = Zstd.compress(data);        // or Zstd.compress(data, ZstdCompressionLevel.of(19))
 byte[] back  = Zstd.decompress(frame);     // size read from the frame header
 ```
 
@@ -44,10 +44,10 @@ List<byte[]> samples = ...;                       // representative records
 ZstdDictionary dict = ZstdDictionary.train(samples, ZstdByteSize.ofKiB(8));
 
 byte[] message = ...;
-try (ZstdCompressContext cctx = new ZstdCompressContext();
-     ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+try (ZstdCompressContext cctx = Zstd.newCompressContext();
+     ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
     byte[] frame = cctx.compress(message, dict);
-    byte[] back  = dctx.decompress(frame, message.length, dict);
+    byte[] back  = dctx.decompress(frame, ZstdByteSize.of(message.length), dict);
 }
 ```
 
@@ -58,8 +58,8 @@ import io.github.dfa1.zstd.*;
 import java.lang.foreign.*;
 
 try (Arena arena = Arena.ofConfined();
-     ZstdCompressContext cctx = new ZstdCompressContext();
-     ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+     ZstdCompressContext cctx = Zstd.newCompressContext();
+     ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
 
     MemorySegment src     = ...;                       // e.g. an mmap'd file slice
     MemorySegment frame   = cctx.compress(arena, src); // off-heap → off-heap

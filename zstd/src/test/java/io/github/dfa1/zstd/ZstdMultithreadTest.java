@@ -38,7 +38,7 @@ class ZstdMultithreadTest {
         void roundTripsWithWorkers(int nbWorkers) {
             // Given a context configured with worker threads
             byte[] frame;
-            try (ZstdCompressContext sut = new ZstdCompressContext()) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
                 sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
 
                 // When compressing a payload large enough to engage the workers
@@ -54,7 +54,7 @@ class ZstdMultithreadTest {
             // Given a context with workers but a payload below zstd's 512 KiB
             // MT minimum, where multithreading silently disengages
             byte[] frame;
-            try (ZstdCompressContext sut = new ZstdCompressContext()) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
                 sut.parameter(ZstdCompressParameter.NB_WORKERS, 2);
 
                 // When compressing the small payload
@@ -69,7 +69,7 @@ class ZstdMultithreadTest {
         void honorsJobSizeAndOverlapLog() {
             // Given workers combined with an explicit job size and overlap
             byte[] frame;
-            try (ZstdCompressContext sut = new ZstdCompressContext()) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
                 sut.parameter(ZstdCompressParameter.NB_WORKERS, 2)
                         .parameter(ZstdCompressParameter.JOB_SIZE, 1024 * 1024)
                         .parameter(ZstdCompressParameter.OVERLAP_LOG, 5);
@@ -92,12 +92,12 @@ class ZstdMultithreadTest {
             // Given a segment stream configured with worker threads
             byte[] frame;
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream sut = new ZstdCompressStream()) {
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
                 sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
 
                 // When compressing a payload large enough to engage the workers
                 MemorySegment src = segmentOf(arena, LARGE_PAYLOAD);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(new ZstdByteSize(LARGE_PAYLOAD.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(LARGE_PAYLOAD.length)).value());
                 ZstdStreamResult r = sut.compress(dst, src, ZstdEndDirective.END);
                 frame = bytesOf(dst, r.bytesProduced());
             }
@@ -115,7 +115,7 @@ class ZstdMultithreadTest {
         void roundTripsWithWorkers(int nbWorkers) throws IOException {
             // Given an output stream configured with worker threads
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream sut = new ZstdOutputStream(sink)) {
+            try (ZstdOutputStream sut = Zstd.newOutputStream(sink)) {
                 sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
 
                 // When writing a payload large enough to engage the workers
@@ -123,7 +123,7 @@ class ZstdMultithreadTest {
             }
 
             // Then the frame decompresses back to the original
-            assertThat(Zstd.decompress(sink.toByteArray(), new ZstdByteSize(LARGE_PAYLOAD.length))).isEqualTo(LARGE_PAYLOAD);
+            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(LARGE_PAYLOAD.length))).isEqualTo(LARGE_PAYLOAD);
         }
     }
 
@@ -133,7 +133,7 @@ class ZstdMultithreadTest {
         @Test
         void workerPoolSurvivesReset() {
             // Given a context that compressed once without workers (baseline size)
-            try (ZstdCompressContext sut = new ZstdCompressContext()) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
                 sut.compress(LARGE_PAYLOAD);
                 long baseline = sut.sizeOf().value();
 
@@ -174,7 +174,7 @@ class ZstdMultithreadTest {
             // erroring, unlike most other advanced parameters
             int aboveMax = ZstdCompressParameter.NB_WORKERS.bounds().upperBound() + 1;
             byte[] frame;
-            try (ZstdCompressContext sut = new ZstdCompressContext()) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
                 // When setting it and compressing
                 sut.parameter(ZstdCompressParameter.NB_WORKERS, aboveMax);
                 frame = sut.compress(LARGE_PAYLOAD);
@@ -188,7 +188,7 @@ class ZstdMultithreadTest {
         void clampsNegativeWorkerCountToSingleThreaded() {
             // Given a negative worker count, which zstd clamps to 0
             byte[] frame;
-            try (ZstdCompressContext sut = new ZstdCompressContext()) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
                 // When setting it and compressing
                 sut.parameter(ZstdCompressParameter.NB_WORKERS, -1);
                 frame = sut.compress(SMALL_PAYLOAD);

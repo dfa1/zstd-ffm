@@ -40,7 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ZstdInteropExtrasTest {
 
     private static byte[] javaStreamDecode(byte[] frame) {
-        try (ZstdInputStream in = new ZstdInputStream(new ByteArrayInputStream(frame))) {
+        try (ZstdInputStream in = Zstd.newInputStream(new ByteArrayInputStream(frame))) {
             return in.readAllBytes();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -73,7 +73,7 @@ class ZstdInteropExtrasTest {
         void javaChecksumDecodedByJni() {
             // Given
             byte[] frame;
-            try (io.github.dfa1.zstd.ZstdCompressContext ctx = new io.github.dfa1.zstd.ZstdCompressContext()) {
+            try (io.github.dfa1.zstd.ZstdCompressContext ctx = io.github.dfa1.zstd.Zstd.newCompressContext()) {
                 frame = ctx.checksum(true).compress(DATA);
             }
 
@@ -105,7 +105,7 @@ class ZstdInteropExtrasTest {
         void javaRejectsCorruptedChecksum() {
             // Given
             byte[] frame;
-            try (io.github.dfa1.zstd.ZstdCompressContext ctx = new io.github.dfa1.zstd.ZstdCompressContext()) {
+            try (io.github.dfa1.zstd.ZstdCompressContext ctx = io.github.dfa1.zstd.Zstd.newCompressContext()) {
                 frame = ctx.checksum(true).compress(DATA);
             }
             frame[frame.length / 2] ^= 0x7F;
@@ -129,7 +129,7 @@ class ZstdInteropExtrasTest {
             // Given
             byte[] payload = "after the skippable frame ".repeat(1000).getBytes(StandardCharsets.UTF_8);
             byte[] meta = "sidecar-metadata".getBytes(StandardCharsets.UTF_8);
-            byte[] skippable = ZstdFrame.writeSkippableFrame(meta, new ZstdMagicVariant(0));
+            byte[] skippable = ZstdFrame.writeSkippableFrame(meta, ZstdMagicVariant.of(0));
             byte[] real = Zstd.compress(payload, ZstdCompressionLevel.DEFAULT);
 
             // When
@@ -143,7 +143,7 @@ class ZstdInteropExtrasTest {
         void javaParsesItsOwnSkippableFrameHeader() {
             // Given
             byte[] meta = "sidecar".getBytes(StandardCharsets.UTF_8);
-            byte[] skippable = ZstdFrame.writeSkippableFrame(meta, new ZstdMagicVariant(5));
+            byte[] skippable = ZstdFrame.writeSkippableFrame(meta, ZstdMagicVariant.of(5));
 
             // When
             ZstdFrameHeader header = ZstdFrame.header(skippable);
@@ -212,7 +212,7 @@ class ZstdInteropExtrasTest {
 
             // Then
             assertThat(header.frameType()).isEqualTo(ZstdFrameType.STANDARD);
-            assertThat(header.contentSize()).hasValue(new ZstdByteSize(DATA.length));
+            assertThat(header.contentSize()).hasValue(ZstdByteSize.of(DATA.length));
         }
 
         @Test
@@ -269,7 +269,7 @@ class ZstdInteropExtrasTest {
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
 
             // When
-            try (ZstdOutputStream zout = new ZstdOutputStream(sink, new ZstdCompressionLevel(7))) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink, ZstdCompressionLevel.of(7))) {
                 writeInChunks(zout, data);
             }
 

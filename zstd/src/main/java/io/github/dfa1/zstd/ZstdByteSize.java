@@ -7,13 +7,11 @@ import java.util.Optional;
 ///
 /// Backed by `long` uniformly: some sizes here are native-segment or streaming
 /// totals that can exceed [Integer#MAX_VALUE] (e.g.
-/// [ZstdOutputStream#withPledgedSize(java.io.OutputStream, ZstdCompressionLevel, ZstdByteSize)]),
+/// [Zstd#newPledgedOutputStream(java.io.OutputStream, ZstdCompressionLevel, ZstdByteSize)]),
 /// while others end up sizing a `byte[]` and so must additionally fit an `int`
 /// (e.g. [Zstd#decompress(byte[], ZstdByteSize)]). The latter narrow with
 /// [#toArraySize()] rather than silently truncating.
-///
-/// @param value the byte size or count, non-negative
-public record ZstdByteSize(long value) {
+public final class ZstdByteSize {
 
     // zstd's own sentinels for "not stored" / "error" on a frame-content-size
     // read (ZSTD_CONTENTSIZE_UNKNOWN / ZSTD_CONTENTSIZE_ERROR) — an implementation
@@ -21,11 +19,22 @@ public record ZstdByteSize(long value) {
     private static final long CONTENTSIZE_UNKNOWN = -1L;
     private static final long CONTENTSIZE_ERROR = -2L;
 
-    /// Validates `value` is non-negative.
-    public ZstdByteSize {
+    private final long value;
+
+    private ZstdByteSize(long value) {
         if (value < 0) {
             throw new IllegalArgumentException("size " + value + " must not be negative");
         }
+        this.value = value;
+    }
+
+    /// Wraps `value`, validating it.
+    ///
+    /// @param value the byte size or count, non-negative
+    /// @return the new [ZstdByteSize]
+    /// @throws IllegalArgumentException if `value` is negative
+    public static ZstdByteSize of(long value) {
+        return new ZstdByteSize(value);
     }
 
     /// Narrows this size to an `int`, for callers that must size a `byte[]`.
@@ -41,7 +50,7 @@ public record ZstdByteSize(long value) {
     }
 
     /// `value` KiB (1024 bytes each) — e.g. `ZstdByteSize.ofKiB(8)` for an 8 KiB
-    /// buffer, clearer than spelling out `new ZstdByteSize(8 * 1024)`.
+    /// buffer, clearer than spelling out `ZstdByteSize.of(8 * 1024)`.
     ///
     /// @param value the count of KiB
     /// @return a size of `value * 1024` bytes
@@ -103,5 +112,38 @@ public record ZstdByteSize(long value) {
     /// @return the wrapped size, or empty if the field holds no representable size
     static Optional<ZstdByteSize> fromUnsignedFrameHeaderField(long raw) {
         return raw < 0 ? Optional.empty() : Optional.of(new ZstdByteSize(raw));
+    }
+
+    /// The byte size or count, non-negative.
+    ///
+    /// @return the byte size or count, non-negative
+    public long value() {
+        return value;
+    }
+
+    /// Value equality over all components, as a record would compare them.
+    ///
+    /// @param o the object to compare with
+    /// @return `true` if `o` is a [ZstdByteSize] with equal components
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ZstdByteSize other
+                && value == other.value;
+    }
+
+    /// Hash code consistent with [#equals(Object)].
+    ///
+    /// @return the component-based hash code
+    @Override
+    public int hashCode() {
+        return Long.hashCode(value);
+    }
+
+    /// Record-style description listing every component.
+    ///
+    /// @return `ZstdByteSize[component=value, ...]`
+    @Override
+    public String toString() {
+        return "ZstdByteSize[value=" + value + "]";
     }
 }

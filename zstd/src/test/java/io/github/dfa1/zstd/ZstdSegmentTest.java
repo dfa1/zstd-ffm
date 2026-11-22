@@ -25,11 +25,11 @@ class ZstdSegmentTest {
             byte[] original = "segment payload ".repeat(200).getBytes(StandardCharsets.UTF_8);
 
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressContext cctx = new ZstdCompressContext();
-                 ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                 ZstdCompressContext cctx = Zstd.newCompressContext();
+                 ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
 
                 MemorySegment src = segmentOf(arena, original);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(new ZstdByteSize(original.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
 
                 // When compressed into a caller-sized destination
                 long packedLen = cctx.compress(dst, src);
@@ -37,7 +37,7 @@ class ZstdSegmentTest {
 
                 // Then the frame header reports the original size, and it decodes back
                 ZstdByteSize outLen = Zstd.decompressedSize(frame);
-                assertThat(outLen).isEqualTo(new ZstdByteSize(original.length));
+                assertThat(outLen).isEqualTo(ZstdByteSize.of(original.length));
 
                 MemorySegment out = arena.allocate(outLen.value());
                 long written = dctx.decompress(out, frame);
@@ -55,8 +55,8 @@ class ZstdSegmentTest {
             byte[] original = "arena-sized payload ".repeat(100).getBytes(StandardCharsets.UTF_8);
 
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressContext cctx = new ZstdCompressContext();
-                 ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                 ZstdCompressContext cctx = Zstd.newCompressContext();
+                 ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
 
                 MemorySegment src = segmentOf(arena, original);
 
@@ -81,10 +81,10 @@ class ZstdSegmentTest {
             byte[] sample = "{\"id\":42,\"user\":\"u\",\"active\":true}".getBytes(StandardCharsets.UTF_8);
 
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressContext cctx = new ZstdCompressContext();
-                 ZstdDecompressContext dctx = new ZstdDecompressContext();
-                 ZstdCompressDictionary cdict = new ZstdCompressDictionary(dict);
-                 ZstdDecompressDictionary ddict = new ZstdDecompressDictionary(dict)) {
+                 ZstdCompressContext cctx = Zstd.newCompressContext();
+                 ZstdDecompressContext dctx = Zstd.newDecompressContext();
+                 ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict);
+                 ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(dict)) {
 
                 MemorySegment src = segmentOf(arena, sample);
 
@@ -105,10 +105,10 @@ class ZstdSegmentTest {
             byte[] sample = "{\"id\":99,\"user\":\"u\",\"active\":false}".getBytes(StandardCharsets.UTF_8);
 
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressContext cctx = new ZstdCompressContext();
-                 ZstdDecompressContext dctx = new ZstdDecompressContext();
-                 ZstdCompressDictionary cdict = new ZstdCompressDictionary(dict);
-                 ZstdDecompressDictionary ddict = new ZstdDecompressDictionary(dict)) {
+                 ZstdCompressContext cctx = Zstd.newCompressContext();
+                 ZstdDecompressContext dctx = Zstd.newDecompressContext();
+                 ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict);
+                 ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(dict)) {
 
                 MemorySegment src = segmentOf(arena, sample);
                 MemorySegment frame = cctx.compress(arena, src, cdict);
@@ -130,7 +130,7 @@ class ZstdSegmentTest {
         @Test
         void compressRejectsHeapSource() {
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressContext sut = new ZstdCompressContext()) {
+                 ZstdCompressContext sut = Zstd.newCompressContext()) {
                 // Given a heap-backed source segment handed to the zero-copy API
                 MemorySegment heapSrc = MemorySegment.ofArray(new byte[64]);
                 MemorySegment dst = arena.allocate(64);
@@ -148,7 +148,7 @@ class ZstdSegmentTest {
         @Test
         void decompressRejectsHeapDestination() {
             try (Arena arena = Arena.ofConfined();
-                 ZstdDecompressContext sut = new ZstdDecompressContext()) {
+                 ZstdDecompressContext sut = Zstd.newDecompressContext()) {
                 // Given a heap-backed destination segment handed to the zero-copy API
                 MemorySegment heapDst = MemorySegment.ofArray(new byte[64]);
                 MemorySegment src = arena.allocate(64);
@@ -166,7 +166,7 @@ class ZstdSegmentTest {
         @Test
         void compressRejectsHeapDestination() {
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressContext sut = new ZstdCompressContext()) {
+                 ZstdCompressContext sut = Zstd.newCompressContext()) {
                 // Given a heap-backed destination segment handed to the zero-copy API
                 MemorySegment heapDst = MemorySegment.ofArray(new byte[64]);
                 MemorySegment src = arena.allocate(64);
@@ -184,7 +184,7 @@ class ZstdSegmentTest {
         @Test
         void decompressRejectsHeapSource() {
             try (Arena arena = Arena.ofConfined();
-                 ZstdDecompressContext sut = new ZstdDecompressContext()) {
+                 ZstdDecompressContext sut = Zstd.newDecompressContext()) {
                 // Given a heap-backed source segment handed to the zero-copy API
                 MemorySegment heapSrc = MemorySegment.ofArray(new byte[64]);
                 MemorySegment dst = arena.allocate(64);
@@ -203,8 +203,8 @@ class ZstdSegmentTest {
         void compressWithDictionaryRejectsHeapSource() {
             ZstdDictionary dict = trainDictionary(2000);
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressContext sut = new ZstdCompressContext();
-                 ZstdCompressDictionary cdict = new ZstdCompressDictionary(dict)) {
+                 ZstdCompressContext sut = Zstd.newCompressContext();
+                 ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict)) {
                 // Given a heap-backed source handed to the dictionary zero-copy API
                 MemorySegment heapSrc = MemorySegment.ofArray(new byte[64]);
                 MemorySegment dst = arena.allocate(64);
@@ -223,8 +223,8 @@ class ZstdSegmentTest {
         void compressWithDictionaryRejectsHeapDestination() {
             ZstdDictionary dict = trainDictionary(2000);
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressContext sut = new ZstdCompressContext();
-                 ZstdCompressDictionary cdict = new ZstdCompressDictionary(dict)) {
+                 ZstdCompressContext sut = Zstd.newCompressContext();
+                 ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict)) {
                 // Given a heap-backed destination handed to the dictionary zero-copy API
                 MemorySegment heapDst = MemorySegment.ofArray(new byte[64]);
                 MemorySegment src = arena.allocate(64);
@@ -243,8 +243,8 @@ class ZstdSegmentTest {
         void decompressWithDictionaryRejectsHeapSource() {
             ZstdDictionary dict = trainDictionary(2000);
             try (Arena arena = Arena.ofConfined();
-                 ZstdDecompressContext sut = new ZstdDecompressContext();
-                 ZstdDecompressDictionary ddict = new ZstdDecompressDictionary(dict)) {
+                 ZstdDecompressContext sut = Zstd.newDecompressContext();
+                 ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(dict)) {
                 // Given a heap-backed source handed to the dictionary zero-copy API
                 MemorySegment heapSrc = MemorySegment.ofArray(new byte[64]);
                 MemorySegment dst = arena.allocate(64);
@@ -263,8 +263,8 @@ class ZstdSegmentTest {
         void decompressWithDictionaryRejectsHeapDestination() {
             ZstdDictionary dict = trainDictionary(2000);
             try (Arena arena = Arena.ofConfined();
-                 ZstdDecompressContext sut = new ZstdDecompressContext();
-                 ZstdDecompressDictionary ddict = new ZstdDecompressDictionary(dict)) {
+                 ZstdDecompressContext sut = Zstd.newDecompressContext();
+                 ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(dict)) {
                 // Given a heap-backed destination handed to the dictionary zero-copy API
                 MemorySegment heapDst = MemorySegment.ofArray(new byte[64]);
                 MemorySegment src = arena.allocate(64);

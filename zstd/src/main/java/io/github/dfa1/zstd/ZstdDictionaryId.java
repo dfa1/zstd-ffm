@@ -8,13 +8,16 @@ package io.github.dfa1.zstd;
 /// unsigned magnitude with [#value()]. The value `0` is the sentinel for "no
 /// dictionary id" — a raw/content-only dictionary, or a frame that records none —
 /// exposed as [#NONE] and tested with [#isPresent()].
-///
-/// @param raw the 32-bit id as zstd stores it, possibly negative when read as a
-///            signed `int`; `0` means no id
-public record ZstdDictionaryId(int raw) {
+public final class ZstdDictionaryId {
 
     /// The absent id: no dictionary, or a dictionary with no recorded id.
     public static final ZstdDictionaryId NONE = new ZstdDictionaryId(0);
+
+    private final int raw;
+
+    private ZstdDictionaryId(int raw) {
+        this.raw = raw;
+    }
 
     /// Wraps a raw 32-bit id, returning [#NONE] for `0`.
     ///
@@ -37,5 +40,39 @@ public record ZstdDictionaryId(int raw) {
     /// @return the unsigned id value
     public long value() {
         return Integer.toUnsignedLong(raw);
+    }
+
+    /// The 32-bit id as zstd stores it, possibly negative when read as a signed `int`; `0`
+    /// means no id.
+    ///
+    /// @return the `raw` component
+    public int raw() {
+        return raw;
+    }
+
+    /// Value equality over all components, as a record would compare them.
+    ///
+    /// @param o the object to compare with
+    /// @return `true` if `o` is a [ZstdDictionaryId] with equal components
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ZstdDictionaryId other
+                && raw == other.raw;
+    }
+
+    /// Hash code consistent with [#equals(Object)].
+    ///
+    /// @return the component-based hash code
+    @Override
+    public int hashCode() {
+        return Integer.hashCode(raw);
+    }
+
+    /// Record-style description listing every component.
+    ///
+    /// @return `ZstdDictionaryId[component=value, ...]`
+    @Override
+    public String toString() {
+        return "ZstdDictionaryId[raw=" + raw + "]";
     }
 }

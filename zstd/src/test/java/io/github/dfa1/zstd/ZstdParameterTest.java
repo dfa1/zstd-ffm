@@ -26,9 +26,9 @@ class ZstdParameterTest {
             // Given the same input compressed at the same level with and without a checksum
             byte[] plain;
             byte[] checksummed;
-            try (ZstdCompressContext noSum = new ZstdCompressContext().level(new ZstdCompressionLevel(9));
+            try (ZstdCompressContext noSum = Zstd.newCompressContext().level(ZstdCompressionLevel.of(9));
                  ZstdCompressContext withSum =
-                         new ZstdCompressContext().level(new ZstdCompressionLevel(9)).checksum(true)) {
+                         Zstd.newCompressContext().level(ZstdCompressionLevel.of(9)).checksum(true)) {
                 plain = noSum.compress(PAYLOAD);
                 checksummed = withSum.compress(PAYLOAD);
             }
@@ -42,13 +42,13 @@ class ZstdParameterTest {
         void rejectsCorruptedChecksummedFrame() {
             // Given a checksummed frame with one body byte flipped
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext().checksum(true)) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().checksum(true)) {
                 frame = ctx.compress(PAYLOAD);
             }
             frame[frame.length / 2] ^= 0x01;
 
             // When decompressed
-            ThrowingCallable result = () -> Zstd.decompress(frame, new ZstdByteSize(PAYLOAD.length));
+            ThrowingCallable result = () -> Zstd.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
 
             // Then the integrity check fails
             assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -72,12 +72,12 @@ class ZstdParameterTest {
             System.arraycopy(block, 0, data, block.length + filler.length, block.length);
 
             byte[] withoutLdm;
-            try (ZstdCompressContext ctx = new ZstdCompressContext().level(ZstdCompressionLevel.FASTEST)) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.FASTEST)) {
                 withoutLdm = ctx.compress(data);
             }
             byte[] withLdm;
             try (ZstdCompressContext ctx =
-                         new ZstdCompressContext().level(ZstdCompressionLevel.FASTEST).longDistanceMatching(true)) {
+                         Zstd.newCompressContext().level(ZstdCompressionLevel.FASTEST).longDistanceMatching(true)) {
                 withLdm = ctx.compress(data);
             }
 
@@ -92,7 +92,7 @@ class ZstdParameterTest {
         @Test
         void explicitWindowLogRoundTrips() {
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext().windowLog(new ZstdWindowLog(24))) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().windowLog(ZstdWindowLog.of(24))) {
                 frame = ctx.compress(PAYLOAD);
             }
             assertThat(Zstd.decompress(frame)).isEqualTo(PAYLOAD);
@@ -134,7 +134,7 @@ class ZstdParameterTest {
             // Given a parameter set to a valid in-range value
             int value = Math.max(parameter.bounds().lowerBound(), 1);
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext().parameter(parameter, value)) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().parameter(parameter, value)) {
                 frame = ctx.compress(PAYLOAD);
             }
             // Then the frame still decompresses
@@ -149,16 +149,16 @@ class ZstdParameterTest {
         void windowLogMaxIsAccepted() {
             // Given a decompressor configured with a raised window limit
             byte[] frame = Zstd.compress(PAYLOAD);
-            try (ZstdDecompressContext ctx = new ZstdDecompressContext().windowLogMax(new ZstdWindowLog(31))) {
+            try (ZstdDecompressContext ctx = Zstd.newDecompressContext().windowLogMax(ZstdWindowLog.of(31))) {
                 // Then normal frames still decode
-                assertThat(ctx.decompress(frame, new ZstdByteSize(PAYLOAD.length))).isEqualTo(PAYLOAD);
+                assertThat(ctx.decompress(frame, ZstdByteSize.of(PAYLOAD.length))).isEqualTo(PAYLOAD);
             }
         }
 
         @Test
         void rejectsOutOfRangeValue() {
             // Given a decompression context
-            try (ZstdDecompressContext sut = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
                 // When setting an absurd window-log-max
                 ThrowingCallable result = () -> sut.parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, 99);
 
@@ -176,12 +176,12 @@ class ZstdParameterTest {
             // Given a context used once, then reset for the session only
             byte[] reused;
             byte[] fresh;
-            try (ZstdCompressContext sut = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 sut.compress(PAYLOAD);
                 sut.reset(ZstdResetDirective.SESSION_ONLY);
                 reused = sut.compress(PAYLOAD);
             }
-            try (ZstdCompressContext ctx = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 fresh = ctx.compress(PAYLOAD);
             }
 
@@ -195,12 +195,12 @@ class ZstdParameterTest {
             // Given a level-19 context reset with parameters cleared
             byte[] afterReset;
             byte[] atDefault;
-            try (ZstdCompressContext sut = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 sut.compress(PAYLOAD);
                 sut.reset(directive);
                 afterReset = sut.compress(PAYLOAD);
             }
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 atDefault = ctx.compress(PAYLOAD);
             }
 
@@ -214,7 +214,7 @@ class ZstdParameterTest {
             ZstdDictionary dict =
                     ZstdDictionary.of("dictionary sample payload ".repeat(64).getBytes(StandardCharsets.UTF_8));
             byte[] frame;
-            try (ZstdCompressContext sut = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 sut.compress(PAYLOAD, dict);
                 sut.reset(ZstdResetDirective.SESSION_AND_PARAMETERS);
 
@@ -223,8 +223,8 @@ class ZstdParameterTest {
             }
 
             // Then the frame still round-trips through the same dictionary
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-                assertThat(dctx.decompress(frame, new ZstdByteSize(PAYLOAD.length), dict)).isEqualTo(PAYLOAD);
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
+                assertThat(dctx.decompress(frame, ZstdByteSize.of(PAYLOAD.length), dict)).isEqualTo(PAYLOAD);
             }
         }
 
@@ -232,20 +232,20 @@ class ZstdParameterTest {
         void decompressContextStillDecodesAfterReset() {
             // Given a decompression context reset between frames
             byte[] frame = Zstd.compress(PAYLOAD);
-            try (ZstdDecompressContext sut = new ZstdDecompressContext()) {
-                sut.decompress(frame, new ZstdByteSize(PAYLOAD.length));
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
                 sut.reset(ZstdResetDirective.SESSION_AND_PARAMETERS);
 
                 // Then the next frame still decodes
-                assertThat(sut.decompress(frame, new ZstdByteSize(PAYLOAD.length))).isEqualTo(PAYLOAD);
+                assertThat(sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length))).isEqualTo(PAYLOAD);
             }
         }
 
         @Test
         void resetReturnsTheSameContext() {
             // Given both contexts
-            try (ZstdCompressContext cctx = new ZstdCompressContext();
-                 ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            try (ZstdCompressContext cctx = Zstd.newCompressContext();
+                 ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 // Then reset returns the same instance, for chaining
                 assertThat(cctx.reset(ZstdResetDirective.SESSION_ONLY)).isSameAs(cctx);
                 assertThat(dctx.reset(ZstdResetDirective.SESSION_ONLY)).isSameAs(dctx);
@@ -259,13 +259,13 @@ class ZstdParameterTest {
             ZstdDictionary dict =
                     ZstdDictionary.of("dictionary sample payload ".repeat(64).getBytes(StandardCharsets.UTF_8));
             byte[] afterSessionReset;
-            try (ZstdCompressContext sut = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 sut.compress(PAYLOAD, dict);
                 sut.reset(ZstdResetDirective.SESSION_ONLY);
                 afterSessionReset = sut.compress(PAYLOAD, dict);
             }
             byte[] freshLevel19;
-            try (ZstdCompressContext ctx = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 freshLevel19 = ctx.compress(PAYLOAD, dict);
             }
 
@@ -280,13 +280,13 @@ class ZstdParameterTest {
             ZstdDictionary dict =
                     ZstdDictionary.of("dictionary sample payload ".repeat(64).getBytes(StandardCharsets.UTF_8));
             byte[] afterParameterReset;
-            try (ZstdCompressContext sut = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 sut.compress(PAYLOAD, dict);
                 sut.reset(ZstdResetDirective.PARAMETERS);
                 afterParameterReset = sut.compress(PAYLOAD, dict);
             }
             byte[] freshDefaultLevel;
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 freshDefaultLevel = ctx.compress(PAYLOAD, dict);
             }
 
@@ -297,7 +297,7 @@ class ZstdParameterTest {
         @Test
         void rejectsNullDirective() {
             // Given a compression context
-            try (ZstdCompressContext sut = new ZstdCompressContext()) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
                 // When reset with a null directive
                 ThrowingCallable result = () -> sut.reset(null);
 
@@ -315,8 +315,8 @@ class ZstdParameterTest {
             // Given the level set generically vs via level()
             byte[] viaParam;
             byte[] viaMethod;
-            try (ZstdCompressContext a = new ZstdCompressContext().parameter(ZstdCompressParameter.COMPRESSION_LEVEL, 17);
-                 ZstdCompressContext b = new ZstdCompressContext().level(new ZstdCompressionLevel(17))) {
+            try (ZstdCompressContext a = Zstd.newCompressContext().parameter(ZstdCompressParameter.COMPRESSION_LEVEL, 17);
+                 ZstdCompressContext b = Zstd.newCompressContext().level(ZstdCompressionLevel.of(17))) {
                 viaParam = a.compress(PAYLOAD);
                 viaMethod = b.compress(PAYLOAD);
             }
@@ -328,7 +328,7 @@ class ZstdParameterTest {
         @Test
         void rejectsOutOfRangeValue() {
             // Given a compression context
-            try (ZstdCompressContext sut = new ZstdCompressContext()) {
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
                 // When setting an absurd window log
                 ThrowingCallable result = () -> sut.parameter(ZstdCompressParameter.WINDOW_LOG, 99);
 
@@ -346,8 +346,8 @@ class ZstdParameterTest {
             byte[] atMax;
 
             // When compressing via level() at the minimum and the maximum level
-            try (ZstdCompressContext low = new ZstdCompressContext().level(ZstdCompressionLevel.FASTEST);
-                 ZstdCompressContext high = new ZstdCompressContext().level(ZstdCompressionLevel.MAX)) {
+            try (ZstdCompressContext low = Zstd.newCompressContext().level(ZstdCompressionLevel.FASTEST);
+                 ZstdCompressContext high = Zstd.newCompressContext().level(ZstdCompressionLevel.MAX)) {
                 atMin = low.compress(data);
                 atMax = high.compress(data);
             }

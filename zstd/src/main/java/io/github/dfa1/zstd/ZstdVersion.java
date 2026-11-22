@@ -1,5 +1,7 @@
 package io.github.dfa1.zstd;
 
+import java.util.Objects;
+
 /// The semantic version of the linked libzstd, replacing the split
 /// `String`/`int` version accessors with one comparable value.
 ///
@@ -7,18 +9,31 @@ package io.github.dfa1.zstd;
 /// packed `MAJOR * 10000 + MINOR * 100 + PATCH` number. This type carries both:
 /// the components directly, [#number()] for the packed form, and [#toString()]
 /// for the string. Being [Comparable], it lets callers feature-gate against the
-/// runtime library, e.g. `Zstd.version().compareTo(new ZstdVersion(1, 5, 0)) >= 0`.
-///
-/// @param major the major version component
-/// @param minor the minor version component
-/// @param patch the patch version component
-public record ZstdVersion(int major, int minor, int patch) implements Comparable<ZstdVersion> {
+/// runtime library, e.g. `Zstd.version().compareTo(ZstdVersion.of(1, 5, 0)) >= 0`.
+public final class ZstdVersion implements Comparable<ZstdVersion> {
 
-    /// Validates the components are non-negative.
-    public ZstdVersion {
+    private final int major;
+    private final int minor;
+    private final int patch;
+
+    private ZstdVersion(int major, int minor, int patch) {
         if (major < 0 || minor < 0 || patch < 0) {
             throw new IllegalArgumentException("version " + major + "." + minor + "." + patch + " must not be negative");
         }
+        this.major = major;
+        this.minor = minor;
+        this.patch = patch;
+    }
+
+    /// Creates a [ZstdVersion] from its components, validating them.
+    ///
+    /// @param major the major version component
+    /// @param minor the minor version component
+    /// @param patch the patch version component
+    /// @return the new [ZstdVersion]
+    /// @throws IllegalArgumentException if a component is negative
+    public static ZstdVersion of(int major, int minor, int patch) {
+        return new ZstdVersion(major, minor, patch);
     }
 
     /// Decodes zstd's packed `MAJOR * 10000 + MINOR * 100 + PATCH` version number.
@@ -61,5 +76,46 @@ public record ZstdVersion(int major, int minor, int patch) implements Comparable
     @Override
     public String toString() {
         return major + "." + minor + "." + patch;
+    }
+
+    /// The major version component.
+    ///
+    /// @return the major version component
+    public int major() {
+        return major;
+    }
+
+    /// The minor version component.
+    ///
+    /// @return the minor version component
+    public int minor() {
+        return minor;
+    }
+
+    /// The patch version component.
+    ///
+    /// @return the patch version component
+    public int patch() {
+        return patch;
+    }
+
+    /// Value equality over all components, as a record would compare them.
+    ///
+    /// @param o the object to compare with
+    /// @return `true` if `o` is a [ZstdVersion] with equal components
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ZstdVersion other
+                && major == other.major
+                && minor == other.minor
+                && patch == other.patch;
+    }
+
+    /// Hash code consistent with [#equals(Object)].
+    ///
+    /// @return the component-based hash code
+    @Override
+    public int hashCode() {
+        return Objects.hash(major, minor, patch);
     }
 }

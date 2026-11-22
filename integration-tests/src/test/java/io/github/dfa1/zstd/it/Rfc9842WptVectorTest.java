@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd.it;
 
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
@@ -97,7 +98,7 @@ class Rfc9842WptVectorTest {
         // When
         byte[] frame = Rfc9842Frame.unwrap(dcz, hash);
         byte[] payload;
-        try (ZstdDecompressContext dctx = new ZstdDecompressContext();
+        try (ZstdDecompressContext dctx = Zstd.newDecompressContext();
              ZstdDecompressDictionary dict = dictionary.decompressDict()) {
             payload = dctx.decompress(frame, ZstdByteSize.ofKiB(64), dict);
         }

@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd.rfc9842;
 
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdDecompressContext;
@@ -35,7 +36,7 @@ class Rfc9842FrameTest {
         // Given a dictionary and a frame compressed against it
         ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
         byte[] frame;
-        try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+        try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
             frame = cctx.compress(PAYLOAD, dict);
         }
 
@@ -48,8 +49,8 @@ class Rfc9842FrameTest {
 
         // And it still decompresses correctly through the existing dictionary APIs
         byte[] restored;
-        try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-            restored = dctx.decompress(unwrapped, new ZstdByteSize(PAYLOAD.length), dict);
+        try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
+            restored = dctx.decompress(unwrapped, ZstdByteSize.of(PAYLOAD.length), dict);
         }
         assertThat(restored).isEqualTo(PAYLOAD);
     }
@@ -81,7 +82,7 @@ class Rfc9842FrameTest {
         // Given a frame wrapped against one dictionary
         ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
         byte[] frame;
-        try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+        try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
             frame = cctx.compress(PAYLOAD, dict);
         }
         byte[] dcz = Rfc9842Frame.wrap(frame, dict);
@@ -116,7 +117,7 @@ class Rfc9842FrameTest {
         // Given a skippable frame carrying a 32-byte payload, but under a
         // different magic variant than the one RFC 9842 fixes for dcz
         ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
-        byte[] notADczVariant = ZstdFrame.writeSkippableFrame(new byte[32], new ZstdMagicVariant(3));
+        byte[] notADczVariant = ZstdFrame.writeSkippableFrame(new byte[32], ZstdMagicVariant.of(3));
 
         // When unwrapped
         ThrowingCallable result = () -> Rfc9842Frame.unwrap(notADczVariant, dict);
@@ -132,7 +133,7 @@ class Rfc9842FrameTest {
         // Given a skippable frame with the correct dcz magic variant, but a
         // content length that isn't a 32-byte SHA-256 hash
         ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
-        byte[] wrongLengthHash = ZstdFrame.writeSkippableFrame(new byte[16], new ZstdMagicVariant(14));
+        byte[] wrongLengthHash = ZstdFrame.writeSkippableFrame(new byte[16], ZstdMagicVariant.of(14));
 
         // When unwrapped
         ThrowingCallable result = () -> Rfc9842Frame.unwrap(wrongLengthHash, dict);
@@ -169,7 +170,7 @@ class Rfc9842FrameTest {
             // Given a dictionary and a frame compressed against it
             ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
             byte[] frame;
-            try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
                 frame = cctx.compress(PAYLOAD, dict);
             }
 
@@ -184,8 +185,8 @@ class Rfc9842FrameTest {
 
                 // And it still decompresses correctly through the existing dictionary APIs
                 byte[] restored;
-                try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
-                    restored = dctx.decompress(toArray(unwrapped), new ZstdByteSize(PAYLOAD.length), dict);
+                try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
+                    restored = dctx.decompress(toArray(unwrapped), ZstdByteSize.of(PAYLOAD.length), dict);
                 }
                 assertThat(restored).isEqualTo(PAYLOAD);
             }
@@ -243,7 +244,7 @@ class Rfc9842FrameTest {
             // Given a frame wrapped against one dictionary
             ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
             byte[] frame;
-            try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
                 frame = cctx.compress(PAYLOAD, dict);
             }
 
@@ -283,7 +284,7 @@ class Rfc9842FrameTest {
             // different magic variant than the one RFC 9842 fixes for dcz
             ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
             MemorySegment notADczVariant =
-                    MemorySegment.ofArray(ZstdFrame.writeSkippableFrame(new byte[32], new ZstdMagicVariant(3)));
+                    MemorySegment.ofArray(ZstdFrame.writeSkippableFrame(new byte[32], ZstdMagicVariant.of(3)));
 
             // When unwrapped
             ThrowingCallable result = () -> Rfc9842Frame.unwrap(notADczVariant, dict);
@@ -300,7 +301,7 @@ class Rfc9842FrameTest {
             // content length that isn't a 32-byte SHA-256 hash
             ZstdDictionary dict = ZstdDictionary.of(DICT_BYTES);
             MemorySegment wrongLengthHash =
-                    MemorySegment.ofArray(ZstdFrame.writeSkippableFrame(new byte[16], new ZstdMagicVariant(14)));
+                    MemorySegment.ofArray(ZstdFrame.writeSkippableFrame(new byte[16], ZstdMagicVariant.of(14)));
 
             // When unwrapped
             ThrowingCallable result = () -> Rfc9842Frame.unwrap(wrongLengthHash, dict);

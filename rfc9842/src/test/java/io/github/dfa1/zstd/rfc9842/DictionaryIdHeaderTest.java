@@ -28,7 +28,7 @@ class DictionaryIdHeaderTest {
     @Test
     void roundTripsAValueNeedingEscaping() {
         // Given
-        DictionaryIdHeader sut = new DictionaryIdHeader("has \"quotes\" and \\backslashes\\");
+        DictionaryIdHeader sut = DictionaryIdHeader.of("has \"quotes\" and \\backslashes\\");
 
         // When
         String header = sut.toHeaderValue();
@@ -42,14 +42,14 @@ class DictionaryIdHeaderTest {
     void acceptsExactlyTheMaximumLength() {
         String maxLength = "a".repeat(1024);
 
-        DictionaryIdHeader sut = new DictionaryIdHeader(maxLength);
+        DictionaryIdHeader sut = DictionaryIdHeader.of(maxLength);
 
         assertThat(sut.value()).hasSize(1024);
     }
 
     @Test
     void rejectsOneCharacterOverTheMaximumLength() {
-        ThrowingCallable result = () -> new DictionaryIdHeader("a".repeat(1025));
+        ThrowingCallable result = () -> DictionaryIdHeader.of("a".repeat(1025));
 
         assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
     }
@@ -70,7 +70,7 @@ class DictionaryIdHeaderTest {
 
     @Test
     void constructorRejectsNullValue() {
-        assertThatThrownBy(() -> new DictionaryIdHeader(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> DictionaryIdHeader.of(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test

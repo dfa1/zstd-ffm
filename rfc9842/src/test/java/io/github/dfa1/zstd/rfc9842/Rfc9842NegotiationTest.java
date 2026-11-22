@@ -30,7 +30,7 @@ class Rfc9842NegotiationTest {
         assertThat(sut.useAsDictionary().match()).isEqualTo("/api/*");
         assertThat(sut.useAsDictionary().id()).isEqualTo("test-v1");
         assertThat(sut.availableDictionary()).isEqualTo(AvailableDictionaryHeader.of(ZstdDictionary.of(DICT_BYTES)));
-        assertThat(sut.dictionaryId()).contains(new DictionaryIdHeader("test-v1"));
+        assertThat(sut.dictionaryId()).contains(DictionaryIdHeader.of("test-v1"));
     }
 
     @Test
@@ -66,16 +66,16 @@ class Rfc9842NegotiationTest {
     @Test
     void constructorRejectsNullComponents() {
         ZstdDictionary dictionary = ZstdDictionary.of(DICT_BYTES);
-        UseAsDictionaryHeader useAsDictionary = new UseAsDictionaryHeader("/api/*");
+        UseAsDictionaryHeader useAsDictionary = UseAsDictionaryHeader.of("/api/*");
         AvailableDictionaryHeader availableDictionary = AvailableDictionaryHeader.of(dictionary);
 
-        assertThatThrownBy(() -> new Rfc9842Negotiation(null, useAsDictionary, availableDictionary, Optional.empty()))
+        assertThatThrownBy(() -> Rfc9842Negotiation.of(null, useAsDictionary, availableDictionary, Optional.empty()))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new Rfc9842Negotiation(dictionary, null, availableDictionary, Optional.empty()))
+        assertThatThrownBy(() -> Rfc9842Negotiation.of(dictionary, null, availableDictionary, Optional.empty()))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new Rfc9842Negotiation(dictionary, useAsDictionary, null, Optional.empty()))
+        assertThatThrownBy(() -> Rfc9842Negotiation.of(dictionary, useAsDictionary, null, Optional.empty()))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new Rfc9842Negotiation(dictionary, useAsDictionary, availableDictionary, null))
+        assertThatThrownBy(() -> Rfc9842Negotiation.of(dictionary, useAsDictionary, availableDictionary, null))
                 .isInstanceOf(NullPointerException.class);
     }
 }

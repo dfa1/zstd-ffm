@@ -40,7 +40,7 @@ public final class ZstdFrame {
     /// @throws ZstdException if the input is not a valid frame
     public static ZstdByteSize compressedSize(byte[] data) {
         try (Arena arena = Arena.ofConfined()) {
-            return new ZstdByteSize(compressedSize(Zstd.copyIn(arena, data), data.length));
+            return ZstdByteSize.of(compressedSize(Zstd.copyIn(arena, data), data.length));
         }
     }
 
@@ -50,7 +50,7 @@ public final class ZstdFrame {
     /// @return the byte length of the first frame
     /// @throws ZstdException if the input is not a valid frame
     public static ZstdByteSize compressedSize(MemorySegment data) {
-        return new ZstdByteSize(compressedSize(data, data.byteSize()));
+        return ZstdByteSize.of(compressedSize(data, data.byteSize()));
     }
 
     /// Upper bound on the total decompressed size of all frames in `data`,
@@ -117,7 +117,7 @@ public final class ZstdFrame {
     /// @throws ZstdException if the input is not valid zstd data
     public static ZstdByteSize decompressionMargin(byte[] data) {
         try (Arena arena = Arena.ofConfined()) {
-            return new ZstdByteSize(decompressionMargin(Zstd.copyIn(arena, data), data.length));
+            return ZstdByteSize.of(decompressionMargin(Zstd.copyIn(arena, data), data.length));
         }
     }
 
@@ -128,7 +128,7 @@ public final class ZstdFrame {
     /// @return the in-place decompression margin in bytes
     /// @throws ZstdException if the input is not valid zstd data
     public static ZstdByteSize decompressionMargin(MemorySegment data) {
-        return new ZstdByteSize(decompressionMargin(data, data.byteSize()));
+        return ZstdByteSize.of(decompressionMargin(data, data.byteSize()));
     }
 
     /// Dictionary id recorded in the first frame's header.
@@ -163,7 +163,7 @@ public final class ZstdFrame {
     ///                       is not a valid zstd frame
     public static ZstdByteSize headerSize(byte[] data) {
         try (Arena arena = Arena.ofConfined()) {
-            return new ZstdByteSize(headerSize(Zstd.copyIn(arena, data), data.length));
+            return ZstdByteSize.of(headerSize(Zstd.copyIn(arena, data), data.length));
         }
     }
 
@@ -175,7 +175,7 @@ public final class ZstdFrame {
     /// @throws ZstdException if `data` is too short to determine the header size, or
     ///                       is not a valid zstd frame
     public static ZstdByteSize headerSize(MemorySegment data) {
-        return new ZstdByteSize(headerSize(data, data.byteSize()));
+        return ZstdByteSize.of(headerSize(data, data.byteSize()));
     }
 
     /// Parses the header of the first frame in `data` without decompressing it.
@@ -247,7 +247,7 @@ public final class ZstdFrame {
             MemorySegment dst = arena.allocate(Math.max(frame.length, 1));
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.READ_SKIPPABLE_FRAME.invokeExact(
                     dst, (long) frame.length, magic, src, (long) frame.length));
-            return new ZstdSkippableContent(Zstd.copyOut(dst, written), new ZstdMagicVariant(magic.get(JAVA_INT, 0)));
+            return new ZstdSkippableContent(Zstd.copyOut(dst, written), ZstdMagicVariant.of(magic.get(JAVA_INT, 0)));
         }
     }
 
@@ -258,12 +258,12 @@ public final class ZstdFrame {
             if (remaining != 0) {
                 throw new ZstdException("incomplete frame header: need " + remaining + " more bytes");
             }
-            return new ZstdFrameHeader(
+            return ZstdFrameHeader.of(
                     ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 0)), // contentSize
                     ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 8)), // windowSize
-                    new ZstdByteSize(zfh.get(JAVA_INT, 16) & 0xFFFFFFFFL),            // blockSizeMax
+                    ZstdByteSize.of(zfh.get(JAVA_INT, 16) & 0xFFFFFFFFL),            // blockSizeMax
                     ZstdFrameType.of(zfh.get(JAVA_INT, 20)),                          // frameType
-                    new ZstdByteSize(zfh.get(JAVA_INT, 24)),                          // headerSize
+                    ZstdByteSize.of(zfh.get(JAVA_INT, 24)),                          // headerSize
                     ZstdDictionaryId.of(zfh.get(JAVA_INT, 28)),                       // dictID
                     zfh.get(JAVA_INT, 32) != 0);                                      // checksumFlag
         }

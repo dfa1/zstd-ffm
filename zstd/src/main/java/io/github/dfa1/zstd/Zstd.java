@@ -1,21 +1,55 @@
 package io.github.dfa1.zstd;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
-/// One-shot, stateless zstd compression and decompression over `byte[]`.
+/// Entry point to the library: one-shot compression plus the factories for
+/// every native-backed resource.
 ///
-/// Every method is thread-safe and allocates its own native scratch buffers.
-/// For repeated calls on a hot path, reuse a [ZstdCompressContext] /
-/// [ZstdDecompressContext] instead to avoid re-allocating per call.
+/// ## One-shot
+///
+/// [#compress(byte[])] / [#decompress(byte[])] and friends are stateless and
+/// thread-safe, allocating their own native scratch buffers per call. Frame
+/// probes ([#decompressedSize(MemorySegment)], [#dictId(byte[])]), sizing
+/// ([#compressBound(ZstdByteSize)], the `estimate*` methods), and
+/// [#version()] live here too.
 ///
 /// {@snippet :
 /// byte[] packed   = Zstd.compress("hello world".getBytes());
 /// byte[] restored = Zstd.decompress(packed);
 /// }
+///
+/// ## Contexts
+///
+/// For repeated calls on a hot path, reuse a context from
+/// [#newCompressContext()] / [#newDecompressContext()] instead of re-allocating
+/// per call. Contexts are not thread-safe.
+///
+/// {@snippet :
+/// try (ZstdCompressContext ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
+///     byte[] frame = ctx.compress(payload);
+/// }
+/// }
+///
+/// ## Dictionaries
+///
+/// Digest a [ZstdDictionary] once with [#newCompressDictionary(ZstdDictionary)] /
+/// [#newDecompressDictionary(ZstdDictionary)] (or the [MemorySegment] overloads
+/// for off-heap bytes) and share the result across threads and contexts.
+///
+/// ## Streams
+///
+/// [#newOutputStream(OutputStream)] / [#newInputStream(InputStream)] wrap
+/// `java.io` streams; [#newCompressStream()] / [#newDecompressStream()] drive
+/// zero-copy [MemorySegment] streaming.
+///
+/// Every `new*` factory returns an object that owns native memory: close it,
+/// ideally with try-with-resources.
 public final class Zstd {
 
     /// Compresses `src` at the library default level.
@@ -35,7 +69,7 @@ public final class Zstd {
         Objects.requireNonNull(src, "src");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = copyIn(arena, src);
-            ZstdByteSize bound = compressBound(new ZstdByteSize(src.length));
+            ZstdByteSize bound = compressBound(ZstdByteSize.of(src.length));
             MemorySegment out = arena.allocate(bound.value());
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS.invokeExact(
                     out, bound.value(), in, (long) src.length, level.value()));
@@ -151,7 +185,7 @@ public final class Zstd {
     /// @return the worst-case compressed size for that input
     public static ZstdByteSize compressBound(ZstdByteSize srcSize) {
         try {
-            return new ZstdByteSize((long) Bindings.COMPRESS_BOUND.invokeExact(srcSize.value()));
+            return ZstdByteSize.of((long) Bindings.COMPRESS_BOUND.invokeExact(srcSize.value()));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -176,7 +210,7 @@ public final class Zstd {
     /// @return the estimated context size in bytes
     public static ZstdByteSize estimateCompressContextSize(ZstdCompressionLevel level) {
         try {
-            return new ZstdByteSize((long) Bindings.ESTIMATE_CCTX_SIZE.invokeExact(level.value()));
+            return ZstdByteSize.of((long) Bindings.ESTIMATE_CCTX_SIZE.invokeExact(level.value()));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -187,7 +221,7 @@ public final class Zstd {
     /// @return the estimated context size in bytes
     public static ZstdByteSize estimateDecompressContextSize() {
         try {
-            return new ZstdByteSize((long) Bindings.ESTIMATE_DCTX_SIZE.invokeExact());
+            return ZstdByteSize.of((long) Bindings.ESTIMATE_DCTX_SIZE.invokeExact());
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -201,7 +235,7 @@ public final class Zstd {
     /// @return the estimated digested-dictionary size in bytes
     public static ZstdByteSize estimateCompressDictSize(ZstdByteSize dictSize, ZstdCompressionLevel level) {
         try {
-            return new ZstdByteSize((long) Bindings.ESTIMATE_CDICT_SIZE.invokeExact(dictSize.value(), level.value()));
+            return ZstdByteSize.of((long) Bindings.ESTIMATE_CDICT_SIZE.invokeExact(dictSize.value(), level.value()));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -215,7 +249,7 @@ public final class Zstd {
     public static ZstdByteSize estimateDecompressDictSize(ZstdByteSize dictSize) {
         try {
             // ZSTD_dlm_byCopy
-            return new ZstdByteSize((long) Bindings.ESTIMATE_DDICT_SIZE.invokeExact(dictSize.value(), 0));
+            return ZstdByteSize.of((long) Bindings.ESTIMATE_DDICT_SIZE.invokeExact(dictSize.value(), 0));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -234,6 +268,295 @@ public final class Zstd {
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
+    }
+
+    // --- resource factories: every native-backed object starts here ---
+
+    /// Allocates a reusable compression context at the default level
+    /// ([ZstdCompressionLevel#DEFAULT]).
+    ///
+    /// The context owns native memory: the caller must [ZstdCompressContext#close()]
+    /// it, ideally with try-with-resources. Not thread-safe.
+    ///
+    /// @return a new, open compression context
+    /// @throws ZstdException if the native allocation fails
+    public static ZstdCompressContext newCompressContext() {
+        return new ZstdCompressContext();
+    }
+
+    /// Allocates a reusable decompression context with default parameters.
+    ///
+    /// The context owns native memory: the caller must [ZstdDecompressContext#close()]
+    /// it, ideally with try-with-resources. Not thread-safe.
+    ///
+    /// @return a new, open decompression context
+    /// @throws ZstdException if the native allocation fails
+    public static ZstdDecompressContext newDecompressContext() {
+        return new ZstdDecompressContext();
+    }
+
+    /// Digests `dict` for compression at the library default level, copying its
+    /// bytes into native memory so the source may be discarded afterwards.
+    ///
+    /// The digested dictionary owns native memory: the caller must
+    /// [ZstdCompressDictionary#close()] it. Safe to share across threads.
+    ///
+    /// @param dict the dictionary to digest
+    /// @return a new digested compression dictionary
+    /// @throws NullPointerException if `dict` is `null`
+    /// @throws ZstdException        if the native allocation fails
+    public static ZstdCompressDictionary newCompressDictionary(ZstdDictionary dict) {
+        return new ZstdCompressDictionary(dict);
+    }
+
+    /// Digests `dict` for compression at `level`, copying its bytes into native
+    /// memory so the source may be discarded afterwards.
+    ///
+    /// The digested dictionary owns native memory: the caller must
+    /// [ZstdCompressDictionary#close()] it. Safe to share across threads.
+    ///
+    /// @param dict  the dictionary to digest
+    /// @param level the compression level to fix for this digested dictionary
+    /// @return a new digested compression dictionary
+    /// @throws NullPointerException if `dict` is `null`
+    /// @throws ZstdException        if the native allocation fails
+    public static ZstdCompressDictionary newCompressDictionary(ZstdDictionary dict, ZstdCompressionLevel level) {
+        return new ZstdCompressDictionary(dict, level);
+    }
+
+    /// Digests a native dictionary segment for compression at the library default
+    /// level, without a heap copy.
+    ///
+    /// `dict` must be a native (off-heap) [MemorySegment] — e.g. an mmap slice or
+    /// an arena buffer; its bytes are copied, so the segment may be released once
+    /// this returns. The digested dictionary owns native memory: the caller must
+    /// [ZstdCompressDictionary#close()] it.
+    ///
+    /// @param dict native dictionary content
+    /// @return a new digested compression dictionary
+    /// @throws NullPointerException if `dict` is `null`
+    /// @throws IllegalArgumentException if `dict` is not a native segment
+    /// @throws ZstdException            if the native allocation fails
+    public static ZstdCompressDictionary newCompressDictionary(MemorySegment dict) {
+        return new ZstdCompressDictionary(dict);
+    }
+
+    /// Digests a native dictionary segment for compression at `level`, without a
+    /// heap copy. Heap-backed callers should use
+    /// [#newCompressDictionary(ZstdDictionary, ZstdCompressionLevel)] instead.
+    ///
+    /// `dict` must be a native (off-heap) [MemorySegment]; its bytes are copied, so
+    /// the segment may be released once this returns. The digested dictionary owns
+    /// native memory: the caller must [ZstdCompressDictionary#close()] it.
+    ///
+    /// @param dict  native dictionary content
+    /// @param level the compression level to fix for this digested dictionary
+    /// @return a new digested compression dictionary
+    /// @throws NullPointerException if `dict` is `null`
+    /// @throws IllegalArgumentException if `dict` is not a native segment
+    /// @throws ZstdException            if the native allocation fails
+    public static ZstdCompressDictionary newCompressDictionary(MemorySegment dict, ZstdCompressionLevel level) {
+        return new ZstdCompressDictionary(dict, level);
+    }
+
+    /// Digests `dict` for decompression, copying its bytes into native memory so
+    /// the source may be discarded afterwards.
+    ///
+    /// The digested dictionary owns native memory: the caller must
+    /// [ZstdDecompressDictionary#close()] it. Safe to share across threads.
+    ///
+    /// @param dict the dictionary to digest
+    /// @return a new digested decompression dictionary
+    /// @throws NullPointerException if `dict` is `null`
+    /// @throws ZstdException        if the native allocation fails
+    public static ZstdDecompressDictionary newDecompressDictionary(ZstdDictionary dict) {
+        return new ZstdDecompressDictionary(dict);
+    }
+
+    /// Digests a native dictionary segment for decompression, without a heap copy.
+    /// Heap-backed callers should use [#newDecompressDictionary(ZstdDictionary)].
+    ///
+    /// `dict` must be a native (off-heap) [MemorySegment]; its bytes are copied, so
+    /// the segment may be released once this returns. The digested dictionary owns
+    /// native memory: the caller must [ZstdDecompressDictionary#close()] it.
+    ///
+    /// @param dict native dictionary content
+    /// @return a new digested decompression dictionary
+    /// @throws NullPointerException if `dict` is `null`
+    /// @throws IllegalArgumentException if `dict` is not a native segment
+    /// @throws ZstdException            if the native allocation fails
+    public static ZstdDecompressDictionary newDecompressDictionary(MemorySegment dict) {
+        return new ZstdDecompressDictionary(dict);
+    }
+
+    /// Allocates a zero-copy [MemorySegment] streaming compressor at the default level.
+    ///
+    /// The stream owns native memory: the caller must [ZstdCompressStream#close()]
+    /// it. Not thread-safe.
+    ///
+    /// @return a new, open streaming compressor
+    /// @throws ZstdException if the native allocation fails
+    public static ZstdCompressStream newCompressStream() {
+        return new ZstdCompressStream();
+    }
+
+    /// Allocates a zero-copy [MemorySegment] streaming compressor at `level`.
+    ///
+    /// The stream owns native memory: the caller must [ZstdCompressStream#close()]
+    /// it. Not thread-safe.
+    ///
+    /// @param level the compression level to use
+    /// @return a new, open streaming compressor
+    /// @throws ZstdException if the native allocation or configuration fails
+    public static ZstdCompressStream newCompressStream(ZstdCompressionLevel level) {
+        return new ZstdCompressStream(level);
+    }
+
+    /// Allocates a zero-copy [MemorySegment] streaming compressor at `level`,
+    /// compressing against `dictionary`.
+    ///
+    /// The stream owns native memory: the caller must [ZstdCompressStream#close()]
+    /// it. Not thread-safe.
+    ///
+    /// @param level      the compression level to use
+    /// @param dictionary the dictionary to compress against, or `null` for none
+    /// @return a new, open streaming compressor
+    /// @throws ZstdException if the native allocation, configuration, or dictionary load fails
+    public static ZstdCompressStream newCompressStream(ZstdCompressionLevel level, ZstdDictionary dictionary) {
+        return new ZstdCompressStream(level, dictionary);
+    }
+
+    /// Allocates a zero-copy [MemorySegment] streaming decompressor.
+    ///
+    /// The stream owns native memory: the caller must [ZstdDecompressStream#close()]
+    /// it. Not thread-safe.
+    ///
+    /// @return a new, open streaming decompressor
+    /// @throws ZstdException if the native allocation fails
+    public static ZstdDecompressStream newDecompressStream() {
+        return new ZstdDecompressStream();
+    }
+
+    /// Allocates a zero-copy [MemorySegment] streaming decompressor for frames
+    /// compressed against `dictionary`.
+    ///
+    /// The stream owns native memory: the caller must [ZstdDecompressStream#close()]
+    /// it. Not thread-safe.
+    ///
+    /// @param dictionary the dictionary the frames were compressed against, or `null` for none
+    /// @return a new, open streaming decompressor
+    /// @throws ZstdException if the native allocation or dictionary load fails
+    public static ZstdDecompressStream newDecompressStream(ZstdDictionary dictionary) {
+        return new ZstdDecompressStream(dictionary);
+    }
+
+    /// Wraps `out` in a `java.io` compressing stream at the library default level.
+    ///
+    /// The stream owns native memory: the caller must [ZstdOutputStream#close()] it,
+    /// which finishes the frame and closes `out`.
+    ///
+    /// @param out the stream to write the compressed frame to
+    /// @return a new compressing stream
+    /// @throws NullPointerException if `out` is `null`
+    /// @throws ZstdException        if the native allocation fails
+    public static ZstdOutputStream newOutputStream(OutputStream out) {
+        return new ZstdOutputStream(out);
+    }
+
+    /// Wraps `out` in a `java.io` compressing stream at `level`.
+    ///
+    /// The stream owns native memory: the caller must [ZstdOutputStream#close()] it,
+    /// which finishes the frame and closes `out`.
+    ///
+    /// @param out   the stream to write the compressed frame to
+    /// @param level the compression level to use
+    /// @return a new compressing stream
+    /// @throws NullPointerException if `out` is `null`
+    /// @throws ZstdException        if the native allocation or configuration fails
+    public static ZstdOutputStream newOutputStream(OutputStream out, ZstdCompressionLevel level) {
+        return new ZstdOutputStream(out, level);
+    }
+
+    /// Wraps `out` in a `java.io` compressing stream at the default level,
+    /// compressing against `dictionary`.
+    ///
+    /// The stream owns native memory: the caller must [ZstdOutputStream#close()] it,
+    /// which finishes the frame and closes `out`.
+    ///
+    /// @param out        the stream to write the compressed frame to
+    /// @param dictionary the dictionary to compress against
+    /// @return a new compressing stream
+    /// @throws NullPointerException if `out` is `null`
+    /// @throws ZstdException        if the native allocation or dictionary load fails
+    public static ZstdOutputStream newOutputStream(OutputStream out, ZstdDictionary dictionary) {
+        return new ZstdOutputStream(out, dictionary);
+    }
+
+    /// Wraps `out` in a `java.io` compressing stream at `level`, compressing
+    /// against `dictionary`.
+    ///
+    /// The stream owns native memory: the caller must [ZstdOutputStream#close()] it,
+    /// which finishes the frame and closes `out`.
+    ///
+    /// @param out        the stream to write the compressed frame to
+    /// @param level      the compression level to use
+    /// @param dictionary the dictionary to compress against, or `null` for none
+    /// @return a new compressing stream
+    /// @throws NullPointerException if `out` is `null`
+    /// @throws ZstdException        if the native allocation, configuration, or dictionary load fails
+    public static ZstdOutputStream newOutputStream(OutputStream out, ZstdCompressionLevel level,
+                                                   ZstdDictionary dictionary) {
+        return new ZstdOutputStream(out, level, dictionary);
+    }
+
+    /// Wraps `out` in a `java.io` compressing stream at `level` that declares the
+    /// exact total number of bytes that will be written, so the frame header
+    /// records the decompressed size — letting a reader use [#decompress(byte[])]
+    /// instead of supplying a bound. Writing a different total raises an error
+    /// when the stream closes.
+    ///
+    /// Arguments are validated before any native allocation, and a failure while
+    /// configuring the stream releases it without touching `out`. The stream owns
+    /// native memory: the caller must [ZstdOutputStream#close()] it, which finishes
+    /// the frame and closes `out`.
+    ///
+    /// @param out            the stream to write the compressed frame to
+    /// @param level          the compression level to use
+    /// @param pledgedSrcSize the exact number of uncompressed bytes that will be written
+    /// @return a new compressing stream that stamps the content size into the frame
+    /// @throws NullPointerException if any argument is `null`
+    /// @throws ZstdException        if the native allocation or configuration fails
+    public static ZstdOutputStream newPledgedOutputStream(OutputStream out, ZstdCompressionLevel level,
+                                                          ZstdByteSize pledgedSrcSize) {
+        return ZstdOutputStream.withPledgedSize(out, level, pledgedSrcSize);
+    }
+
+    /// Wraps `in` in a `java.io` stream that decompresses the zstd frames it carries.
+    ///
+    /// The stream owns native memory: the caller must [ZstdInputStream#close()] it,
+    /// which also closes `in`.
+    ///
+    /// @param in the stream to read the compressed frame from
+    /// @return a new decompressing stream
+    /// @throws NullPointerException if `in` is `null`
+    /// @throws ZstdException        if the native allocation fails
+    public static ZstdInputStream newInputStream(InputStream in) {
+        return new ZstdInputStream(in);
+    }
+
+    /// Wraps `in` in a `java.io` stream that decompresses frames compressed against
+    /// `dictionary`.
+    ///
+    /// The stream owns native memory: the caller must [ZstdInputStream#close()] it,
+    /// which also closes `in`.
+    ///
+    /// @param in         the stream to read the compressed frame from
+    /// @param dictionary the dictionary the frame was compressed against, or `null` for none
+    /// @return a new decompressing stream
+    /// @throws NullPointerException if `in` is `null`
+    /// @throws ZstdException        if the native allocation or dictionary load fails
+    public static ZstdInputStream newInputStream(InputStream in, ZstdDictionary dictionary) {
+        return new ZstdInputStream(in, dictionary);
     }
 
     // --- package-private helpers shared with the context classes ---

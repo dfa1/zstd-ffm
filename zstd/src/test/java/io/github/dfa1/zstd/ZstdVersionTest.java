@@ -19,13 +19,13 @@ class ZstdVersionTest {
             ZstdVersion sut = ZstdVersion.ofNumber(10507);
 
             // Then the components are recovered
-            assertThat(sut).isEqualTo(new ZstdVersion(1, 5, 7));
+            assertThat(sut).isEqualTo(ZstdVersion.of(1, 5, 7));
         }
 
         @Test
         void reEncodesToThePackedNumber() {
             // Given a version
-            ZstdVersion sut = new ZstdVersion(1, 5, 7);
+            ZstdVersion sut = ZstdVersion.of(1, 5, 7);
 
             // Then number() is MAJOR * 10000 + MINOR * 100 + PATCH
             assertThat(sut.number()).isEqualTo(10507);
@@ -34,7 +34,7 @@ class ZstdVersionTest {
         @Test
         void rendersAsAnXYZString() {
             // Given a version
-            ZstdVersion sut = new ZstdVersion(1, 6, 0);
+            ZstdVersion sut = ZstdVersion.of(1, 6, 0);
 
             // Then it renders as x.y.z
             assertThat(sut).hasToString("1.6.0");
@@ -47,9 +47,9 @@ class ZstdVersionTest {
         @Test
         void ordersByMajorThenMinorThenPatch() {
             // Then a later patch/minor/major compares greater
-            assertThat(new ZstdVersion(1, 5, 7)).isGreaterThan(new ZstdVersion(1, 5, 6));
-            assertThat(new ZstdVersion(1, 6, 0)).isGreaterThan(new ZstdVersion(1, 5, 9));
-            assertThat(new ZstdVersion(2, 0, 0)).isGreaterThan(new ZstdVersion(1, 9, 9));
+            assertThat(ZstdVersion.of(1, 5, 7)).isGreaterThan(ZstdVersion.of(1, 5, 6));
+            assertThat(ZstdVersion.of(1, 6, 0)).isGreaterThan(ZstdVersion.of(1, 5, 9));
+            assertThat(ZstdVersion.of(2, 0, 0)).isGreaterThan(ZstdVersion.of(1, 9, 9));
         }
     }
 
@@ -59,7 +59,7 @@ class ZstdVersionTest {
         @Test
         void rejectsANegativeComponent() {
             // When a negative patch is wrapped
-            ThrowingCallable result = () -> new ZstdVersion(1, 5, -1);
+            ThrowingCallable result = () -> ZstdVersion.of(1, 5, -1);
 
             // Then it is rejected
             assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
@@ -69,7 +69,7 @@ class ZstdVersionTest {
         void acceptsZeroComponents() {
             // Given every component at its lower boundary
             // When wrapped
-            ZstdVersion sut = new ZstdVersion(0, 0, 0);
+            ZstdVersion sut = ZstdVersion.of(0, 0, 0);
 
             // Then zero is accepted, not rejected as if it were negative
             assertThat(sut.major()).isZero();

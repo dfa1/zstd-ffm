@@ -17,7 +17,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 /// fills, and finish with [ZstdEndDirective#END] until [ZstdStreamResult#isComplete()].
 ///
 /// {@snippet :
-/// try (ZstdCompressStream cs = new ZstdCompressStream(level)) {
+/// try (ZstdCompressStream cs = Zstd.newCompressStream(level)) {
 ///     ZstdStreamResult r;
 ///     do {
 ///         r = cs.compress(dst, src.asSlice(srcOff), ZstdEndDirective.END);
@@ -34,23 +34,15 @@ public final class ZstdCompressStream extends NativeObject {
     private final ZstdStreamBuffer in;
     private final ZstdStreamBuffer out;
 
-    /// Creates a streaming compressor at the default level.
-    public ZstdCompressStream() {
+    ZstdCompressStream() {
         this(ZstdCompressionLevel.DEFAULT);
     }
 
-    /// Creates a streaming compressor at `level`.
-    ///
-    /// @param level the compression level to use
-    public ZstdCompressStream(ZstdCompressionLevel level) {
+    ZstdCompressStream(ZstdCompressionLevel level) {
         this(level, null);
     }
 
-    /// Creates a streaming compressor at `level` using `dictionary`.
-    ///
-    /// @param level      the compression level to use
-    /// @param dictionary the dictionary to compress against, or `null` for none
-    public ZstdCompressStream(ZstdCompressionLevel level, ZstdDictionary dictionary) {
+    ZstdCompressStream(ZstdCompressionLevel level, ZstdDictionary dictionary) {
         // Own the context first, so any failure setting it up is cleaned up by
         // close() — one release path, no leak on a half-built stream.
         super(createCctx());
@@ -115,7 +107,7 @@ public final class ZstdCompressStream extends NativeObject {
         out.set(dst, dst.byteSize());
         long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS_STREAM2.invokeExact(
                 ptr(), out.segment(), in.segment(), directive.value()));
-        return new ZstdStreamResult(in.pos(), out.pos(), remaining);
+        return ZstdStreamResult.of(in.pos(), out.pos(), remaining);
     }
 
     /// A live snapshot of how much this stream has ingested, compressed, produced,
@@ -126,7 +118,7 @@ public final class ZstdCompressStream extends NativeObject {
         try (Arena scratch = Arena.ofConfined()) {
             MemorySegment p = (MemorySegment) Bindings.GET_FRAME_PROGRESSION.invokeExact(
                     (SegmentAllocator) scratch, ptr());
-            return new ZstdFrameProgression(
+            return ZstdFrameProgression.of(
                     p.get(JAVA_LONG, 0),    // ingested
                     p.get(JAVA_LONG, 8),    // consumed
                     p.get(JAVA_LONG, 16),   // produced
@@ -143,7 +135,7 @@ public final class ZstdCompressStream extends NativeObject {
     /// @return the live context size
     public ZstdByteSize sizeOf() {
         try {
-            return new ZstdByteSize((long) Bindings.SIZEOF_CCTX.invokeExact(ptr()));
+            return ZstdByteSize.of((long) Bindings.SIZEOF_CCTX.invokeExact(ptr()));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
