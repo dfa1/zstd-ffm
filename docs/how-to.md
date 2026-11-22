@@ -76,18 +76,10 @@ try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict, ZstdCompres
 }
 ```
 
-`refDictionary` is *not* tied to the context's lifetime — `cdict` is still closed
-separately (hence its own try-with-resources), which is the price of sharing one
-digest across many contexts. Closing `cdict` while a context still references it
-is safe: the context holds its own reference, so the native dictionary is freed
-only once every referencing context has let go too. If you have just **one**
-context, don't build a `ZstdCompressDictionary` at all — `loadDictionary` above digests
-into the context and frees it for you, and a stray, never-closed
-`ZstdCompressDictionary` is still a native-memory leak.
-
-A loaded or referenced dictionary stays until replaced, cleared with `null`,
-superseded by `loadDictionary`/`refPrefix`, or dropped by a parameter `reset`.
-`ZstdDecompressContext` mirrors all of this.
+`cdict` has its own lifetime, so close it separately; with just **one** context,
+use `loadDictionary` instead. `ZstdDecompressContext` mirrors all of this. Why
+sharing works this way, and when a dictionary is released:
+[explanation — dictionary ownership](explanation.md#dictionary-ownership-load-vs-reference).
 
 ## Compress many small payloads with a dictionary
 
@@ -261,10 +253,9 @@ per message to push pending bytes out without closing the frame, and
 next `compress` call starts a new frame on the same stream, so one instance can
 emit a sequence of frames.
 
-This is the zero-copy, zero-allocation answer to "drive zstd from
-`ZSTD_compressBegin`/`compressContinue`/`compressEnd`": that buffer-less C
-API is deprecated upstream in favor of `ZSTD_compressStream2` /
-`ZSTD_CCtx_setParameter`, which is exactly what `ZstdCompressStream` wraps.
+This is also how to drive zstd if you were looking for the buffer-less
+`ZSTD_compressBegin`/`compressContinue`/`compressEnd` API
+([why it isn't bound](explanation.md#why-there-is-no-buffer-less-block-api)).
 
 ## Pledge the size so a streamed frame decodes in one shot
 
@@ -290,9 +281,9 @@ close.
 ## Negotiate and use an RFC 9842 dictionary
 
 `zstd-rfc9842` (a separate module — see the [reference](reference.md#rfc-9842-compression-dictionary-transport))
-implements RFC 9842's `dcz` wire format and header values. It's sans-io: pure
-framing/parsing/hashing, no HTTP client or server — wire it into whatever
-you're already using.
+implements RFC 9842's `dcz` wire format and header values, with no HTTP client
+or server of its own ([why](explanation.md#why-rfc-9842-is-sans-io)) — wire it
+into whatever you're already using.
 
 **Server** — advertise a dictionary once, then wrap every response compressed against it:
 
