@@ -167,7 +167,12 @@ public final class ZstdOutputStream extends OutputStream {
     /// @param value     the value, validated natively against the parameter's bounds
     /// @return `this`, for chaining
     /// @throws ZstdException if the value is out of range for the parameter
+    /// @throws IllegalStateException if this stream is closed
     public ZstdOutputStream parameter(ZstdCompressParameter parameter, int value) {
+        if (closed) {
+            // close() frees the cctx: setting a parameter on it would be a use-after-free
+            throw new IllegalStateException("stream closed");
+        }
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(
                 cctx, parameter.value(), value));
         return this;

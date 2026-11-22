@@ -375,6 +375,21 @@ class ZstdStreamTest {
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("closed");
         }
+
+        @Test
+        void parameterAfterCloseThrowsInsteadOfTouchingTheFreedContext() throws IOException {
+            // Given a closed stream, whose native cctx has been freed
+            ZstdOutputStream sut = Zstd.newOutputStream(new ByteArrayOutputStream());
+            sut.close();
+
+            // When a parameter is set on it
+            ThrowingCallable result = () -> sut.parameter(ZstdCompressParameter.NB_WORKERS, 2);
+
+            // Then it refuses before reaching native code
+            assertThatThrownBy(result)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("stream closed");
+        }
     }
 
     @Nested
