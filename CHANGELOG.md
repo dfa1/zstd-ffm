@@ -6,6 +6,17 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Fixed
+- `ZstdDictionary` dictionary optimization chose the `ZDICT_*_params_t`
+  layout and the native optimizer with two independent conditionals: had they
+  disagreed, a 48-byte `ZDICT_cover_params_t` would have reached
+  `ZDICT_optimizeTrainFromBuffer_fastCover`, which reads and writes back
+  56 bytes, an 8-byte native heap overrun. Each optimizer is now bound to its
+  layout, so the mismatch is unrepresentable. Shipped behavior is unchanged:
+  the conditionals always agreed; only a PIT mutant could split them.
+  ([#141](https://github.com/dfa1/zstd-ffm/issues/141),
+  [#142](https://github.com/dfa1/zstd-ffm/pull/142))
+
 ## [0.15] - 2026-09-29
 
 ### Changed
