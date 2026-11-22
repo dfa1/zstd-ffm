@@ -12,10 +12,11 @@ public abstract class NativeObject implements AutoCloseable {
 
     private final AtomicReference<MemorySegment> ptr;
 
-    /// Takes ownership of a freshly created native pointer.
+    /// Takes ownership of a freshly created native pointer. Package-private:
+    /// only this library's contexts and segment streams extend it.
     ///
     /// @param owningPointer the non-NULL native pointer this object now owns
-    protected NativeObject(MemorySegment owningPointer) {
+    NativeObject(MemorySegment owningPointer) {
         this.ptr = new AtomicReference<>(owningPointer);
     }
 

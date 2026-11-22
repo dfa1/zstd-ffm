@@ -69,17 +69,50 @@ class NativePointerWithRefCountTest {
     }
 
     @Test
-    void borrowerKeepsPointerAliveAfterOwnerCloses() {
+    void borrowerKeepsPointerAliveAfterOwnerClosesButTheHandleIsUnusable() {
+        // Given an object with a borrowed reference on top of the owner's
         TestObject sut = new TestObject();
         sut.retainForTest();
 
-        sut.close(); // releases only the constructor's own reference
-        assertThat(sut.tryCloseCount).hasValue(0);
-        assertThat(sut.ptr()).isEqualTo(POINTER); // still usable through the borrowed reference
+        // When the owner closes it
+        sut.close();
+        ThrowingCallable result = sut::ptr;
 
-        sut.releaseForTest(); // last reference gone
+        // Then the native pointer is not freed, but the closed handle rejects use
+        assertThat(sut.tryCloseCount).hasValue(0);
+        assertThatThrownBy(result)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("closed");
+    }
+
+    @Test
+    void lastBorrowerReleaseFreesThePointerOfAClosedHandle() {
+        // Given a closed handle whose pointer a borrower still holds
+        TestObject sut = new TestObject();
+        sut.retainForTest();
+        sut.close();
+
+        // When the borrower releases its reference
+        sut.releaseForTest();
+
+        // Then the native pointer is freed exactly once
         assertThat(sut.tryCloseCount).hasValue(1);
-        assertThatThrownBy(sut::ptr).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void retainOnAClosedButStillBorrowedHandleThrowsWithoutTakingAReference() {
+        // Given a closed handle still kept alive by one borrower
+        TestObject sut = new TestObject();
+        sut.retainForTest();
+        sut.close();
+
+        // When a new borrower tries to retain it
+        ThrowingCallable result = sut::retainForTest;
+
+        // Then it is rejected, and the existing borrower's release still frees the pointer
+        assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
+        sut.releaseForTest();
+        assertThat(sut.tryCloseCount).hasValue(1);
     }
 
     @Test

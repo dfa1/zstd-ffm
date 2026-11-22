@@ -62,7 +62,7 @@ by reference — no per-call digesting, no copy. It pairs with `reset` for a
 pooled, recycled context:
 
 ```java
-try (ZstdCompressDictionary cdict = dict.compressDict(ZstdCompressionLevel.of(19))) {
+try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict, ZstdCompressionLevel.of(19))) {
     // one cctx per pooled worker, all sharing the one digested dictionary
     try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
         cctx.refDictionary(cdict);          // shared; cdict has its own lifetime
@@ -108,8 +108,8 @@ ZstdDictionary reloaded = ZstdDictionary.of(persisted);
 On a hot path, digest the dictionary once to skip per-call setup:
 
 ```java
-try (ZstdCompressDictionary cdict = dict.compressDict(ZstdCompressionLevel.of(19));
-     ZstdDecompressDictionary ddict = dict.decompressDict();
+try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict, ZstdCompressionLevel.of(19));
+     ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(dict);
      ZstdCompressContext cctx = Zstd.newCompressContext();
      ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
     byte[] packed   = cctx.compress(record, cdict);

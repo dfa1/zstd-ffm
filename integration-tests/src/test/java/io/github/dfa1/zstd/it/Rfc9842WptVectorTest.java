@@ -99,7 +99,7 @@ class Rfc9842WptVectorTest {
         byte[] frame = Rfc9842Frame.unwrap(dcz, hash);
         byte[] payload;
         try (ZstdDecompressContext dctx = Zstd.newDecompressContext();
-             ZstdDecompressDictionary dict = dictionary.decompressDict()) {
+             ZstdDecompressDictionary dict = Zstd.newDecompressDictionary(dictionary)) {
             payload = dctx.decompress(frame, ZstdByteSize.ofKiB(64), dict);
         }
 

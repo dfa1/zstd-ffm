@@ -289,8 +289,8 @@ class SmokeTest {
 
     @Test
     void digestedDictionaries() {
-        try (ZstdCompressDictionary cdict = dict.compressDict();
-             ZstdDecompressDictionary ddict = dict.decompressDict();
+        try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict);
+             ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(dict);
              ZstdCompressContext cctx = Zstd.newCompressContext();
              ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
             byte[] compressed = cctx.compress(message, cdict);

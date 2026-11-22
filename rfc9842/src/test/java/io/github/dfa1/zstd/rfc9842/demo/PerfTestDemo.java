@@ -101,7 +101,7 @@ public final class PerfTestDemo {
             // single call. Passing the raw ZstdDictionary there on every request was silently
             // taxing the dcz tier's decode cost here, the same bug fixed server-side earlier.
             try (ZstdDecompressContext dctx = Zstd.newDecompressContext();
-                 ZstdDecompressDictionary decompressDictionary = negotiated.dictionary().decompressDict()) {
+                 ZstdDecompressDictionary decompressDictionary = Zstd.newDecompressDictionary(negotiated.dictionary())) {
                 runAllTiers(size, DATA, http, dctx, decompressDictionary, negotiated);
             }
         }

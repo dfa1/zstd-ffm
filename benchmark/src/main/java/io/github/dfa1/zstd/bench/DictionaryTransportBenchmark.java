@@ -87,8 +87,8 @@ public class DictionaryTransportBenchmark {
             trainingSamples.add(eventBatch(targetBytes, trainingRandom));
         }
         dictionary = ZstdDictionary.train(trainingSamples, MAX_DICT_BYTES);
-        compressDictionary = dictionary.compressDict();
-        decompressDictionary = dictionary.decompressDict();
+        compressDictionary = Zstd.newCompressDictionary(dictionary);
+        decompressDictionary = Zstd.newDecompressDictionary(dictionary);
         availableDictionary = AvailableDictionaryHeader.of(dictionary);
         cctx = Zstd.newCompressContext();
         dctx = Zstd.newDecompressContext();

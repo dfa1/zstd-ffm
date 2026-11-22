@@ -80,7 +80,7 @@ public final class Rfc9842ClientDemo {
 
             // Step 2 & 3: fetch data, advertising the dictionary when it applies.
             try (ZstdDecompressContext dctx = Zstd.newDecompressContext();
-                 ZstdDecompressDictionary decompressDictionary = negotiated.dictionary().decompressDict()) {
+                 ZstdDecompressDictionary decompressDictionary = Zstd.newDecompressDictionary(negotiated.dictionary())) {
                 for (int i = 0; i < 3; i++) {
                     fetchData(http, dataRequest, dctx, negotiated.availableDictionary(), decompressDictionary);
                 }

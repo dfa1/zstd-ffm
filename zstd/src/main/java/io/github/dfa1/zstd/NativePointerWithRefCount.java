@@ -22,20 +22,26 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
     private final AtomicBoolean closed;
 
     /// Takes the first reference on a freshly created native pointer.
+    /// Package-private: only this library's digested dictionaries extend it.
     ///
     /// @param owningPointer the non-NULL native pointer this object now shares ownership of
-    protected NativePointerWithRefCount(MemorySegment owningPointer) {
+    NativePointerWithRefCount(MemorySegment owningPointer) {
         this.ptr = owningPointer;
         this.refCount = new AtomicInteger(1); // the constructor's own reference
         this.closed = new AtomicBoolean(false);
     }
 
-    /// Returns the live native pointer, failing if every reference has already been released.
+    /// Returns the live native pointer, failing once this handle is closed.
+    ///
+    /// A closed handle is unusable even while borrowers that retained it (e.g. a
+    /// context holding it via `refDictionary`) keep the native pointer alive:
+    /// those borrowers hold the pointer itself, not this accessor.
     ///
     /// @return the live native pointer
-    /// @throws IllegalStateException if the last reference has already been released
+    /// @throws IllegalStateException if this handle was closed, or the last
+    ///                               reference has already been released
     protected final MemorySegment ptr() {
-        if (refCount.get() == 0) {
+        if (closed.get() || refCount.get() == 0) {
             throw new IllegalStateException("native object is closed");
         }
         return ptr;
@@ -43,9 +49,13 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
 
     /// Acquires a new reference on top of the constructor's own.
     ///
-    /// @throws IllegalStateException if the last reference has already been released —
-    ///                                a released count never resurrects
+    /// @throws IllegalStateException if this handle was closed, or the last
+    ///                               reference has already been released — a
+    ///                               released count never resurrects
     void retain() {
+        if (closed.get()) {
+            throw new IllegalStateException("native object is closed");
+        }
         if (refCount.getAndUpdate(c -> c == 0 ? 0 : c + 1) == 0) {
             throw new IllegalStateException("native object is closed");
         }

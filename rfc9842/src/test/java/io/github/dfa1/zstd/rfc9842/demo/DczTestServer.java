@@ -95,7 +95,7 @@ final class DczTestServer implements AutoCloseable {
         String expectedAvailableDictionary = availableDictionary.toHeaderValue();
         String useAsDictionary = UseAsDictionaryHeader.of("/api/*", DICTIONARY_ID).toHeaderValue();
 
-        this.compressDictionary = dictionary.compressDict(level);
+        this.compressDictionary = Zstd.newCompressDictionary(dictionary, level);
         this.cctx = Zstd.newCompressContext().level(level);
         ZstdCompressContext cctxRef = this.cctx;
         ZstdCompressDictionary compressDictionaryRef = this.compressDictionary;

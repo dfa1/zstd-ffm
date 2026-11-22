@@ -320,9 +320,9 @@ class ZstdDictionaryTest {
     class Factories {
 
         @Test
-        void compressDictFixesTheRequestedLevel() {
+        void newCompressDictionaryFixesTheRequestedLevel() {
             // When a digested compress dictionary is built via the factory
-            try (ZstdCompressDictionary cdict = sut.compressDict(ZstdCompressionLevel.of(19))) {
+            try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(sut, ZstdCompressionLevel.of(19))) {
                 // Then it carries that level and the dictionary's id
                 assertThat(cdict.level()).isEqualTo(ZstdCompressionLevel.of(19));
                 assertThat(cdict.id()).isEqualTo(sut.id());
@@ -330,18 +330,18 @@ class ZstdDictionaryTest {
         }
 
         @Test
-        void compressDictDefaultsToTheLibraryLevel() {
+        void newCompressDictionaryDefaultsToTheLibraryLevel() {
             // When built without a level
-            try (ZstdCompressDictionary cdict = sut.compressDict()) {
+            try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(sut)) {
                 // Then it uses the library default
                 assertThat(cdict.level()).isEqualTo(ZstdCompressionLevel.DEFAULT);
             }
         }
 
         @Test
-        void decompressDictReportsTheDictionaryId() {
+        void newDecompressDictionaryReportsTheDictionaryId() {
             // When a digested decompress dictionary is built via the factory
-            try (ZstdDecompressDictionary ddict = sut.decompressDict()) {
+            try (ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(sut)) {
                 // Then it carries the dictionary's id
                 assertThat(ddict.id()).isEqualTo(sut.id());
             }
@@ -355,8 +355,8 @@ class ZstdDictionaryTest {
             byte[] restored;
             try (ZstdCompressContext cctx = Zstd.newCompressContext();
                  ZstdDecompressContext dctx = Zstd.newDecompressContext();
-                 ZstdCompressDictionary cdict = sut.compressDict(ZstdCompressionLevel.of(19));
-                 ZstdDecompressDictionary ddict = sut.decompressDict()) {
+                 ZstdCompressDictionary cdict = Zstd.newCompressDictionary(sut, ZstdCompressionLevel.of(19));
+                 ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(sut)) {
 
                 // When round-tripped through them
                 byte[] frame = cctx.compress(sample, cdict);

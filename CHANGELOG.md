@@ -21,6 +21,13 @@ git tags, which trigger publication to Maven Central.
     `Zstd.newOutputStream(out, level)`, and so on.
   - `ZstdOutputStream.withPledgedSize(OutputStream, ZstdCompressionLevel, ZstdByteSize)`
     moved to `Zstd.newPledgedOutputStream(...)` (same parameters).
+  - `ZstdDictionary.compressDict()`, `compressDict(ZstdCompressionLevel)`, and
+    `decompressDict()` are removed: `Zstd` is the only way to create a
+    resource. Use `Zstd.newCompressDictionary(dict)`,
+    `Zstd.newCompressDictionary(dict, level)`, and
+    `Zstd.newDecompressDictionary(dict)`.
+  - `NativeObject` and `NativePointerWithRefCount` can no longer be subclassed
+    outside the library (their constructors are package-private).
   - Value types are now `final` classes instead of records, built with
     `of(...)`: `ZstdCompressionLevel.of(int)`, `ZstdByteSize.of(long)`,
     `ZstdWindowLog.of(int)`, `ZstdMagicVariant.of(int)`,
@@ -40,6 +47,12 @@ git tags, which trigger publication to Maven Central.
 - `Zstd.newPledgedOutputStream` (formerly `ZstdOutputStream.withPledgedSize`)
   no longer leaks the native context and buffers when configuring the pledged
   size fails, and rejects a `null` size before allocating anything.
+- A closed `ZstdCompressDictionary` / `ZstdDecompressDictionary` now throws
+  `IllegalStateException` on use (`id()`, `sizeOf()`, passing it to
+  `compress`/`decompress`/`refDictionary`) even while a context that
+  referenced it keeps the native dictionary alive. Previously the closed handle
+  kept working until the last context let go. Contexts that retained the
+  dictionary are unaffected.
 
 ## [0.15] - 2026-09-29
 
