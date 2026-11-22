@@ -320,7 +320,11 @@ final class DczTestServer implements AutoCloseable {
     /// this exists instead of Jetty's own `ConnectionStatistics`.
     private static final class WireByteCounter implements Connection.Listener {
 
-        private final List<Connection> connections = new CopyOnWriteArrayList<>();
+        private final List<Connection> connections;
+
+        WireByteCounter() {
+            this.connections = new CopyOnWriteArrayList<>();
+        }
 
         @Override
         public void onOpened(Connection connection) {

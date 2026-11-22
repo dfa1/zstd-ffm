@@ -18,14 +18,16 @@ import java.util.function.Consumer;
 public abstract class NativePointerWithRefCount implements AutoCloseable {
 
     private final MemorySegment ptr;
-    private final AtomicInteger refCount = new AtomicInteger(1); // the constructor's own reference
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicInteger refCount;
+    private final AtomicBoolean closed;
 
     /// Takes the first reference on a freshly created native pointer.
     ///
     /// @param owningPointer the non-NULL native pointer this object now shares ownership of
     protected NativePointerWithRefCount(MemorySegment owningPointer) {
         this.ptr = owningPointer;
+        this.refCount = new AtomicInteger(1); // the constructor's own reference
+        this.closed = new AtomicBoolean(false);
     }
 
     /// Returns the live native pointer, failing if every reference has already been released.

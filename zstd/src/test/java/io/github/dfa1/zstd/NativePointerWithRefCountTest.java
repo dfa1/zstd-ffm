@@ -16,10 +16,11 @@ class NativePointerWithRefCountTest {
 
     private static class TestObject extends NativePointerWithRefCount {
 
-        final AtomicInteger tryCloseCount = new AtomicInteger();
+        final AtomicInteger tryCloseCount;
 
         TestObject() {
             super(POINTER);
+            this.tryCloseCount = new AtomicInteger();
         }
 
         @Override

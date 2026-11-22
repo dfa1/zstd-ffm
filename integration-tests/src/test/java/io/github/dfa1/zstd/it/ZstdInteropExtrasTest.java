@@ -67,22 +67,22 @@ class ZstdInteropExtrasTest {
     @Nested
     class Checksum {
 
-        private final byte[] data = "checksum payload ".repeat(4096).getBytes(StandardCharsets.UTF_8);
+        private static final byte[] DATA = "checksum payload ".repeat(4096).getBytes(StandardCharsets.UTF_8);
 
         @Test
         void javaChecksumDecodedByJni() {
             // Given
             byte[] frame;
             try (io.github.dfa1.zstd.ZstdCompressContext ctx = new io.github.dfa1.zstd.ZstdCompressContext()) {
-                frame = ctx.checksum(true).compress(data);
+                frame = ctx.checksum(true).compress(DATA);
             }
 
             // When
-            byte[] restored = com.github.luben.zstd.Zstd.decompress(frame, data.length);
+            byte[] restored = com.github.luben.zstd.Zstd.decompress(frame, DATA.length);
 
             // Then
             assertThat(ZstdFrame.header(frame).hasChecksum()).isTrue();
-            assertThat(restored).isEqualTo(data);
+            assertThat(restored).isEqualTo(DATA);
         }
 
         @Test
@@ -90,7 +90,7 @@ class ZstdInteropExtrasTest {
             // Given
             byte[] frame;
             try (ZstdCompressCtx ctx = new ZstdCompressCtx()) {
-                frame = ctx.setChecksum(true).compress(data);
+                frame = ctx.setChecksum(true).compress(DATA);
             }
 
             // When
@@ -98,7 +98,7 @@ class ZstdInteropExtrasTest {
 
             // Then
             assertThat(ZstdFrame.header(frame).hasChecksum()).isTrue();
-            assertThat(restored).isEqualTo(data);
+            assertThat(restored).isEqualTo(DATA);
         }
 
         @Test
@@ -106,7 +106,7 @@ class ZstdInteropExtrasTest {
             // Given
             byte[] frame;
             try (io.github.dfa1.zstd.ZstdCompressContext ctx = new io.github.dfa1.zstd.ZstdCompressContext()) {
-                frame = ctx.checksum(true).compress(data);
+                frame = ctx.checksum(true).compress(DATA);
             }
             frame[frame.length / 2] ^= 0x7F;
 
@@ -160,35 +160,35 @@ class ZstdInteropExtrasTest {
     @Nested
     class MultiFrame {
 
-        private final byte[] a = "first frame body ".repeat(2000).getBytes(StandardCharsets.UTF_8);
-        private final byte[] b = "second frame body ".repeat(2000).getBytes(StandardCharsets.UTF_8);
+        private static final byte[] FIRST = "first frame body ".repeat(2000).getBytes(StandardCharsets.UTF_8);
+        private static final byte[] SECOND = "second frame body ".repeat(2000).getBytes(StandardCharsets.UTF_8);
 
         @Test
         void javaFramesConcatReadByJniStream() {
             // Given
             byte[] joined = concat(
-                    Zstd.compress(a, ZstdCompressionLevel.DEFAULT),
-                    Zstd.compress(b, ZstdCompressionLevel.DEFAULT));
+                    Zstd.compress(FIRST, ZstdCompressionLevel.DEFAULT),
+                    Zstd.compress(SECOND, ZstdCompressionLevel.DEFAULT));
 
             // When
             byte[] restored = jniStreamDecode(joined);
 
             // Then
-            assertThat(restored).isEqualTo(concat(a, b));
+            assertThat(restored).isEqualTo(concat(FIRST, SECOND));
         }
 
         @Test
         void jniFramesConcatReadByJavaStream() {
             // Given
             byte[] joined = concat(
-                    com.github.luben.zstd.Zstd.compress(a, ZstdCompressionLevel.DEFAULT.value()),
-                    com.github.luben.zstd.Zstd.compress(b, ZstdCompressionLevel.DEFAULT.value()));
+                    com.github.luben.zstd.Zstd.compress(FIRST, ZstdCompressionLevel.DEFAULT.value()),
+                    com.github.luben.zstd.Zstd.compress(SECOND, ZstdCompressionLevel.DEFAULT.value()));
 
             // When
             byte[] restored = javaStreamDecode(joined);
 
             // Then
-            assertThat(restored).isEqualTo(concat(a, b));
+            assertThat(restored).isEqualTo(concat(FIRST, SECOND));
         }
     }
 
@@ -197,14 +197,14 @@ class ZstdInteropExtrasTest {
     @Nested
     class FrameHeader {
 
-        private final byte[] data = "header introspection ".repeat(3000).getBytes(StandardCharsets.UTF_8);
+        private static final byte[] DATA = "header introspection ".repeat(3000).getBytes(StandardCharsets.UTF_8);
 
         @Test
         void javaReadsContentSizeFromJniFrame() {
             // Given
             byte[] frame;
             try (ZstdCompressCtx ctx = new ZstdCompressCtx()) {
-                frame = ctx.setContentSize(true).compress(data);
+                frame = ctx.setContentSize(true).compress(DATA);
             }
 
             // When
@@ -212,7 +212,7 @@ class ZstdInteropExtrasTest {
 
             // Then
             assertThat(header.frameType()).isEqualTo(ZstdFrameType.STANDARD);
-            assertThat(header.contentSize()).hasValue(new ZstdByteSize(data.length));
+            assertThat(header.contentSize()).hasValue(new ZstdByteSize(DATA.length));
         }
 
         @Test

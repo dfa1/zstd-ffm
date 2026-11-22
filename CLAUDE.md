@@ -97,6 +97,8 @@ Never mutate `~/.m2/repository` by hand either.
 - 4-space indent, **zero SonarQube bugs/smells**, no `sun.misc.Unsafe` or internal JDK APIs.
 - Prefer explicit over clever; fail fast on unhandled cases.
 - Always braces for `if`/`else`/`for`/`while`, even one-liners (`if (c) { return a; }`).
+- Instance fields are assigned in the constructor; only `static` fields may be initialized
+  inline (checkstyle `MatchXpath`). Immutable test fixtures become `static final` constants.
 - **Time quantities use `java.time.Duration`, never `long`** (no `long timeoutMs`/`delayNanos`).
   Exception: low-level JDK interop taking `long ns` (`Thread.sleep`, `LockSupport.parkNanos`,
   `System.nanoTime` math) — convert at the call site via `duration.toNanos()`/`toMillis()`.
