@@ -12,6 +12,11 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 ///
 /// Each method has a `byte[]` form and a zero-copy [MemorySegment] form for
 /// data already off-heap (e.g. an mmap slice); see `docs/explanation.md`.
+///
+/// All methods assume the standard frame format. Magicless frames (see
+/// [ZstdCompressContext#magicless(boolean)]) are not recognized: [#isZstdFrame(byte[])]
+/// returns `false`, [#dictId(byte[])] returns [ZstdDictionaryId#NONE], and the
+/// size and header queries throw [ZstdException].
 public final class ZstdFrame {
 
     /// Tests whether `data` begins with a valid zstd frame (standard or skippable).

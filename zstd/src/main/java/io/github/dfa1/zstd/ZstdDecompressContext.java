@@ -69,6 +69,23 @@ public final class ZstdDecompressContext extends NativeObject {
         return parameter(ZstdDecompressParameter.FORCE_IGNORE_CHECKSUM, enabled ? 1 : 0);
     }
 
+    /// Accepts only magicless frames, which omit the 4-byte magic number, as
+    /// written by [ZstdCompressContext#magicless(boolean)]. Off by default; while
+    /// on, standard frames are rejected.
+    ///
+    /// **Experimental** in upstream zstd. The [ZstdFrame] inspection helpers
+    /// assume the standard format, so the overloads that read the decompressed
+    /// size from the frame header — [#decompress(byte[])] and
+    /// [#decompress(Arena, MemorySegment)] — reject magicless frames: supply the
+    /// size with [#decompress(byte[], ZstdByteSize)] or
+    /// [#decompress(MemorySegment, MemorySegment)].
+    ///
+    /// @param enabled whether to expect magicless frames
+    /// @return `this`, for chaining
+    public ZstdDecompressContext magicless(boolean enabled) {
+        return parameter(ZstdDecompressParameter.FORMAT, enabled ? 1 : 0);
+    }
+
     /// Resets this context so it can be reused for the next frame without the
     /// cost of freeing and recreating its native state.
     ///

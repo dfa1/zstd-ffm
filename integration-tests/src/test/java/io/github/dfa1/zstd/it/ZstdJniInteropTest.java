@@ -282,4 +282,58 @@ class ZstdJniInteropTest {
             assertThat(restored).isEqualTo(data);
         }
     }
+
+    /// Magicless frames (`ZSTD_f_zstd1_magicless`) against zstd-jni's `setMagicless`.
+    @Nested
+    class Magicless {
+
+        static Stream<byte[]> payloads() {
+            Random r = new Random(0x4D41_4749L);
+            List<byte[]> cases = new ArrayList<>();
+            cases.add(new byte[0]);
+            for (int i = 0; i < 10; i++) {
+                int size = r.nextInt(64 * 1024);
+                cases.add(i % 2 == 0 ? compressible(r, size) : random(r, size));
+            }
+            return cases.stream();
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void jniMagiclessCompressJavaMagiclessDecompress(byte[] data) {
+            // Given a magicless frame from zstd-jni
+            byte[] frame;
+            try (var jni = new com.github.luben.zstd.ZstdCompressCtx()) {
+                frame = jni.setMagicless(true).compress(data);
+            }
+
+            // When decoding it with a magicless zstd-ffm context
+            byte[] restored;
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext().magicless(true)) {
+                restored = sut.decompress(frame, ZstdByteSize.of(data.length));
+            }
+
+            // Then the input comes back
+            assertThat(restored).isEqualTo(data);
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void javaMagiclessCompressJniMagiclessDecompress(byte[] data) {
+            // Given a magicless frame from zstd-ffm
+            byte[] frame;
+            try (ZstdCompressContext sut = Zstd.newCompressContext().magicless(true)) {
+                frame = sut.compress(data);
+            }
+
+            // When decoding it with a magicless zstd-jni context
+            byte[] restored;
+            try (var jni = new com.github.luben.zstd.ZstdDecompressCtx()) {
+                restored = jni.setMagicless(true).decompress(frame, data.length);
+            }
+
+            // Then the input comes back
+            assertThat(restored).isEqualTo(data);
+        }
+    }
 }

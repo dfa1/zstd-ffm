@@ -136,6 +136,118 @@ class ZstdParameterTest {
     }
 
     @Nested
+    class Magicless {
+
+        @Test
+        void roundTripsWhenBothSidesAreMagicless() {
+            // Given a magicless frame
+            byte[] frame = compressMagicless(PAYLOAD);
+
+            // When decoding with a magicless decompressor
+            byte[] restored;
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext().magicless(true)) {
+                restored = sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+            }
+
+            // Then the input comes back
+            assertThat(restored).isEqualTo(PAYLOAD);
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {0, 1, 1000})
+        void isExactlyFourBytesShorterThanTheStandardFrame(int size) {
+            // Given the same input
+            byte[] input = randomBytes(size, size);
+
+            // When compressed in both formats
+            byte[] standard;
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
+                standard = ctx.compress(input);
+            }
+            byte[] magicless = compressMagicless(input);
+
+            // Then only the 4-byte magic number is dropped
+            assertThat(magicless).hasSize(standard.length - 4);
+            assertThat(Arrays.copyOfRange(standard, 4, standard.length)).isEqualTo(magicless);
+        }
+
+        @Test
+        void standardDecoderRejectsMagiclessFrame() {
+            // Given a magicless frame and a default decompressor
+            byte[] frame = compressMagicless(PAYLOAD);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                // When decoding it
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+
+                // Then the missing magic number is rejected
+                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+            }
+        }
+
+        @Test
+        void magiclessDecoderRejectsStandardFrame() {
+            // Given a standard frame and a magicless decompressor
+            byte[] frame = Zstd.compress(PAYLOAD);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext().magicless(true)) {
+                // When decoding it
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+
+                // Then the magic number is misread as a header and rejected
+                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+            }
+        }
+
+        @Test
+        void togglingBackToFalseRestoresTheStandardFormat() {
+            // Given contexts switched to magicless and back
+            byte[] frame;
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().magicless(true).magicless(false)) {
+                frame = ctx.compress(PAYLOAD);
+            }
+
+            // When decoding with a decompressor also toggled back
+            byte[] restored;
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext().magicless(true).magicless(false)) {
+                restored = sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+            }
+
+            // Then the frame is standard and decodes
+            assertThat(ZstdFrame.isZstdFrame(frame)).isTrue();
+            assertThat(restored).isEqualTo(PAYLOAD);
+        }
+
+        @Test
+        void frameInspectionDoesNotRecognizeMagiclessFrames() {
+            // Given a magicless frame
+            byte[] frame = compressMagicless(PAYLOAD);
+
+            // When inspecting it with the standard-format helpers
+            ThrowingCallable compressedSize = () -> ZstdFrame.compressedSize(frame);
+            ThrowingCallable decompressedSize = () -> ZstdFrame.decompressedSize(frame);
+            ThrowingCallable header = () -> ZstdFrame.header(frame);
+            ThrowingCallable sizeReadingDecode = () -> {
+                try (ZstdDecompressContext ctx = Zstd.newDecompressContext().magicless(true)) {
+                    ctx.decompress(frame);
+                }
+            };
+
+            // Then it is not recognized: no frame, no dictionary, size/header queries fail
+            assertThat(ZstdFrame.isZstdFrame(frame)).isFalse();
+            assertThat(ZstdFrame.dictId(frame)).isEqualTo(ZstdDictionaryId.NONE);
+            assertThatThrownBy(compressedSize).isInstanceOf(ZstdException.class);
+            assertThatThrownBy(decompressedSize).isInstanceOf(ZstdException.class);
+            assertThatThrownBy(header).isInstanceOf(ZstdException.class);
+            assertThatThrownBy(sizeReadingDecode).isInstanceOf(ZstdException.class);
+        }
+
+        private static byte[] compressMagicless(byte[] input) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().magicless(true)) {
+                return ctx.compress(input);
+            }
+        }
+    }
+
+    @Nested
     class Ratio {
 
         @Test
