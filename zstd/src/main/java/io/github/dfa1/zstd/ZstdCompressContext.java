@@ -72,6 +72,20 @@ public final class ZstdCompressContext extends NativeObject {
         return parameter(ZstdCompressParameter.CHECKSUM_FLAG, enabled ? 1 : 0);
     }
 
+    /// Writes magicless frames, which omit the 4-byte magic number `28 B5 2F FD`,
+    /// saving 4 bytes per frame when storing many tiny frames. Off by default.
+    ///
+    /// **Experimental** in upstream zstd. The frames decode only with a
+    /// [ZstdDecompressContext] set to [ZstdDecompressContext#magicless(boolean)],
+    /// and are not recognized by [Zstd#decompress(byte[])] or the [ZstdFrame]
+    /// inspection helpers, which assume the standard format.
+    ///
+    /// @param enabled whether to omit the magic number
+    /// @return `this`, for chaining
+    public ZstdCompressContext magicless(boolean enabled) {
+        return parameter(ZstdCompressParameter.FORMAT, enabled ? 1 : 0);
+    }
+
     /// Enables long-distance matching for a better ratio on large, repetitive inputs.
     ///
     /// @param enabled whether to enable long-distance matching

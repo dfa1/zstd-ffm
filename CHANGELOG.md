@@ -17,6 +17,16 @@ git tags, which trigger publication to Maven Central.
   and `ignoreChecksum(boolean)`; previously they accepted no decompression
   parameters at all, so frames built with a window above the default limit
   could not be streamed.
+- Magicless frame format (`ZSTD_f_zstd1_magicless`): frames without the 4-byte
+  magic number `28 B5 2F FD`, for storing many tiny frames (one per row or
+  cache entry). `ZstdCompressContext#magicless(boolean)` and
+  `ZstdDecompressContext#magicless(boolean)`, backed by the new
+  `ZstdCompressParameter.FORMAT` and `ZstdDecompressParameter.FORMAT`;
+  wire-compatible with zstd-jni's `setMagicless(true)`. Experimental upstream;
+  encoder and decoder must agree on the mode. `ZstdFrame` helpers and the
+  size-reading `decompress` overloads assume the standard format and do not
+  recognize magicless frames, so pass an explicit size.
+  ([#147](https://github.com/dfa1/zstd-ffm/issues/147))
 
 ## [0.16] - 2026-11-23
 

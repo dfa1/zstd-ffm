@@ -9,6 +9,14 @@ package io.github.dfa1.zstd;
 /// are validated natively — an out-of-range value raises a [ZstdException].
 public enum ZstdCompressParameter {
 
+    /// Frame format: `0` for the standard format (the default), `1` for the
+    /// magicless format, which omits the 4-byte magic number. Prefer
+    /// [ZstdCompressContext#magicless(boolean)].
+    ///
+    /// **Experimental** in upstream zstd (`ZSTD_c_format`): the value and its
+    /// semantics may change between zstd releases. A magicless frame decodes
+    /// only with a decoder set to the same mode via [ZstdDecompressParameter#FORMAT].
+    FORMAT(10),
     /// Compression level. Prefer [ZstdCompressContext#level(ZstdCompressionLevel)].
     COMPRESSION_LEVEL(100),
     /// Maximum back-reference distance, as a power of two (larger = better ratio, more memory).

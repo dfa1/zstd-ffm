@@ -10,6 +10,15 @@ public enum ZstdDecompressParameter {
     /// Largest back-reference window the decoder will accept, as a power of two.
     /// Frames needing a larger window are rejected; raise this to decode them.
     WINDOW_LOG_MAX(100),
+    /// Frame format: `0` for the standard format (the default), `1` for the
+    /// magicless format, which omits the 4-byte magic number. Prefer
+    /// [ZstdDecompressContext#magicless(boolean)].
+    ///
+    /// **Experimental** in upstream zstd (`ZSTD_d_format`): the value and its
+    /// semantics may change between zstd releases. The decoder accepts only
+    /// frames in the selected format, so it must match the encoder's
+    /// [ZstdCompressParameter#FORMAT].
+    FORMAT(1000),
     /// Checksum validation: `0` validates the frame's content checksum (the
     /// default), `1` skips it. Prefer [ZstdDecompressContext#ignoreChecksum(boolean)].
     ///
