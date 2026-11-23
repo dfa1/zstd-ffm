@@ -95,8 +95,10 @@ public final class ZstdCompressContext extends NativeObject {
     }
 
     /// Sets the maximum back-reference distance as a power of two (larger window =
-    /// better ratio, more memory). Decompression of large windows may require
-    /// raising the decompressor's window limit.
+    /// better ratio, more memory). A frame whose window exceeds `27` (128 MiB)
+    /// is rejected by streaming decoders until their limit is raised with
+    /// [ZstdInputStream#windowLogMax(ZstdWindowLog)]; one-shot decompression
+    /// accepts it as is.
     ///
     /// @param windowLog the base-2 log of the window size
     /// @return `this`, for chaining

@@ -85,6 +85,25 @@ final class ZstdTestSupport {
         return frame;
     }
 
+    /// A hand-built frame that declares a `2^windowLog` window but holds only
+    /// `content` in one raw block, with no content size: exercises window limits
+    /// without allocating a window-sized buffer on either side.
+    static byte[] rawFrameWithWindowLog(int windowLog, byte[] content) {
+        int blockHeader = 1 | (content.length << 3); // last block, raw, size
+        byte[] frame = new byte[4 + 1 + 1 + 3 + content.length];
+        frame[0] = 0x28;
+        frame[1] = (byte) 0xB5;
+        frame[2] = 0x2F;
+        frame[3] = (byte) 0xFD;
+        frame[4] = 0x00;                              // no content size, not single-segment
+        frame[5] = (byte) ((windowLog - 10) << 3);    // window descriptor: exponent, mantissa 0
+        frame[6] = (byte) blockHeader;
+        frame[7] = (byte) (blockHeader >>> 8);
+        frame[8] = (byte) (blockHeader >>> 16);
+        System.arraycopy(content, 0, frame, 9, content.length);
+        return frame;
+    }
+
     /// `n` pseudo-random bytes from a fixed `seed`, so a failure reproduces.
     static byte[] randomBytes(long seed, int n) {
         byte[] b = new byte[n];

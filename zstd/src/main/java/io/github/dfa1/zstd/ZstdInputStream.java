@@ -165,13 +165,16 @@ public final class ZstdInputStream extends InputStream {
         }
     }
 
-    /// Sets the largest back-reference window this stream will accept, as a
-    /// power of two. Raise it to decode frames built with a large `windowLog`;
-    /// see [ZstdDecompressContext#windowLogMax(ZstdWindowLog)].
+    /// Sets the largest back-reference window this stream will allocate a
+    /// buffer for, as a power of two: a memory limit against hostile or
+    /// oversized frames. A frame declaring a larger window fails with
+    /// [ZstdErrorCode#FRAME_PARAMETER_WINDOW_TOO_LARGE]. Raise it to stream
+    /// frames built with a `windowLog` above the default limit, `27` (128 MiB);
+    /// [ZstdWindowLog#AUTO] restores that default.
     ///
-    /// zstd enforces the limit on its buffered streaming path only: a frame
-    /// that declares its content size and fits in one output step is decoded
-    /// in a single shot without the check, which bounds its memory anyway.
+    /// zstd checks the limit only when it buffers: a frame that declares its
+    /// content size and fits in one output step is decoded in a single shot,
+    /// needs no window buffer, and is not checked.
     ///
     /// Set it right after construction, before the first `read`.
     ///

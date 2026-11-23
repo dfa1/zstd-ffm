@@ -7,7 +7,7 @@ package io.github.dfa1.zstd;
 ///
 /// A larger window trades memory for ratio. [#AUTO] (value `0`) leaves the choice
 /// to the library — derived from the compression level on the encoder side, and
-/// meaning "impose no extra limit" on the decoder side. Any other value must fall
+/// the default streaming limit, `27` (128 MiB), on the decoder side. Any other value must fall
 /// within the range the linked libzstd accepts (the [ZstdBounds] of
 /// [ZstdCompressParameter#WINDOW_LOG], which match the decoder's window limit on
 /// supported platforms), validated in Java before it reaches native code.
