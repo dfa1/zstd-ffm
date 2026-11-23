@@ -134,7 +134,7 @@ public final class Zstd {
     /// @return the decompressed length in bytes
     /// @throws ZstdException if the frame is invalid or does not store its size
     public static ZstdByteSize decompressedSize(MemorySegment frame) {
-        NativeCall.requireNative(frame, "frame");
+        NativeCall.requireReadable(frame, "frame");
         try {
             long size = (long) Bindings.GET_FRAME_CONTENT_SIZE.invokeExact(frame, frame.byteSize());
             return ZstdByteSize.fromFrameContentSize(size);
@@ -167,7 +167,7 @@ public final class Zstd {
     /// @param bytes native dictionary content
     /// @return the dictionary id, or [ZstdDictionaryId#NONE] if `bytes` is not a standard zstd dictionary
     public static ZstdDictionaryId dictId(MemorySegment bytes) {
-        NativeCall.requireNative(bytes, "bytes");
+        NativeCall.requireReadable(bytes, "bytes");
         return dictId(bytes, bytes.byteSize());
     }
 

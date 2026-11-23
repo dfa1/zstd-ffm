@@ -39,7 +39,7 @@ public final class ZstdDecompressDictionary extends NativePointerWithRefCount {
     }
 
     private static MemorySegment createNative(MemorySegment dict) {
-        NativeCall.requireNative(dict, "dict");
+        NativeCall.requireReadable(dict, "dict");
         return NativeCall.createOrThrow("ZSTD_createDDict",
                 () -> (MemorySegment) Bindings.CREATE_DDICT.invokeExact(dict, dict.byteSize()));
     }

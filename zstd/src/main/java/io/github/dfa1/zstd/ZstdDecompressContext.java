@@ -154,7 +154,7 @@ public final class ZstdDecompressContext extends NativeObject {
         if (NativeCall.isNull(dict)) {
             return loadDictionary(MemorySegment.NULL, 0L);
         }
-        NativeCall.requireNative(dict, "dict");
+        NativeCall.requireReadable(dict, "dict");
         return loadDictionary(dict, dict.byteSize());
     }
 
@@ -208,7 +208,7 @@ public final class ZstdDecompressContext extends NativeObject {
         if (NativeCall.isNull(prefix)) {
             return refPrefix(MemorySegment.NULL, 0L);
         }
-        NativeCall.requireNative(prefix, "prefix");
+        NativeCall.requireReadable(prefix, "prefix");
         return refPrefix(prefix, prefix.byteSize());
     }
 
@@ -314,26 +314,26 @@ public final class ZstdDecompressContext extends NativeObject {
     /// it is left unboxed by design to keep the fast path allocation-free. The
     /// heap `byte[]` overloads, which size an array, return richer types.
     ///
-    /// @param dst the native destination buffer to write the result into
+    /// @param dst the native, writable destination buffer to write the result into
     /// @param src the native source frame to decompress
     /// @return the number of bytes written into `dst`
     /// @throws ZstdException if `dst` is too small or the frame is invalid
     public long decompress(MemorySegment dst, MemorySegment src) {
-        NativeCall.requireNative(dst, "dst");
-        NativeCall.requireNative(src, "src");
+        NativeCall.requireWritable(dst, "dst");
+        NativeCall.requireReadable(src, "src");
         return NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_DCTX.invokeExact(
                 ptr(), dst, dst.byteSize(), src, src.byteSize()));
     }
 
     /// Zero-copy decompression against a pre-digested `dict`, segment to segment.
     ///
-    /// @param dst  the native destination buffer to write the result into
+    /// @param dst  the native, writable destination buffer to write the result into
     /// @param src  the native source frame to decompress
     /// @param dict the pre-digested decompression dictionary
     /// @return the number of bytes written into `dst`
     public long decompress(MemorySegment dst, MemorySegment src, ZstdDecompressDictionary dict) {
-        NativeCall.requireNative(dst, "dst");
-        NativeCall.requireNative(src, "src");
+        NativeCall.requireWritable(dst, "dst");
+        NativeCall.requireReadable(src, "src");
         MemorySegment ddict = dict.ptr();
         return NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_USING_DDICT.invokeExact(
                 ptr(), dst, dst.byteSize(), src, src.byteSize(), ddict));

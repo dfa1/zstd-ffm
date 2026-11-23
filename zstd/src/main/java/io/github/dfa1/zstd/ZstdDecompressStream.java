@@ -103,11 +103,13 @@ public final class ZstdDecompressStream extends NativeObject {
     /// [ZstdStreamResult#bytesProduced()] bytes of `dst` after each call. The
     /// frame is fully decoded once a result is [ZstdStreamResult#isComplete()].
     ///
-    /// @param dst native destination buffer for decompressed bytes
+    /// @param dst native, writable destination buffer for decompressed bytes
     /// @param src native source frame bytes
     /// @return how much was consumed and produced, and the remaining hint
     /// @throws ZstdException if the frame is invalid
     public ZstdStreamResult decompress(MemorySegment dst, MemorySegment src) {
+        NativeCall.requireWritable(dst, "dst");
+        NativeCall.requireReadable(src, "src");
         in.set(src, src.byteSize());
         out.set(dst, dst.byteSize());
         long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_STREAM.invokeExact(

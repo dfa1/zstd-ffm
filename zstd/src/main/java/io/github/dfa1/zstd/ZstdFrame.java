@@ -34,6 +34,7 @@ public final class ZstdFrame {
     /// @param data the native bytes to inspect
     /// @return `true` if `data` starts with a zstd frame
     public static boolean isZstdFrame(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return isZstdFrame(data, data.byteSize());
     }
 
@@ -55,6 +56,7 @@ public final class ZstdFrame {
     /// @return the byte length of the first frame
     /// @throws ZstdException if the input is not a valid frame
     public static ZstdByteSize compressedSize(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return ZstdByteSize.of(compressedSize(data, data.byteSize()));
     }
 
@@ -76,6 +78,7 @@ public final class ZstdFrame {
     /// @return an upper bound on the combined decompressed size
     /// @throws ZstdException if the input is not valid zstd data
     public static ZstdByteSize decompressedBound(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return decompressedBound(data, data.byteSize());
     }
 
@@ -105,6 +108,7 @@ public final class ZstdFrame {
     /// @throws ZstdException if the input is not valid zstd data, or any frame does
     ///                       not record its decompressed size
     public static ZstdByteSize decompressedSize(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return decompressedSize(data, data.byteSize());
     }
 
@@ -133,6 +137,7 @@ public final class ZstdFrame {
     /// @return the in-place decompression margin in bytes
     /// @throws ZstdException if the input is not valid zstd data
     public static ZstdByteSize decompressionMargin(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return ZstdByteSize.of(decompressionMargin(data, data.byteSize()));
     }
 
@@ -152,6 +157,7 @@ public final class ZstdFrame {
     /// @param data a zstd frame
     /// @return the dictionary id, or [ZstdDictionaryId#NONE] if none
     public static ZstdDictionaryId dictId(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return dictId(data, data.byteSize());
     }
 
@@ -180,6 +186,7 @@ public final class ZstdFrame {
     /// @throws ZstdException if `data` is too short to determine the header size, or
     ///                       is not a valid zstd frame
     public static ZstdByteSize headerSize(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return ZstdByteSize.of(headerSize(data, data.byteSize()));
     }
 
@@ -200,6 +207,7 @@ public final class ZstdFrame {
     /// @return the parsed frame header
     /// @throws ZstdException if the input is not a valid frame or the header is incomplete
     public static ZstdFrameHeader header(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return header(data, data.byteSize());
     }
 
@@ -218,6 +226,7 @@ public final class ZstdFrame {
     /// @param data the native bytes to inspect
     /// @return `true` if `data` starts with a skippable frame
     public static boolean isSkippableFrame(MemorySegment data) {
+        NativeCall.requireReadable(data, "data");
         return isSkippableFrame(data, data.byteSize());
     }
 

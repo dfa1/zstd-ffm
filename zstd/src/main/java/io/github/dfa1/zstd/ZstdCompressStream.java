@@ -95,14 +95,14 @@ public final class ZstdCompressStream extends NativeObject {
     /// [ZstdStreamResult#bytesProduced()] bytes of `dst` after each call. With
     /// [ZstdEndDirective#END], repeat until [ZstdStreamResult#isComplete()].
     ///
-    /// @param dst       native destination buffer for compressed bytes
+    /// @param dst       native, writable destination buffer for compressed bytes
     /// @param src       native source bytes to compress
     /// @param directive whether to continue, flush, or end the frame
     /// @return how much was consumed and produced, and the remaining hint
     /// @throws ZstdException if compression fails
     public ZstdStreamResult compress(MemorySegment dst, MemorySegment src, ZstdEndDirective directive) {
-        NativeCall.requireNative(dst, "dst");
-        NativeCall.requireNative(src, "src");
+        NativeCall.requireWritable(dst, "dst");
+        NativeCall.requireReadable(src, "src");
         in.set(src, src.byteSize());
         out.set(dst, dst.byteSize());
         long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS_STREAM2.invokeExact(

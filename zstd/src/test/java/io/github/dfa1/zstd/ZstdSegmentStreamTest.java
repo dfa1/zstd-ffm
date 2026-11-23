@@ -324,5 +324,82 @@ class ZstdSegmentStreamTest {
                         .hasMessage(nullSide);
             }
         }
+
+        @Test
+        void compressRejectsReadOnlyDestination() {
+            // Given a compress stream and a read-only view over native memory
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
+                MemorySegment dst = arena.allocate(64).asReadOnly();
+                MemorySegment src = arena.allocate(64);
+
+                // When compressing into it
+                ThrowingCallable result = () -> sut.compress(dst, src, ZstdEndDirective.END);
+
+                // Then the guard rejects it before zstd writes through it
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("dst must be a writable MemorySegment; got a read-only segment");
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"dst", "src"})
+        void decompressRejectsHeapSegment(String heapSide) {
+            // Given a decompress stream and one heap-backed buffer
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream()) {
+                MemorySegment heap = MemorySegment.ofArray(new byte[64]);
+                MemorySegment dst = "dst".equals(heapSide) ? heap : arena.allocate(64);
+                MemorySegment src = "src".equals(heapSide) ? heap : arena.allocate(64);
+
+                // When decompressing through it
+                ThrowingCallable result = () -> sut.decompress(dst, src);
+
+                // Then the guard names the offending argument before any native call
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageStartingWith(heapSide + " must be a native");
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"dst", "src"})
+        void decompressRejectsNullSegment(String nullSide) {
+            // Given a decompress stream and one missing buffer
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream()) {
+                MemorySegment dst = "dst".equals(nullSide) ? null : arena.allocate(64);
+                MemorySegment src = "src".equals(nullSide) ? null : arena.allocate(64);
+
+                // When decompressing through it
+                ThrowingCallable result = () -> sut.decompress(dst, src);
+
+                // Then the guard names the missing argument
+                assertThatThrownBy(result)
+                        .isInstanceOf(NullPointerException.class)
+                        .hasMessage(nullSide);
+            }
+        }
+
+        @Test
+        void decompressRejectsReadOnlyDestinationAndLeavesItUntouched() {
+            // Given a valid frame and a read-only view over writable native memory
+            byte[] original = "read-only stream ".repeat(50).getBytes(StandardCharsets.UTF_8);
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream()) {
+                MemorySegment frame = segmentOf(arena, Zstd.compress(original));
+                MemorySegment backing = arena.allocate(original.length);
+
+                // When decompressing into the view
+                ThrowingCallable result = () -> sut.decompress(backing.asReadOnly(), frame);
+
+                // Then the guard rejects it and zstd never wrote through the view
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("dst must be a writable MemorySegment; got a read-only segment");
+                assertThat(bytesOf(backing, original.length)).containsOnly((byte) 0);
+            }
+        }
     }
 }

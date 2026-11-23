@@ -51,7 +51,7 @@ public final class ZstdCompressDictionary extends NativePointerWithRefCount {
     }
 
     private static MemorySegment createNative(MemorySegment dict, ZstdCompressionLevel level) {
-        NativeCall.requireNative(dict, "dict");
+        NativeCall.requireReadable(dict, "dict");
         return NativeCall.createOrThrow("ZSTD_createCDict",
                 () -> (MemorySegment) Bindings.CREATE_CDICT.invokeExact(dict, dict.byteSize(), level.value()));
     }
