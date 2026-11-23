@@ -46,6 +46,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 /// these prove real interop, not just internal round-trips.
 class ZstdJniInteropTest {
 
+    /// 2 MiB: above zstd's 512 KiB cutoff, below which a one-shot compress with a
+    /// known source size runs single-threaded, and four jobs at the minimum job size.
+    private static final int MULTI_THREAD_PAYLOAD_SIZE = 2 * 1024 * 1024;
+
+    /// zstd's smallest job size (`ZSTDMT_JOBSIZE_MIN`, 512 KiB). The default
+    /// (`4 << windowLog`, 8 MiB at level 3) would put the whole payload in one job.
+    private static final int MIN_JOB_SIZE = 512 * 1024;
+
     static Stream<Arguments> payloadsAndLevels() {
         Random r = new Random(0xABCD);
         List<Arguments> cases = new ArrayList<>();
@@ -112,8 +120,6 @@ class ZstdJniInteropTest {
     class SegmentStreaming {
 
         private static final ZstdDictionary DICT = trainDict();
-        /// Above zstd's 512 KiB minimum job size, so workers actually engage.
-        private static final int MULTI_THREAD_PAYLOAD_SIZE = 2 * 1024 * 1024;
 
         // Seeded payloads crossing zstd's 128 KiB block size, pushed through chunk
         // sizes small enough that every call consumes or produces only part of a block.
@@ -199,18 +205,25 @@ class ZstdJniInteropTest {
         @ParameterizedTest
         @ValueSource(ints = {1, 2})
         void multithreadedSegmentCompressStreamToJni(int nbWorkers) {
-            // Given a payload above zstd's 512 KiB minimum job size, so workers engage
+            // Given a stream split into minimum-size jobs. Streaming starts with CONTINUE,
+            // so the source size is unknown and multithreading engages regardless of
+            // payload size; it is the job size that makes the payload span several jobs.
             byte[] data = compressible(new Random(0x57EA), MULTI_THREAD_PAYLOAD_SIZE);
             byte[] frame;
+            int jobs;
             try (Arena arena = Arena.ofConfined();
                  ZstdCompressStream sut = Zstd.newCompressStream()) {
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
+                sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers)
+                        .parameter(ZstdCompressParameter.JOB_SIZE, MIN_JOB_SIZE);
 
                 // When it is compressed through 64 KiB segments by the worker pool
                 frame = compressInChunks(arena, sut, data, 64 * 1024);
+                jobs = sut.progress().currentJobId();
             }
 
-            // Then zstd-jni decodes the frame back to the payload
+            // Then the payload really went through several jobs (single-threaded reports 0),
+            // and zstd-jni decodes the frame back to the payload
+            assertThat(jobs).isGreaterThanOrEqualTo(MULTI_THREAD_PAYLOAD_SIZE / MIN_JOB_SIZE);
             assertThat(com.github.luben.zstd.Zstd.decompress(frame, data.length)).isEqualTo(data);
         }
 
@@ -259,8 +272,6 @@ class ZstdJniInteropTest {
     @Nested
     class Multithreaded {
 
-        /// Above zstd's 512 KiB minimum job size, so workers actually engage.
-        private static final int MULTI_THREAD_PAYLOAD_SIZE = 2 * 1024 * 1024;
 
         @ParameterizedTest
         @ValueSource(ints = {1, 2})
