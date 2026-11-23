@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
+import static io.github.dfa1.zstd.ZstdTestSupport.rawFrameWithWindowLog;
 import static io.github.dfa1.zstd.ZstdTestSupport.withWrongChecksum;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -336,6 +337,25 @@ class ZstdParameterTest {
 
     @Nested
     class Decompress {
+
+        @ParameterizedTest
+        @ValueSource(ints = {0, 10})
+        void oneShotDecodeIgnoresWindowLogMax(int windowLogMax) {
+            // Given a frame declaring a 2^28 window, above both the default limit (27) and 10
+            byte[] content = "hello".getBytes(StandardCharsets.UTF_8);
+            byte[] frame = rawFrameWithWindowLog(28, content);
+            assertThat(ZstdFrame.header(frame).windowSize()).contains(ZstdByteSize.of(1L << 28));
+
+            // When decoding it one-shot under that limit
+            byte[] restored;
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()
+                    .windowLogMax(ZstdWindowLog.of(windowLogMax))) {
+                restored = sut.decompress(frame, ZstdByteSize.of(content.length));
+            }
+
+            // Then it decodes anyway: one-shot decoding never checks the limit
+            assertThat(restored).isEqualTo(content);
+        }
 
         @Test
         void windowLogMaxIsAccepted() {

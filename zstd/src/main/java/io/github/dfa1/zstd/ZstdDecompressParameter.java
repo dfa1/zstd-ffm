@@ -7,8 +7,14 @@ package io.github.dfa1.zstd;
 /// Set them with [ZstdDecompressContext#parameter(ZstdDecompressParameter, int)].
 public enum ZstdDecompressParameter {
 
-    /// Largest back-reference window the decoder will accept, as a power of two.
-    /// Frames needing a larger window are rejected; raise this to decode them.
+    /// Memory limit for streaming decompression: the largest back-reference
+    /// window, as a power of two, that a streaming decoder ([ZstdInputStream],
+    /// [ZstdDecompressStream]) will allocate a buffer for. Frames declaring a
+    /// larger window fail with [ZstdErrorCode#FRAME_PARAMETER_WINDOW_TOO_LARGE];
+    /// `0` restores the default limit, `27` (128 MiB).
+    ///
+    /// One-shot decompression ignores it: it decodes straight into the caller's
+    /// buffer, allocates no window buffer, and so has nothing to limit.
     WINDOW_LOG_MAX(100),
     /// Frame format: `0` for the standard format (the default), `1` for the
     /// magicless format, which omits the 4-byte magic number. Prefer

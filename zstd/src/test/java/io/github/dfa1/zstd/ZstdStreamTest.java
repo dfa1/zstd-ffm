@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 
 import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
+import static io.github.dfa1.zstd.ZstdTestSupport.rawFrameWithWindowLog;
 import static io.github.dfa1.zstd.ZstdTestSupport.sample;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.withWrongChecksum;
@@ -344,6 +345,21 @@ class ZstdStreamTest {
                 ThrowingCallable result = sut::readAllBytes;
 
                 // Then the limit is enforced
+                assertThatThrownBy(result)
+                        .isInstanceOfSatisfying(ZstdException.class,
+                                e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.FRAME_PARAMETER_WINDOW_TOO_LARGE));
+            }
+        }
+
+        @Test
+        void defaultLimitRejectsAWindowAboveIt() throws IOException {
+            // Given a frame declaring a 2^28 window, above the default limit (27)
+            byte[] frame = rawFrameWithWindowLog(28, "hello".getBytes(StandardCharsets.UTF_8));
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(frame))) {
+                // When streaming it without raising the limit
+                ThrowingCallable result = sut::readAllBytes;
+
+                // Then the stream refuses to allocate the window
                 assertThatThrownBy(result)
                         .isInstanceOfSatisfying(ZstdException.class,
                                 e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.FRAME_PARAMETER_WINDOW_TOO_LARGE));

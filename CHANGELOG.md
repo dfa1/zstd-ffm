@@ -28,6 +28,15 @@ git tags, which trigger publication to Maven Central.
   recognize magicless frames, so pass an explicit size.
   ([#147](https://github.com/dfa1/zstd-ffm/issues/147))
 
+### Fixed
+- `windowLogMax` javadoc described it as a limit every decoder enforces. It is
+  zstd's memory limit for **streaming** decompression only (`ZstdInputStream`,
+  `ZstdDecompressStream`): `ZstdDecompressContext`'s `decompress` methods are
+  all one-shot and never check it, so `ZstdDecompressContext#windowLogMax` has
+  no effect on them. `ZstdWindowLog.AUTO` on the decoder side restores the
+  default limit of `27` (128 MiB), not "no limit". Docs only; behavior is
+  unchanged and now pinned by tests.
+
 ## [0.16] - 2026-11-23
 
 ### Changed

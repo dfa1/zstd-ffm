@@ -42,8 +42,16 @@ public final class ZstdDecompressContext extends NativeObject {
         return this;
     }
 
-    /// Sets the largest back-reference window the decoder will accept, as a
-    /// power of two. Raise it to decode frames built with a large `windowLog`.
+    /// Sets [ZstdDecompressParameter#WINDOW_LOG_MAX], zstd's memory limit for
+    /// streaming decompression.
+    ///
+    /// **It has no effect on this class's `decompress` methods.** They are all
+    /// one-shot: they decode straight into a buffer whose size the caller
+    /// bounds, so zstd allocates no window buffer and never checks the limit.
+    /// A frame with any window up to the format maximum decodes without raising
+    /// it. To cap the memory a hostile frame can demand while streaming, set the
+    /// limit on [ZstdInputStream#windowLogMax(ZstdWindowLog)] or
+    /// [ZstdDecompressStream#windowLogMax(ZstdWindowLog)] instead.
     ///
     /// @param windowLogMax the base-2 log of the maximum accepted window size
     /// @return `this`, for chaining
