@@ -9,10 +9,225 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
+import java.util.function.Consumer;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class RefPrefixTest {
+
+    /// zstd keeps only the raw address of a referenced prefix, so closing the
+    /// prefix's arena before a frame uses it must fail fast rather than let zstd
+    /// read freed memory (issue #162).
+    @Nested
+    class ClosedPrefix {
+
+        private static final byte[] PREFIX = randomBytes(0x162, 4096);
+        private static final byte[] DATA = randomBytes(0x163, 4096);
+
+        @Test
+        void compressBytesThrowsWhenThePrefixWasClosed() {
+            // Given a context whose pending prefix's arena is closed
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
+                referenceThenClose(sut::refPrefix);
+
+                // When compressing
+                ThrowingCallable result = () -> sut.compress(DATA);
+
+                // Then it fails fast instead of reading freed memory
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("refPrefix");
+            }
+        }
+
+        @Test
+        void compressSegmentThrowsWhenThePrefixWasClosed() {
+            // Given a context whose pending prefix's arena is closed
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressContext sut = Zstd.newCompressContext()) {
+                referenceThenClose(sut::refPrefix);
+                MemorySegment src = segmentOf(arena, DATA);
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(DATA.length)).value());
+
+                // When compressing segment to segment
+                ThrowingCallable result = () -> sut.compress(dst, src);
+
+                // Then it fails fast
+                assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
+            }
+        }
+
+        @Test
+        void compressDropsTheClosedPrefixAndKeepsWorking() {
+            // Given a context that rejected a closed prefix
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
+                referenceThenClose(sut::refPrefix);
+                ThrowingCallable rejected = () -> sut.compress(DATA);
+                assertThatThrownBy(rejected).isInstanceOf(IllegalStateException.class);
+
+                // When compressing again
+                byte[] frame = sut.compress(DATA);
+
+                // Then the frame needs no prefix: the dead one was dropped
+                assertThat(Zstd.decompress(frame)).isEqualTo(DATA);
+            }
+        }
+
+        @Test
+        void perCallDictionaryCompressLeavesThePrefixPending() {
+            // Given a prefix, then a frame compressed with a per-call dictionary,
+            // which does not use the prefix
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
+                referenceThenClose(prefix -> sut.refPrefix(prefix).compress(DATA, ZstdDictionary.of(PREFIX)));
+
+                // When the next frame would use the still-pending prefix
+                ThrowingCallable result = () -> sut.compress(DATA);
+
+                // Then the closed prefix is caught
+                assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
+            }
+        }
+
+        @Test
+        void sessionResetKeepsThePrefixPending() {
+            // Given a pending prefix kept by a session-only reset
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
+                referenceThenClose(prefix -> sut.refPrefix(prefix).reset(ZstdResetDirective.SESSION_ONLY));
+
+                // When compressing
+                ThrowingCallable result = () -> sut.compress(DATA);
+
+                // Then the closed prefix is caught
+                assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"used by a frame", "parameter reset", "cleared with null"})
+        void compressForgetsAPrefixThatIsGone(String how) {
+            // Given a prefix that zstd no longer holds, whose arena is then closed
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
+                referenceThenClose(prefix -> {
+                    sut.refPrefix(prefix);
+                    switch (how) {
+                        case "used by a frame" -> sut.compress(DATA);
+                        case "parameter reset" -> sut.reset(ZstdResetDirective.PARAMETERS);
+                        case "cleared with null" -> sut.refPrefix(null);
+                        default -> throw new IllegalArgumentException(how);
+                    }
+                });
+
+                // When compressing again
+                byte[] frame = sut.compress(DATA);
+
+                // Then nothing is rejected and the frame needs no prefix
+                assertThat(Zstd.decompress(frame)).isEqualTo(DATA);
+            }
+        }
+
+        @Test
+        void decompressBytesThrowsWhenThePrefixWasClosed() {
+            // Given a decoder whose pending prefix's arena is closed
+            byte[] frame = Zstd.compress(DATA);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                referenceThenClose(sut::refPrefix);
+
+                // When decoding
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(DATA.length));
+
+                // Then it fails fast instead of reading freed memory
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("refPrefix");
+            }
+        }
+
+        @Test
+        void decompressSegmentThrowsWhenThePrefixWasClosed() {
+            // Given a decoder whose pending prefix's arena is closed
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                referenceThenClose(sut::refPrefix);
+                MemorySegment frame = segmentOf(arena, Zstd.compress(DATA));
+                MemorySegment dst = arena.allocate(DATA.length);
+
+                // When decoding segment to segment
+                ThrowingCallable result = () -> sut.decompress(dst, frame);
+
+                // Then it fails fast
+                assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
+            }
+        }
+
+        @Test
+        void decompressDropsTheClosedPrefixAndKeepsWorking() {
+            // Given a decoder that rejected a closed prefix
+            byte[] frame = Zstd.compress(DATA);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                referenceThenClose(sut::refPrefix);
+                ThrowingCallable rejected = () -> sut.decompress(frame, ZstdByteSize.of(DATA.length));
+                assertThatThrownBy(rejected).isInstanceOf(IllegalStateException.class);
+
+                // When decoding again
+                byte[] restored = sut.decompress(frame, ZstdByteSize.of(DATA.length));
+
+                // Then it decodes, with the dead prefix dropped
+                assertThat(restored).isEqualTo(DATA);
+            }
+        }
+
+        @Test
+        void perCallDictionaryDecompressLeavesThePrefixPending() {
+            // Given a prefix, then a frame decoded with a per-call dictionary,
+            // which does not use the prefix
+            ZstdDictionary dict = ZstdDictionary.of(PREFIX);
+            byte[] dictFrame;
+            try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
+                dictFrame = cctx.compress(DATA, dict);
+            }
+            byte[] plainFrame = Zstd.compress(DATA);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                referenceThenClose(prefix -> sut.refPrefix(prefix).decompress(dictFrame, ZstdByteSize.of(DATA.length), dict));
+
+                // When the next frame would use the still-pending prefix
+                ThrowingCallable result = () -> sut.decompress(plainFrame, ZstdByteSize.of(DATA.length));
+
+                // Then the closed prefix is caught
+                assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
+            }
+        }
+
+        @Test
+        void decompressForgetsAPrefixUsedByAFrame() {
+            // Given a prefix used by one frame, whose arena is then closed
+            byte[] prefixedFrame;
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressContext cctx = Zstd.newCompressContext()) {
+                MemorySegment frame = cctx.refPrefix(segmentOf(arena, PREFIX)).compress(arena, segmentOf(arena, DATA));
+                prefixedFrame = bytesOf(frame, frame.byteSize());
+            }
+            byte[] plainFrame = Zstd.compress(DATA);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                referenceThenClose(prefix -> sut.refPrefix(prefix).decompress(prefixedFrame, ZstdByteSize.of(DATA.length)));
+
+                // When decoding the next frame
+                byte[] restored = sut.decompress(plainFrame, ZstdByteSize.of(DATA.length));
+
+                // Then nothing is rejected
+                assertThat(restored).isEqualTo(DATA);
+            }
+        }
+
+        /// Hands `use` a native copy of [#PREFIX], then closes its arena.
+        private static void referenceThenClose(Consumer<MemorySegment> use) {
+            Arena prefixArena = Arena.ofConfined();
+            use.accept(segmentOf(prefixArena, PREFIX));
+            prefixArena.close();
+        }
+    }
 
     @Test
     void roundTripsWithMatchingPrefix() {

@@ -33,6 +33,10 @@ public final class ZstdCompressContext extends NativeObject {
 
     private ZstdCompressionLevel level;
     private ZstdCompressDictionary refDict;
+    /// The segment last passed to [#refPrefix(MemorySegment)] that no frame has
+    /// used yet, or `null`. zstd keeps only its raw address, so it is checked
+    /// for liveness before every call that reads it.
+    private MemorySegment pendingPrefix;
 
     ZstdCompressContext() {
         super(createNative());
@@ -144,6 +148,7 @@ public final class ZstdCompressContext extends NativeObject {
         if (directive != ZstdResetDirective.SESSION_ONLY) {
             this.level = ZstdCompressionLevel.DEFAULT;
             refDict = NativePointerWithRefCount.release(refDict);
+            pendingPrefix = null;
         }
         return this;
     }
@@ -196,6 +201,7 @@ public final class ZstdCompressContext extends NativeObject {
     private ZstdCompressContext loadDictionary(MemorySegment dict, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_LOAD_DICTIONARY.invokeExact(ptr(), dict, size));
         refDict = NativePointerWithRefCount.release(refDict);
+        pendingPrefix = null;
         return this;
     }
 
@@ -220,6 +226,7 @@ public final class ZstdCompressContext extends NativeObject {
         MemorySegment cctxPtr = ptr();
         refDict = NativePointerWithRefCount.swap(refDict, dict, cdict ->
                 NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_CDICT.invokeExact(cctxPtr, cdict)));
+        pendingPrefix = null;
         return this;
     }
 
@@ -236,8 +243,13 @@ public final class ZstdCompressContext extends NativeObject {
     /// [ZstdDecompressContext#refPrefix(MemorySegment)] to decode the frame.
     ///
     /// Because the prefix is referenced, `prefix` must stay valid until the next
-    /// compression completes. Heap callers that cannot manage native lifetime
-    /// should use a copying dictionary ([#loadDictionary(ZstdDictionary)]) instead.
+    /// [#compress(MemorySegment, MemorySegment)] / [#compress(byte[])] uses it.
+    /// The per-call dictionary overloads (`compress(src, dict)`) do **not** use
+    /// it: the prefix stays pending for the next frame without one. If
+    /// `prefix`'s arena is closed while the prefix is pending, that next call
+    /// throws [IllegalStateException] and drops the prefix instead of reading
+    /// freed memory. Heap callers that cannot manage native lifetime should use
+    /// a copying dictionary ([#loadDictionary(ZstdDictionary)]) instead.
     ///
     /// @param prefix native prefix content, or `null` / [MemorySegment#NULL] to clear it
     /// @return `this`, for chaining
@@ -253,7 +265,33 @@ public final class ZstdCompressContext extends NativeObject {
     private ZstdCompressContext refPrefix(MemorySegment prefix, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_PREFIX.invokeExact(ptr(), prefix, size));
         refDict = NativePointerWithRefCount.release(refDict);
+        pendingPrefix = size == 0 ? null : prefix;
         return this;
+    }
+
+    /// Runs `ZSTD_compress2`, which uses up any pending prefix at stream init
+    /// (`zstd_compress.c`, `ZSTD_CCtx_init_compressStream2`) whether or not
+    /// compression then succeeds.
+    private long compress2(MemorySegment dst, long dstCapacity, MemorySegment src, long srcSize) {
+        requirePendingPrefixAlive();
+        try {
+            return NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS2.invokeExact(
+                    ptr(), dst, dstCapacity, src, srcSize));
+        } finally {
+            pendingPrefix = null;
+        }
+    }
+
+    /// Fails fast, and drops the native prefix, when the segment given to
+    /// [#refPrefix(MemorySegment)] was closed before a frame used it: zstd would
+    /// otherwise read freed memory and crash the JVM.
+    private void requirePendingPrefixAlive() {
+        if (pendingPrefix != null && !pendingPrefix.scope().isAlive()) {
+            NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_PREFIX.invokeExact(ptr(), MemorySegment.NULL, 0L));
+            pendingPrefix = null;
+            throw new IllegalStateException(
+                    "the prefix passed to refPrefix was closed before a frame used it; the prefix was dropped");
+        }
     }
 
     /// Compresses `src` into a new zstd frame using this context and its
@@ -267,8 +305,7 @@ public final class ZstdCompressContext extends NativeObject {
             MemorySegment in = Zstd.copyIn(arena, src);
             ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(src.length));
             MemorySegment out = arena.allocate(bound.value());
-            long written = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS2.invokeExact(
-                    ptr(), out, bound.value(), in, (long) src.length));
+            long written = compress2(out, bound.value(), in, src.length);
             return Zstd.copyOut(out, written);
         }
     }
@@ -341,8 +378,7 @@ public final class ZstdCompressContext extends NativeObject {
     public long compress(MemorySegment dst, MemorySegment src) {
         NativeCall.requireWritable(dst, "dst");
         NativeCall.requireReadable(src, "src");
-        return NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS2.invokeExact(
-                ptr(), dst, dst.byteSize(), src, src.byteSize()));
+        return compress2(dst, dst.byteSize(), src, src.byteSize());
     }
 
     /// Zero-copy compression against a pre-digested `dict`, segment to segment.
