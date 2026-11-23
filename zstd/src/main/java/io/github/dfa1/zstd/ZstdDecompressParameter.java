@@ -9,7 +9,14 @@ public enum ZstdDecompressParameter {
 
     /// Largest back-reference window the decoder will accept, as a power of two.
     /// Frames needing a larger window are rejected; raise this to decode them.
-    WINDOW_LOG_MAX(100);
+    WINDOW_LOG_MAX(100),
+    /// Checksum validation: `0` validates the frame's content checksum (the
+    /// default), `1` skips it. Prefer [ZstdDecompressContext#ignoreChecksum(boolean)].
+    ///
+    /// **Experimental** in upstream zstd (`ZSTD_d_forceIgnoreChecksum`): the
+    /// value and its semantics may change between zstd releases. Skipping the
+    /// check means corrupted payloads are no longer detected.
+    FORCE_IGNORE_CHECKSUM(1002);
 
     private final int value;
 

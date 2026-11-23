@@ -5,8 +5,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Random;
 
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
@@ -52,6 +54,94 @@ class ZstdParameterTest {
 
             // Then the integrity check fails
             assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+        }
+    }
+
+    @Nested
+    class IgnoreChecksum {
+
+        @Test
+        void defaultDecoderRejectsAWrongChecksum() {
+            // Given a checksummed frame whose stored checksum is flipped
+            byte[] frame = withWrongChecksum(PAYLOAD);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                // When decoding it with validation on
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+
+                // Then the mismatch is reported as such
+                assertThatThrownBy(result)
+                        .isInstanceOfSatisfying(ZstdException.class,
+                                e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.CHECKSUM_WRONG));
+            }
+        }
+
+        @Test
+        void ignoringTheChecksumRecoversTheIntactPayload() {
+            // Given a checksummed frame whose stored checksum is flipped
+            byte[] frame = withWrongChecksum(PAYLOAD);
+
+            // When decoding it with validation off
+            byte[] restored;
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext().ignoreChecksum(true)) {
+                restored = sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+            }
+
+            // Then the payload comes back untouched
+            assertThat(restored).isEqualTo(PAYLOAD);
+        }
+
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void framesWithoutAChecksumDecodeEitherWay(boolean ignore) {
+            // Given a frame with no checksum
+            byte[] frame = Zstd.compress(PAYLOAD);
+
+            // When decoding it with either setting
+            byte[] restored;
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext().ignoreChecksum(ignore)) {
+                restored = sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+            }
+
+            // Then it decodes the same
+            assertThat(restored).isEqualTo(PAYLOAD);
+        }
+
+        @Test
+        void togglingBackToFalseRestoresValidation() {
+            // Given a decoder that ignored checksums and was switched back
+            byte[] frame = withWrongChecksum(PAYLOAD);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext().ignoreChecksum(true).ignoreChecksum(false)) {
+                // When decoding a frame with a wrong checksum
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+
+                // Then validation is back on
+                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+            }
+        }
+
+        @Test
+        void otherCorruptionStillFails() {
+            // Given a frame with no checksum and a truncated body
+            byte[] full = Zstd.compress(PAYLOAD);
+            byte[] frame = Arrays.copyOf(full, full.length - 1);
+            try (ZstdDecompressContext sut = Zstd.newDecompressContext().ignoreChecksum(true)) {
+                // When decoding it with checksum validation off
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+
+                // Then the malformed frame is still rejected
+                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+            }
+        }
+
+        /// A checksummed frame with one bit of its trailing 4-byte checksum
+        /// flipped: the compressed body, and so the decoded payload, is intact.
+        private static byte[] withWrongChecksum(byte[] input) {
+            byte[] frame;
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().checksum(true)) {
+                frame = ctx.compress(input);
+            }
+            frame[frame.length - 1] ^= 0x01;
+            return frame;
         }
     }
 

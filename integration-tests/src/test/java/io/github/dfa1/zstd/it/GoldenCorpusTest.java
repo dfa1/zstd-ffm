@@ -179,6 +179,25 @@ class GoldenCorpusTest {
             // Then
             assertThatThrownBy(result).isInstanceOfAny(ZstdException.class, UncheckedIOException.class);
         }
+
+        /// None of these frames is a checksum failure, so turning checksum
+        /// validation off must not make any of them decode.
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("frames")
+        void stillThrowsWithChecksumValidationOff(String name, Path file) {
+            // Given
+            byte[] frame = read(file);
+
+            // When
+            org.assertj.core.api.ThrowableAssert.ThrowingCallable result = () -> {
+                try (ZstdDecompressContext ctx = Zstd.newDecompressContext().ignoreChecksum(true)) {
+                    ctx.decompress(frame, ZstdByteSize.ofMiB(16));
+                }
+            };
+
+            // Then
+            assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+        }
     }
 
     /// Raw dictionaries the C project ships under `golden-dictionaries/`. These
