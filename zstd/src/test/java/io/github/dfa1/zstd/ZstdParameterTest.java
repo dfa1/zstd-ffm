@@ -4,9 +4,13 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
@@ -244,6 +248,59 @@ class ZstdParameterTest {
         private static byte[] compressMagicless(byte[] input) {
             try (ZstdCompressContext ctx = Zstd.newCompressContext().magicless(true)) {
                 return ctx.compress(input);
+            }
+        }
+    }
+
+    /// `ZSTD_c_enableLongDistanceMatching` is a three-state `ZSTD_ParamSwitch_e`
+    /// (0 = auto, 1 = enable, 2 = disable); these read back what zstd stored.
+    @Nested
+    class LongDistanceMatching {
+
+        @ParameterizedTest
+        @CsvSource({"true, 1", "false, 2"})
+        void forcesTheSwitchOnOrOff(boolean enabled, int expectedSwitch) throws Throwable {
+            // Given a compression context
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
+                // When forcing long-distance matching on or off
+                sut.longDistanceMatching(enabled);
+
+                // Then zstd stores ZSTD_ps_enable or ZSTD_ps_disable, never auto
+                assertThat(nativeValue(sut, ZstdCompressParameter.ENABLE_LONG_DISTANCE_MATCHING))
+                        .isEqualTo(expectedSwitch);
+            }
+        }
+
+        @Test
+        void defaultsToAuto() throws Throwable {
+            // Given a fresh compression context
+            try (ZstdCompressContext sut = Zstd.newCompressContext()) {
+                // When nothing is set
+                int value = nativeValue(sut, ZstdCompressParameter.ENABLE_LONG_DISTANCE_MATCHING);
+
+                // Then zstd decides on its own (ZSTD_ps_auto)
+                assertThat(value).isZero();
+            }
+        }
+
+        @Test
+        void parameterResetRestoresAuto() throws Throwable {
+            // Given a context that forced long-distance matching off
+            try (ZstdCompressContext sut = Zstd.newCompressContext().longDistanceMatching(false)) {
+                // When its parameters are reset
+                sut.reset(ZstdResetDirective.PARAMETERS);
+
+                // Then the switch is back to auto
+                assertThat(nativeValue(sut, ZstdCompressParameter.ENABLE_LONG_DISTANCE_MATCHING)).isZero();
+            }
+        }
+
+        private static int nativeValue(ZstdCompressContext ctx, ZstdCompressParameter parameter) throws Throwable {
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment out = arena.allocate(ValueLayout.JAVA_INT);
+                long rc = (long) Bindings.CCTX_GET_PARAMETER.invokeExact(ctx.ptr(), parameter.value(), out);
+                assertThat(rc).isZero();
+                return out.get(ValueLayout.JAVA_INT, 0);
             }
         }
     }

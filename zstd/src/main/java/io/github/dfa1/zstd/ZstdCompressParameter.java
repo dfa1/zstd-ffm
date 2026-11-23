@@ -35,7 +35,10 @@ public enum ZstdCompressParameter {
     STRATEGY(107),
     /// Target uncompressed block size, in bytes (0 = no target); trades ratio for latency.
     TARGET_C_BLOCK_SIZE(130),
-    /// Enable long-distance matching (1) for better ratio on large inputs.
+    /// Long-distance matching, for a better ratio on large inputs: `0` lets zstd
+    /// decide (on for level 16+ with a window of at least `2^27`; the default),
+    /// `1` forces it on, `2` forces it off. Prefer
+    /// [ZstdCompressContext#longDistanceMatching(boolean)].
     ENABLE_LONG_DISTANCE_MATCHING(160),
     /// Long-distance matching hash table size, as a power of two.
     LDM_HASH_LOG(161),

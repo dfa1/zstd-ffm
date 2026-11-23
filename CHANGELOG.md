@@ -29,6 +29,12 @@ git tags, which trigger publication to Maven Central.
   ([#147](https://github.com/dfa1/zstd-ffm/issues/147))
 
 ### Fixed
+- `ZstdCompressContext#longDistanceMatching(false)` did not disable
+  long-distance matching: it sent `0`, which zstd reads as *auto*
+  (`ZSTD_c_enableLongDistanceMatching` is a three-state `ZSTD_ParamSwitch_e`).
+  Auto turns it on for level 16+ with a window of at least `2^27`, so `false`
+  behaved like `true` there and cost the same memory. `false` now sends
+  `ZSTD_ps_disable` (`2`). ([#165](https://github.com/dfa1/zstd-ffm/issues/165))
 - `windowLogMax` javadoc described it as a limit every decoder enforces. It is
   zstd's memory limit for **streaming** decompression only (`ZstdInputStream`,
   `ZstdDecompressStream`): `ZstdDecompressContext`'s `decompress` methods are
