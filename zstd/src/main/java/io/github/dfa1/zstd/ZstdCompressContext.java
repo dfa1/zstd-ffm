@@ -94,9 +94,12 @@ public final class ZstdCompressContext extends NativeObject {
     /// Forces long-distance matching on (`true`) or off (`false`). On, it gives a
     /// better ratio on large, repetitive inputs at the cost of memory.
     ///
-    /// Without this call zstd decides on its own: it enables long-distance
-    /// matching for the btopt strategy and above (level 16+) with a window of at
-    /// least `2^27`, and leaves it off otherwise.
+    /// Without this call zstd decides on its own, from the *effective*
+    /// parameters (after it shrinks the window to fit an input of known size):
+    /// it enables long-distance matching when the strategy is btopt or stronger
+    /// (level 16+ on large inputs) and the window log is at least 27. Out of the
+    /// box that means level 22, or an explicit `windowLog` of 27+, and only for
+    /// inputs over 64 MiB or of unknown size.
     ///
     /// @param enabled `true` to force long-distance matching on, `false` to force it off
     /// @return `this`, for chaining

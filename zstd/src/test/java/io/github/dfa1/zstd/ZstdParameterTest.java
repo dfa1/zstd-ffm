@@ -287,6 +287,8 @@ class ZstdParameterTest {
         void parameterResetRestoresAuto() throws Throwable {
             // Given a context that forced long-distance matching off
             try (ZstdCompressContext sut = Zstd.newCompressContext().longDistanceMatching(false)) {
+                assertThat(nativeValue(sut, ZstdCompressParameter.ENABLE_LONG_DISTANCE_MATCHING)).isEqualTo(2);
+
                 // When its parameters are reset
                 sut.reset(ZstdResetDirective.PARAMETERS);
 
