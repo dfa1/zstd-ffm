@@ -6,6 +6,18 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Added
+- `ZstdDecompressContext#ignoreChecksum(boolean)` skips content-checksum
+  validation, backed by the new `ZstdDecompressParameter.FORCE_IGNORE_CHECKSUM`
+  (`ZSTD_d_forceIgnoreChecksum`). For callers whose integrity is guaranteed
+  elsewhere, or to recover data from a frame with a bad checksum. Experimental
+  upstream; corrupted payloads are no longer detected while it is on.
+  ([#148](https://github.com/dfa1/zstd-ffm/issues/148))
+- `ZstdInputStream` and `ZstdDecompressStream` gain `windowLogMax(ZstdWindowLog)`
+  and `ignoreChecksum(boolean)`; previously they accepted no decompression
+  parameters at all, so frames built with a window above the default limit
+  could not be streamed.
+
 ## [0.16] - 2026-11-23
 
 ### Changed

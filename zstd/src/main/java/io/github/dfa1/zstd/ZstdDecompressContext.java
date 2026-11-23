@@ -52,6 +52,23 @@ public final class ZstdDecompressContext extends NativeObject {
         return parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, windowLogMax.value());
     }
 
+    /// Skips validation of the frame's content checksum (written with
+    /// [ZstdCompressContext#checksum(boolean)]). Off by default, so a checksum
+    /// mismatch fails with [ZstdErrorCode#CHECKSUM_WRONG].
+    ///
+    /// Use it when something else already guarantees integrity (TLS, a
+    /// filesystem or object-store checksum, a content-addressed key), or to
+    /// recover data from a frame whose stored checksum no longer matches.
+    ///
+    /// **Experimental** in upstream zstd. While on, **corrupted payloads are
+    /// no longer detected** by the checksum; other malformed input still fails.
+    ///
+    /// @param enabled whether to skip checksum validation
+    /// @return `this`, for chaining
+    public ZstdDecompressContext ignoreChecksum(boolean enabled) {
+        return parameter(ZstdDecompressParameter.FORCE_IGNORE_CHECKSUM, enabled ? 1 : 0);
+    }
+
     /// Resets this context so it can be reused for the next frame without the
     /// cost of freeing and recreating its native state.
     ///

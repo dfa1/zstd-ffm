@@ -22,6 +22,7 @@ import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.sample;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
+import static io.github.dfa1.zstd.ZstdTestSupport.withWrongChecksum;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -311,6 +312,105 @@ class ZstdStreamTest {
                 // Then it is rejected natively
                 assertThatThrownBy(result).isInstanceOf(ZstdException.class);
             }
+        }
+    }
+
+    @Nested
+    class InputStreamParameters {
+
+        private static final byte[] PAYLOAD = randomBytes(0x1F, 64 * 1024);
+
+        @Test
+        void returnsTheSameStreamForChaining() throws IOException {
+            // Given a fresh input stream
+            try (ZstdInputStream zin = Zstd.newInputStream(new ByteArrayInputStream(Zstd.compress(PAYLOAD)))) {
+                // When setting an advanced parameter
+                ZstdInputStream result = zin.windowLogMax(ZstdWindowLog.of(27));
+
+                // Then it returns the same instance, for chaining
+                assertThat(result).isSameAs(zin);
+            }
+        }
+
+        @Test
+        void windowLogMaxBelowTheFrameWindowRejectsTheFrame() throws IOException {
+            // Given a frame larger than the stream's output buffer (smaller ones take
+            // zstd's single-shot path, which skips the window check) and a stream
+            // that accepts at most a 1 KiB window
+            byte[] frame = Zstd.compress(randomBytes(0x4F, 1024 * 1024));
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(frame))
+                    .windowLogMax(ZstdWindowLog.of(10))) {
+                // When reading it
+                ThrowingCallable result = sut::readAllBytes;
+
+                // Then the limit is enforced
+                assertThatThrownBy(result)
+                        .isInstanceOfSatisfying(ZstdException.class,
+                                e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.FRAME_PARAMETER_WINDOW_TOO_LARGE));
+            }
+        }
+
+        @Test
+        void defaultStreamRejectsAWrongChecksum() throws IOException {
+            // Given a frame whose stored checksum is flipped
+            byte[] frame = withWrongChecksum(PAYLOAD);
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(frame))) {
+                // When reading it with validation on
+                ThrowingCallable result = sut::readAllBytes;
+
+                // Then the mismatch is reported
+                assertThatThrownBy(result)
+                        .isInstanceOfSatisfying(ZstdException.class,
+                                e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.CHECKSUM_WRONG));
+            }
+        }
+
+        @Test
+        void forceIgnoreChecksumRecoversTheIntactPayload() throws IOException {
+            // Given a frame whose stored checksum is flipped
+            byte[] frame = withWrongChecksum(PAYLOAD);
+
+            // When reading it with validation off
+            byte[] restored;
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(frame))
+                    .ignoreChecksum(true)) {
+                restored = sut.readAllBytes();
+            }
+
+            // Then the payload comes back untouched
+            assertThat(restored).isEqualTo(PAYLOAD);
+        }
+
+        @Test
+        void rejectsAChangeMidFrame() throws IOException {
+            // Given a stream that has started decoding a frame larger than its output buffer
+            byte[] large = randomBytes(0x2F, 1024 * 1024);
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(Zstd.compress(large)))) {
+                assertThat(sut.read()).isNotNegative();
+
+                // When changing a parameter mid-frame
+                ThrowingCallable result = () -> sut.ignoreChecksum(true);
+
+                // Then zstd refuses it
+                assertThatThrownBy(result)
+                        .isInstanceOfSatisfying(ZstdException.class,
+                                e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.STAGE_WRONG));
+            }
+        }
+
+        @Test
+        void parameterAfterCloseThrowsInsteadOfTouchingTheFreedContext() throws IOException {
+            // Given a closed input stream
+            ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(new byte[0]));
+            sut.close();
+
+            // When a parameter is set on it
+            ThrowingCallable result = () -> sut.ignoreChecksum(true);
+
+            // Then it fails fast rather than using the freed context
+            assertThatThrownBy(result)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("closed");
         }
     }
 

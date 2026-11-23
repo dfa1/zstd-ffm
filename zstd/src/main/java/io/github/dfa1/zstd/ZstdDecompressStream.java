@@ -2,6 +2,7 @@ package io.github.dfa1.zstd;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.util.Objects;
 
 /// A low-level, zero-copy streaming decompressor driven with native
 /// [MemorySegment] buffers — no heap `byte[]` bounce.
@@ -51,6 +52,46 @@ public final class ZstdDecompressStream extends NativeObject {
             NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_LOAD_DICTIONARY.invokeExact(
                     ptr(), d, (long) raw.length));
         }
+    }
+
+    /// Sets the largest back-reference window this stream will accept, as a
+    /// power of two. Raise it to decode frames built with a large `windowLog`;
+    /// see [ZstdDecompressContext#windowLogMax(ZstdWindowLog)].
+    ///
+    /// zstd enforces the limit on its buffered streaming path only: a frame
+    /// that declares its content size and fits in one output step is decoded
+    /// in a single shot without the check, which bounds its memory anyway.
+    ///
+    /// Set it before the first [#decompress] call or between frames.
+    ///
+    /// @param windowLogMax the base-2 log of the maximum accepted window size
+    /// @return `this`, for chaining
+    /// @throws ZstdException if a frame is in progress
+    /// @throws IllegalStateException if this stream is closed
+    public ZstdDecompressStream windowLogMax(ZstdWindowLog windowLogMax) {
+        Objects.requireNonNull(windowLogMax, "windowLogMax");
+        return parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, windowLogMax.value());
+    }
+
+    /// Skips validation of each frame's content checksum; see
+    /// [ZstdDecompressContext#ignoreChecksum(boolean)]. Off by default.
+    ///
+    /// **Experimental** in upstream zstd. While on, **corrupted payloads are
+    /// no longer detected** by the checksum. Set it before the first
+    /// [#decompress] call or between frames.
+    ///
+    /// @param enabled whether to skip checksum validation
+    /// @return `this`, for chaining
+    /// @throws ZstdException if a frame is in progress
+    /// @throws IllegalStateException if this stream is closed
+    public ZstdDecompressStream ignoreChecksum(boolean enabled) {
+        return parameter(ZstdDecompressParameter.FORCE_IGNORE_CHECKSUM, enabled ? 1 : 0);
+    }
+
+    private ZstdDecompressStream parameter(ZstdDecompressParameter parameter, int value) {
+        NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_SET_PARAMETER.invokeExact(
+                ptr(), parameter.value(), value));
+        return this;
     }
 
     /// Decompresses as much of `src` as fits into `dst` in one step.

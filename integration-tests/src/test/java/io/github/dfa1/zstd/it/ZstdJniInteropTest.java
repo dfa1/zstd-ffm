@@ -221,4 +221,65 @@ class ZstdJniInteropTest {
                     .getBytes(StandardCharsets.UTF_8);
         }
     }
+
+    /// `ZSTD_d_forceIgnoreChecksum`: zstd-jni has no setter for it, so it serves
+    /// only as the producer of checksummed frames.
+    @Nested
+    class IgnoreChecksum {
+
+        static Stream<byte[]> payloads() {
+            Random r = new Random(0x5348_4B53L);
+            List<byte[]> cases = new ArrayList<>();
+            cases.add(new byte[0]);
+            for (int i = 0; i < 10; i++) {
+                int size = r.nextInt(64 * 1024);
+                cases.add(i % 2 == 0 ? compressible(r, size) : random(r, size));
+            }
+            return cases.stream();
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void jniChecksummedFramesDecodeIdenticallyWithAndWithoutValidation(byte[] data) {
+            // Given a checksummed frame from zstd-jni
+            byte[] frame;
+            try (var jni = new com.github.luben.zstd.ZstdCompressCtx()) {
+                frame = jni.setChecksum(true).compress(data);
+            }
+
+            // When decoding it with validation on and off
+            byte[] validated;
+            byte[] ignored;
+            try (ZstdDecompressContext on = Zstd.newDecompressContext();
+                 ZstdDecompressContext off = Zstd.newDecompressContext().ignoreChecksum(true)) {
+                validated = on.decompress(frame, ZstdByteSize.of(data.length));
+                ignored = off.decompress(frame, ZstdByteSize.of(data.length));
+            }
+
+            // Then both produce the original input
+            assertThat(validated).isEqualTo(data);
+            assertThat(ignored).isEqualTo(data);
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void jniChecksummedStreamDecodesWithValidationOff(byte[] data) throws Exception {
+            // Given a checksummed stream from zstd-jni
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            try (var zout = new com.github.luben.zstd.ZstdOutputStream(sink)) {
+                zout.setChecksum(true);
+                zout.write(data);
+            }
+
+            // When reading it through a zstd-ffm stream with validation off
+            byte[] restored;
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(sink.toByteArray()))
+                    .ignoreChecksum(true)) {
+                restored = sut.readAllBytes();
+            }
+
+            // Then the original input comes back
+            assertThat(restored).isEqualTo(data);
+        }
+    }
 }
