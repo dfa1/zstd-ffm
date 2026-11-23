@@ -33,8 +33,7 @@ def confined_to_cwd(arg):
 
 
 def load(arg):
-    # Sonar's taint engine does not credit confined_to_cwd() as a path sanitizer (pythonsecurity:S8707).
-    with open(confined_to_cwd(arg)) as f:  # NOSONAR: confined to the working directory above
+    with open(confined_to_cwd(arg)) as f:
         results = json.load(f)
 
     by_class = {}
