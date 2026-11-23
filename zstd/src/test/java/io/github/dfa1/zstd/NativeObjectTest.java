@@ -147,12 +147,13 @@ class   NativeObjectTest {
     /// Minimal concrete [NativeObject] that records how its native resource was released.
     private static final class TestObject extends NativeObject {
 
-        private final AtomicInteger closeCount = new AtomicInteger();
+        private final AtomicInteger closeCount;
         private volatile MemorySegment closedWith;
         private volatile boolean failOnClose;
 
         private TestObject(MemorySegment owningPointer) {
             super(owningPointer);
+            this.closeCount = new AtomicInteger();
         }
 
         private MemorySegment pointer() {

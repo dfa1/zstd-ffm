@@ -6,7 +6,53 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Changed
+- **Breaking:** no public type has a public constructor any more.
+  ([#143](https://github.com/dfa1/zstd-ffm/issues/143))
+  - Native-backed resources now come from factories on `Zstd`, one per old
+    constructor (same parameter lists), and the caller still owns and must
+    `close()` the result:
+    `Zstd.newCompressContext()`, `Zstd.newDecompressContext()`,
+    `Zstd.newCompressDictionary(...)` (4 overloads),
+    `Zstd.newDecompressDictionary(...)` (2), `Zstd.newCompressStream(...)` (3),
+    `Zstd.newDecompressStream(...)` (2), `Zstd.newOutputStream(...)` (4), and
+    `Zstd.newInputStream(...)` (2). Replace `new ZstdCompressContext()` with
+    `Zstd.newCompressContext()`, `new ZstdOutputStream(out, level)` with
+    `Zstd.newOutputStream(out, level)`, and so on.
+  - `ZstdOutputStream.withPledgedSize(OutputStream, ZstdCompressionLevel, ZstdByteSize)`
+    moved to `Zstd.newPledgedOutputStream(...)` (same parameters).
+  - `ZstdDictionary.compressDict()`, `compressDict(ZstdCompressionLevel)`, and
+    `decompressDict()` are removed: `Zstd` is the only way to create a
+    resource. Use `Zstd.newCompressDictionary(dict)`,
+    `Zstd.newCompressDictionary(dict, level)`, and
+    `Zstd.newDecompressDictionary(dict)`.
+  - `NativeObject` and `NativePointerWithRefCount` can no longer be subclassed
+    outside the library (their constructors are package-private).
+  - Value types are now `final` classes instead of records, built with
+    `of(...)`: `ZstdCompressionLevel.of(int)`, `ZstdByteSize.of(long)`,
+    `ZstdWindowLog.of(int)`, `ZstdMagicVariant.of(int)`,
+    `ZstdVersion.of(int, int, int)`, `ZstdDictionaryId.of(int)` (unchanged),
+    and in `zstd-rfc9842` `DictionaryIdHeader.of(String)` and
+    `UseAsDictionaryHeader.of(String)` / `of(String, String)` /
+    `of(String, String, String)` (replacing its two convenience constructors).
+    Validation, accessor names, `equals`/`hashCode`, and the record-style
+    `toString` (`ZstdByteSize[value=8]`; `ZstdVersion` still prints `x.y.z`) are
+    unchanged. Record deconstruction patterns no longer apply to them.
+  - Library-built result types are now `final` classes with no public way to
+    construct them: `ZstdBounds`, `ZstdFrameHeader`, `ZstdFrameProgression`,
+    `ZstdStreamResult`, and `Rfc9842Negotiation` (use
+    `Rfc9842Negotiation.from(byte[], String)`). Their accessors are unchanged.
+
 ### Fixed
+- `Zstd.newPledgedOutputStream` (formerly `ZstdOutputStream.withPledgedSize`)
+  no longer leaks the native context and buffers when configuring the pledged
+  size fails, and rejects a `null` size before allocating anything.
+- A closed `ZstdCompressDictionary` / `ZstdDecompressDictionary` now throws
+  `IllegalStateException` on use (`id()`, `sizeOf()`, passing it to
+  `compress`/`decompress`/`refDictionary`) even while a context that
+  referenced it keeps the native dictionary alive. Previously the closed handle
+  kept working until the last context let go. Contexts that retained the
+  dictionary are unaffected.
 - `ZstdDictionary` dictionary optimization chose the `ZDICT_*_params_t`
   layout and the native optimizer with two independent conditionals: had they
   disagreed, a 48-byte `ZDICT_cover_params_t` would have reached
@@ -390,3 +436,5 @@ zstd-jni for a smaller decompress-side gain.
 ## [0.1]
 
 - [First release: JDK 25 FFM bindings for Zstandard 1.5.7, built with `zig cc`](https://github.com/dfa1/zstd-ffm/releases/tag/v0.1)
+
+[Unreleased]: https://github.com/dfa1/zstd-ffm/compare/v0.15...HEAD

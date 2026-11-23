@@ -28,11 +28,11 @@ class ZstdSegmentStreamTest {
         void roundTripsInOneCallEach() {
             byte[] original = "segment stream ".repeat(400).getBytes(StandardCharsets.UTF_8);
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream cs = new ZstdCompressStream();
-                 ZstdDecompressStream ds = new ZstdDecompressStream()) {
+                 ZstdCompressStream cs = Zstd.newCompressStream();
+                 ZstdDecompressStream ds = Zstd.newDecompressStream()) {
 
                 MemorySegment src = segmentOf(arena, original);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(new ZstdByteSize(original.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
 
                 // When compressed in one END step
                 ZstdStreamResult c = cs.compress(dst, src, ZstdEndDirective.END);
@@ -72,8 +72,8 @@ class ZstdSegmentStreamTest {
         private byte[] drive(byte[] input, int chunk, boolean compress) {
             ByteArrayOutputStream collected = new ByteArrayOutputStream();
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream cs = compress ? new ZstdCompressStream() : null;
-                 ZstdDecompressStream ds = compress ? null : new ZstdDecompressStream()) {
+                 ZstdCompressStream cs = compress ? Zstd.newCompressStream() : null;
+                 ZstdDecompressStream ds = compress ? null : Zstd.newDecompressStream()) {
 
                 MemorySegment src = segmentOf(arena, input);
                 MemorySegment dst = arena.allocate(chunk);
@@ -99,10 +99,10 @@ class ZstdSegmentStreamTest {
         void tracksByteCounters() {
             byte[] original = "progress payload ".repeat(500).getBytes(StandardCharsets.UTF_8);
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream cs = new ZstdCompressStream()) {
+                 ZstdCompressStream cs = Zstd.newCompressStream()) {
 
                 MemorySegment src = segmentOf(arena, original);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(new ZstdByteSize(original.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
 
                 // fresh stream: nothing moved yet
                 assertThat(cs.progress().consumed()).isZero();
@@ -125,7 +125,7 @@ class ZstdSegmentStreamTest {
         @Test
         void returnsTheSameStreamForChaining() {
             // Given a fresh compress stream
-            try (ZstdCompressStream cs = new ZstdCompressStream()) {
+            try (ZstdCompressStream cs = Zstd.newCompressStream()) {
                 // When setting an advanced parameter
                 ZstdCompressStream result = cs.parameter(ZstdCompressParameter.CHECKSUM_FLAG, 1);
 
@@ -137,7 +137,7 @@ class ZstdSegmentStreamTest {
         @Test
         void rejectsOutOfRangeValue() {
             // Given a fresh compress stream
-            try (ZstdCompressStream cs = new ZstdCompressStream()) {
+            try (ZstdCompressStream cs = Zstd.newCompressStream()) {
                 // When setting an absurd window log
                 ThrowingCallable result = () -> cs.parameter(ZstdCompressParameter.WINDOW_LOG, 99);
 
@@ -156,11 +156,11 @@ class ZstdSegmentStreamTest {
             byte[] sample = "{\"id\":1,\"user\":\"u\",\"event\":\"x\"}".getBytes(StandardCharsets.UTF_8);
 
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream cs = new ZstdCompressStream(new ZstdCompressionLevel(3), dict);
-                 ZstdDecompressStream ds = new ZstdDecompressStream(dict)) {
+                 ZstdCompressStream cs = Zstd.newCompressStream(ZstdCompressionLevel.of(3), dict);
+                 ZstdDecompressStream ds = Zstd.newDecompressStream(dict)) {
 
                 MemorySegment src = segmentOf(arena, sample);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(new ZstdByteSize(sample.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(sample.length)).value());
                 ZstdStreamResult c = cs.compress(dst, src, ZstdEndDirective.END);
 
                 MemorySegment out = arena.allocate(sample.length);
@@ -175,9 +175,9 @@ class ZstdSegmentStreamTest {
             ZstdDictionary dict = trainDictionary(3000);
             byte[] sample = "{\"id\":2,\"user\":\"u\",\"event\":\"y\"}".getBytes(StandardCharsets.UTF_8);
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream sut = new ZstdCompressStream(ZstdCompressionLevel.DEFAULT, dict)) {
+                 ZstdCompressStream sut = Zstd.newCompressStream(ZstdCompressionLevel.DEFAULT, dict)) {
                 MemorySegment src = segmentOf(arena, sample);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(new ZstdByteSize(sample.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(sample.length)).value());
 
                 // When a frame is compressed
                 ZstdStreamResult c = sut.compress(dst, src, ZstdEndDirective.END);
@@ -197,7 +197,7 @@ class ZstdSegmentStreamTest {
             ZstdDictionary dict = trainDictionary(3000);
 
             // When constructing the stream, which fails once the native context exists
-            ThrowingCallable result = () -> new ZstdCompressStream(null, dict);
+            ThrowingCallable result = () -> Zstd.newCompressStream(null, dict);
 
             // Then the failure propagates (after the half-built stream closed itself)
             assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
@@ -209,7 +209,7 @@ class ZstdSegmentStreamTest {
             ZstdDictionary corrupt = corruptDictionary();
 
             // When constructing the stream, which digests the dictionary eagerly
-            ThrowingCallable result = () -> new ZstdDecompressStream(corrupt);
+            ThrowingCallable result = () -> Zstd.newDecompressStream(corrupt);
 
             // Then the native rejection propagates as a ZstdException
             assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -224,7 +224,7 @@ class ZstdSegmentStreamTest {
         void compressRejectsHeapSegment(String heapSide) {
             // Given a compress stream and one heap-backed buffer
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream sut = new ZstdCompressStream()) {
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
                 MemorySegment heap = MemorySegment.ofArray(new byte[64]);
                 MemorySegment dst = "dst".equals(heapSide) ? heap : arena.allocate(64);
                 MemorySegment src = "src".equals(heapSide) ? heap : arena.allocate(64);
@@ -244,7 +244,7 @@ class ZstdSegmentStreamTest {
         void compressRejectsNullSegment(String nullSide) {
             // Given a compress stream and one missing buffer
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream sut = new ZstdCompressStream()) {
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
                 MemorySegment dst = "dst".equals(nullSide) ? null : arena.allocate(64);
                 MemorySegment src = "src".equals(nullSide) ? null : arena.allocate(64);
 

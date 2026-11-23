@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd.rfc9842.demo;
 
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
@@ -92,10 +93,10 @@ final class DczTestServer implements AutoCloseable {
         // Available-Dictionary header value — see AvailableDictionaryHeader's doc.
         AvailableDictionaryHeader availableDictionary = AvailableDictionaryHeader.of(dictionary);
         String expectedAvailableDictionary = availableDictionary.toHeaderValue();
-        String useAsDictionary = new UseAsDictionaryHeader("/api/*", DICTIONARY_ID).toHeaderValue();
+        String useAsDictionary = UseAsDictionaryHeader.of("/api/*", DICTIONARY_ID).toHeaderValue();
 
-        this.compressDictionary = dictionary.compressDict(level);
-        this.cctx = new ZstdCompressContext().level(level);
+        this.compressDictionary = Zstd.newCompressDictionary(dictionary, level);
+        this.cctx = Zstd.newCompressContext().level(level);
         ZstdCompressContext cctxRef = this.cctx;
         ZstdCompressDictionary compressDictionaryRef = this.compressDictionary;
 
@@ -320,7 +321,11 @@ final class DczTestServer implements AutoCloseable {
     /// this exists instead of Jetty's own `ConnectionStatistics`.
     private static final class WireByteCounter implements Connection.Listener {
 
-        private final List<Connection> connections = new CopyOnWriteArrayList<>();
+        private final List<Connection> connections;
+
+        WireByteCounter() {
+            this.connections = new CopyOnWriteArrayList<>();
+        }
 
         @Override
         public void onOpened(Connection connection) {

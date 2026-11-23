@@ -20,11 +20,11 @@ class RefPrefixTest {
         byte[] prefixBytes = "the quick brown fox jumps over the lazy dog".getBytes();
         byte[] dataBytes = "the quick brown fox jumps over the lazy cat".getBytes();
         try (Arena arena = Arena.ofConfined();
-             ZstdCompressContext cctx = new ZstdCompressContext();
-             ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+             ZstdCompressContext cctx = Zstd.newCompressContext();
+             ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
             MemorySegment prefix = segmentOf(arena, prefixBytes);
             MemorySegment src = segmentOf(arena, dataBytes);
-            MemorySegment frame = arena.allocate(Zstd.compressBound(new ZstdByteSize(dataBytes.length)).value());
+            MemorySegment frame = arena.allocate(Zstd.compressBound(ZstdByteSize.of(dataBytes.length)).value());
             MemorySegment out = arena.allocate(dataBytes.length);
 
             // When
@@ -52,11 +52,11 @@ class RefPrefixTest {
             MemorySegment src = segmentOf(arena, random);
 
             long baseline;
-            try (ZstdCompressContext cctx = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext cctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 baseline = cctx.compress(arena, src).byteSize();
             }
             byte[] frame;
-            try (ZstdCompressContext cctx = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+            try (ZstdCompressContext cctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
                 cctx.refPrefix(prefix);
                 MemorySegment f = cctx.compress(arena, src);
                 frame = bytesOf(f, (int) f.byteSize());
@@ -66,7 +66,7 @@ class RefPrefixTest {
             assertThat((long) frame.length).isLessThan(baseline / 10);
 
             // And — it round-trips with the same prefix
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 MemorySegment out = arena.allocate(random.length);
                 dctx.refPrefix(prefix);
                 long m = dctx.decompress(out, segmentOf(arena, frame));
@@ -75,7 +75,7 @@ class RefPrefixTest {
 
             // But — it cannot be recovered without the prefix
             boolean reproduced;
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 MemorySegment out = arena.allocate(random.length);
                 long m = dctx.decompress(out, segmentOf(arena, frame));
                 reproduced = Arrays.equals(bytesOf(out, (int) m), random);
@@ -91,10 +91,10 @@ class RefPrefixTest {
         // Given
         byte[] dataBytes = "the quick brown fox".getBytes();
         try (Arena arena = Arena.ofConfined();
-             ZstdCompressContext cctx = new ZstdCompressContext()) {
+             ZstdCompressContext cctx = Zstd.newCompressContext()) {
             MemorySegment prefix = segmentOf(arena, "a prior version of the text".getBytes());
             MemorySegment src = segmentOf(arena, dataBytes);
-            MemorySegment frame = arena.allocate(Zstd.compressBound(new ZstdByteSize(dataBytes.length)).value());
+            MemorySegment frame = arena.allocate(Zstd.compressBound(ZstdByteSize.of(dataBytes.length)).value());
 
             // When — set then clear the prefix before compressing
             cctx.refPrefix(prefix);
@@ -103,7 +103,7 @@ class RefPrefixTest {
 
             // Then — a plain decoder with no prefix decodes it
             byte[] restored;
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 MemorySegment out = arena.allocate(dataBytes.length);
                 long m = dctx.decompress(out, frame.asSlice(0, n));
                 restored = bytesOf(out, (int) m);
@@ -118,11 +118,11 @@ class RefPrefixTest {
         // and one context kept open across two compressions with the prefix set once.
         byte[] random = randomBytes(0xCAFE, 16384);
         try (Arena arena = Arena.ofConfined();
-             ZstdCompressContext cctx = new ZstdCompressContext().level(new ZstdCompressionLevel(19))) {
+             ZstdCompressContext cctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(19))) {
             MemorySegment prefix = segmentOf(arena, random);
             MemorySegment src = segmentOf(arena, random);
-            MemorySegment first = arena.allocate(Zstd.compressBound(new ZstdByteSize(random.length)).value());
-            MemorySegment second = arena.allocate(Zstd.compressBound(new ZstdByteSize(random.length)).value());
+            MemorySegment first = arena.allocate(Zstd.compressBound(ZstdByteSize.of(random.length)).value());
+            MemorySegment second = arena.allocate(Zstd.compressBound(ZstdByteSize.of(random.length)).value());
 
             // When — first frame consumes the prefix; second is compressed with no re-set
             cctx.refPrefix(prefix);
@@ -135,7 +135,7 @@ class RefPrefixTest {
 
             // And — the second frame carries no prefix, so a plain decoder decodes it
             byte[] restored;
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 MemorySegment out = arena.allocate(random.length);
                 long m = dctx.decompress(out, second.asSlice(0, n2));
                 restored = bytesOf(out, (int) m);
@@ -151,7 +151,7 @@ class RefPrefixTest {
 
         // When
         ThrowingCallable result = () -> {
-            try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
                 cctx.refPrefix(heap);
             }
         };
@@ -169,7 +169,7 @@ class RefPrefixTest {
 
         // When
         ThrowingCallable result = () -> {
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 dctx.refPrefix(heap);
             }
         };
@@ -187,7 +187,7 @@ class RefPrefixTest {
 
         // When loaded as a zero-copy dictionary
         ThrowingCallable result = () -> {
-            try (ZstdCompressContext cctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
                 cctx.loadDictionary(heap);
             }
         };
@@ -205,7 +205,7 @@ class RefPrefixTest {
 
         // When loaded as a zero-copy dictionary
         ThrowingCallable result = () -> {
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 dctx.loadDictionary(heap);
             }
         };
@@ -220,8 +220,8 @@ class RefPrefixTest {
     void refPrefixReturnsTheSameContextForChaining() {
         // Given both contexts and a native prefix
         try (Arena arena = Arena.ofConfined();
-             ZstdCompressContext cctx = new ZstdCompressContext();
-             ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+             ZstdCompressContext cctx = Zstd.newCompressContext();
+             ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
             MemorySegment prefix = segmentOf(arena, "a prior version".getBytes());
 
             // When setting and then clearing a prefix on both contexts
@@ -242,8 +242,8 @@ class RefPrefixTest {
     void loadDictionaryFromSegmentReturnsTheSameContextForChaining() {
         // Given both contexts and a native dictionary segment
         try (Arena arena = Arena.ofConfined();
-             ZstdCompressContext cctx = new ZstdCompressContext();
-             ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+             ZstdCompressContext cctx = Zstd.newCompressContext();
+             ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
             MemorySegment dict = segmentOf(arena, "dictionary sample payload ".repeat(64).getBytes());
 
             // When loading and then clearing a segment dictionary on both contexts

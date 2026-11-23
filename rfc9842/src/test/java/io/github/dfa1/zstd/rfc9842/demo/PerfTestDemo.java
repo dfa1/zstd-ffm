@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd.rfc9842.demo;
 
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
@@ -99,8 +100,8 @@ public final class PerfTestDemo {
             // ZstdByteSize, ZstdDictionary) re-digests the dictionary from scratch on every
             // single call. Passing the raw ZstdDictionary there on every request was silently
             // taxing the dcz tier's decode cost here, the same bug fixed server-side earlier.
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext();
-                 ZstdDecompressDictionary decompressDictionary = negotiated.dictionary().decompressDict()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext();
+                 ZstdDecompressDictionary decompressDictionary = Zstd.newDecompressDictionary(negotiated.dictionary())) {
                 runAllTiers(size, DATA, http, dctx, decompressDictionary, negotiated);
             }
         }

@@ -20,26 +20,15 @@ import java.util.Objects;
 /// is safe.
 public final class ZstdDecompressDictionary extends NativePointerWithRefCount {
 
-    /// Digests `dict` for decompression.
-    ///
-    /// @param dict the dictionary to digest
-    public ZstdDecompressDictionary(ZstdDictionary dict) {
-        super(create(dict));
+    ZstdDecompressDictionary(ZstdDictionary dict) {
+        super(createNative(dict));
     }
 
-    /// Digests a native dictionary segment for decompression, without a heap copy.
-    ///
-    /// `dict` must be a native (off-heap) [MemorySegment] — e.g. an mmap slice or
-    /// an arena buffer. Its bytes are copied into the digested dictionary, so the
-    /// segment may be released once the constructor returns. Heap-backed callers
-    /// should use [ZstdDecompressDictionary(ZstdDictionary)] instead.
-    ///
-    /// @param dict native dictionary content
-    public ZstdDecompressDictionary(MemorySegment dict) {
-        super(create(dict));
+    ZstdDecompressDictionary(MemorySegment dict) {
+        super(createNative(dict));
     }
 
-    private static MemorySegment create(ZstdDictionary dict) {
+    private static MemorySegment createNative(ZstdDictionary dict) {
         Objects.requireNonNull(dict, "dict");
         try (Arena arena = Arena.ofConfined()) {
             byte[] raw = dict.raw();
@@ -49,7 +38,7 @@ public final class ZstdDecompressDictionary extends NativePointerWithRefCount {
         }
     }
 
-    private static MemorySegment create(MemorySegment dict) {
+    private static MemorySegment createNative(MemorySegment dict) {
         NativeCall.requireNative(dict, "dict");
         return NativeCall.createOrThrow("ZSTD_createDDict",
                 () -> (MemorySegment) Bindings.CREATE_DDICT.invokeExact(dict, dict.byteSize()));
@@ -71,7 +60,7 @@ public final class ZstdDecompressDictionary extends NativePointerWithRefCount {
     /// @return the live dictionary size
     public ZstdByteSize sizeOf() {
         try {
-            return new ZstdByteSize((long) Bindings.SIZEOF_DDICT.invokeExact(ptr()));
+            return ZstdByteSize.of((long) Bindings.SIZEOF_DDICT.invokeExact(ptr()));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }

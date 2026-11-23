@@ -50,7 +50,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
 
             // Then its compressed size is the whole buffer
-            assertThat(ZstdFrame.compressedSize(frame)).isEqualTo(new ZstdByteSize(frame.length));
+            assertThat(ZstdFrame.compressedSize(frame)).isEqualTo(ZstdByteSize.of(frame.length));
         }
 
         @Test
@@ -63,7 +63,7 @@ class ZstdFrameTest {
             both.write(second);
 
             // Then compressedSize reports where the second frame begins
-            assertThat(ZstdFrame.compressedSize(both.toByteArray())).isEqualTo(new ZstdByteSize(first.length));
+            assertThat(ZstdFrame.compressedSize(both.toByteArray())).isEqualTo(ZstdByteSize.of(first.length));
         }
 
         @Test
@@ -106,7 +106,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
 
             // Then the exact decompressed size is the payload length
-            assertThat(ZstdFrame.decompressedSize(frame)).isEqualTo(new ZstdByteSize(PAYLOAD.length));
+            assertThat(ZstdFrame.decompressedSize(frame)).isEqualTo(ZstdByteSize.of(PAYLOAD.length));
         }
 
         @Test
@@ -119,7 +119,7 @@ class ZstdFrameTest {
 
             // Then the total is the sum of both decompressed sizes
             assertThat(ZstdFrame.decompressedSize(both.toByteArray()))
-                    .isEqualTo(new ZstdByteSize((long) PAYLOAD.length + second.length));
+                    .isEqualTo(ZstdByteSize.of((long) PAYLOAD.length + second.length));
         }
 
         @Test
@@ -138,7 +138,7 @@ class ZstdFrameTest {
         void failsWhenAFrameDoesNotRecordItsSize() throws Exception {
             // Given a streamed frame with no pledged size
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = new ZstdOutputStream(sink)) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink)) {
                 zout.write(PAYLOAD);
             }
             byte[] frame = sink.toByteArray();
@@ -237,7 +237,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
             long margin = ZstdFrame.decompressionMargin(frame).value();
             try (Arena arena = Arena.ofConfined();
-                 ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                 ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 MemorySegment buf = arena.allocate(PAYLOAD.length + margin);
 
                 // and the compressed frame placed at the very end of that buffer
@@ -275,7 +275,7 @@ class ZstdFrameTest {
 
             // Then it is a standard frame storing the content size, no checksum, no dict
             assertThat(header.frameType()).isEqualTo(ZstdFrameType.STANDARD);
-            assertThat(header.contentSize()).hasValue(new ZstdByteSize(PAYLOAD.length));
+            assertThat(header.contentSize()).hasValue(ZstdByteSize.of(PAYLOAD.length));
             assertThat(header.hasChecksum()).isFalse();
             assertThat(header.dictId()).isEqualTo(ZstdDictionaryId.NONE);
             assertThat(header.windowSize()).hasValueSatisfying(w -> assertThat(w.value()).isPositive());
@@ -284,7 +284,7 @@ class ZstdFrameTest {
         @Test
         void reflectsChecksumFlag() {
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext().checksum(true)) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().checksum(true)) {
                 frame = ctx.compress(PAYLOAD);
             }
             assertThat(ZstdFrame.header(frame).hasChecksum()).isTrue();
@@ -353,7 +353,7 @@ class ZstdFrameTest {
         void roundTripsContentAndMagicVariant() {
             // Given user metadata wrapped in a skippable frame
             byte[] meta = "sidecar metadata".getBytes(StandardCharsets.UTF_8);
-            byte[] frame = ZstdFrame.writeSkippableFrame(meta, new ZstdMagicVariant(7));
+            byte[] frame = ZstdFrame.writeSkippableFrame(meta, ZstdMagicVariant.of(7));
 
             // Then it is recognized as skippable and decodes back with its variant
             assertThat(ZstdFrame.isSkippableFrame(frame)).isTrue();
@@ -361,7 +361,7 @@ class ZstdFrameTest {
 
             ZstdSkippableContent read = ZstdFrame.readSkippableFrame(frame);
             assertThat(read.content()).isEqualTo(meta);
-            assertThat(read.magicVariant()).isEqualTo(new ZstdMagicVariant(7));
+            assertThat(read.magicVariant()).isEqualTo(ZstdMagicVariant.of(7));
         }
 
         @Test
@@ -373,7 +373,7 @@ class ZstdFrameTest {
         void defensivelyCopiesContentInAndOut() {
             // Given a backing array wrapped in a skippable-content value
             byte[] backing = "metadata".getBytes(StandardCharsets.UTF_8);
-            ZstdSkippableContent content = new ZstdSkippableContent(backing, new ZstdMagicVariant(2));
+            ZstdSkippableContent content = new ZstdSkippableContent(backing, ZstdMagicVariant.of(2));
 
             // When the source array and a value returned by the accessor are mutated
             backing[0] = 'X';
@@ -386,9 +386,9 @@ class ZstdFrameTest {
         @Test
         void contentHasValueEqualityOverTheBytesNotArrayIdentity() {
             // Given two separately built payloads with the same bytes and variant, and one differing
-            ZstdSkippableContent a = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), new ZstdMagicVariant(3));
-            ZstdSkippableContent b = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), new ZstdMagicVariant(3));
-            ZstdSkippableContent differentVariant = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), new ZstdMagicVariant(4));
+            ZstdSkippableContent a = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), ZstdMagicVariant.of(3));
+            ZstdSkippableContent b = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), ZstdMagicVariant.of(3));
+            ZstdSkippableContent differentVariant = new ZstdSkippableContent("meta".getBytes(StandardCharsets.UTF_8), ZstdMagicVariant.of(4));
 
             // When compared by value and rendered as text
             boolean sameBytesEqual = a.equals(b);
@@ -406,7 +406,7 @@ class ZstdFrameTest {
         void hashCodeMatchesTheDocumentedFormula() {
             // Given content bytes and a variant
             byte[] contentBytes = "meta".getBytes(StandardCharsets.UTF_8);
-            ZstdMagicVariant variant = new ZstdMagicVariant(3);
+            ZstdMagicVariant variant = ZstdMagicVariant.of(3);
             ZstdSkippableContent sut = new ZstdSkippableContent(contentBytes, variant);
 
             // When hashed
@@ -430,7 +430,7 @@ class ZstdFrameTest {
             // Given a frame compressed with a dictionary
             ZstdDictionary dict = trainDictionary(3000);
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 frame = ctx.compress(PAYLOAD, dict);
             }
 
@@ -443,7 +443,7 @@ class ZstdFrameTest {
             // Given a dictionary frame in a native segment
             ZstdDictionary dict = trainDictionary(3000);
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 frame = ctx.compress(PAYLOAD, dict);
             }
             try (Arena arena = Arena.ofConfined()) {
@@ -478,7 +478,7 @@ class ZstdFrameTest {
         @Test
         void recognizesASkippableNativeFrame() {
             // Given a skippable frame in a native segment
-            byte[] frame = ZstdFrame.writeSkippableFrame("meta".getBytes(StandardCharsets.UTF_8), new ZstdMagicVariant(5));
+            byte[] frame = ZstdFrame.writeSkippableFrame("meta".getBytes(StandardCharsets.UTF_8), ZstdMagicVariant.of(5));
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment seg = Zstd.copyIn(arena, frame);
 

@@ -19,7 +19,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// Closing closes the underlying stream.
 ///
 /// {@snippet :
-/// try (ZstdInputStream zin = new ZstdInputStream(Files.newInputStream(path))) {
+/// try (ZstdInputStream zin = Zstd.newInputStream(Files.newInputStream(path))) {
 ///     zin.transferTo(sink);
 /// }
 /// }
@@ -46,18 +46,11 @@ public final class ZstdInputStream extends InputStream {
     /// non-zero at EOF means the final frame was truncated.
     private long lastHint;
 
-    /// Wraps `in`, decompressing the zstd frame it carries.
-    ///
-    /// @param in the stream to read the compressed frame from
-    public ZstdInputStream(InputStream in) {
+    ZstdInputStream(InputStream in) {
         this(in, null);
     }
 
-    /// Wraps `in`, decompressing a frame compressed against `dictionary`.
-    ///
-    /// @param in         the stream to read the compressed frame from
-    /// @param dictionary the dictionary the frame was compressed against, or `null` for none
-    public ZstdInputStream(InputStream in, ZstdDictionary dictionary) {
+    ZstdInputStream(InputStream in, ZstdDictionary dictionary) {
         this.in = Objects.requireNonNull(in, "in");
         this.arena = Arena.ofConfined();
         this.inBuf = new ZstdStreamBuffer(arena);

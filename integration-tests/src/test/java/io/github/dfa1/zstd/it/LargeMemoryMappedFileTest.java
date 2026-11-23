@@ -1,6 +1,7 @@
 package io.github.dfa1.zstd.it;
 
 import com.github.luben.zstd.ZstdOutputStream;
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdCompressStream;
 import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdDecompressStream;
@@ -199,7 +200,7 @@ class LargeMemoryMappedFileTest {
         ByteArrayOutputStream frame = new ByteArrayOutputStream();
         MemorySegment dst = arena.allocate(CHUNK);
         byte[] scratch = new byte[CHUNK];
-        try (ZstdCompressStream cs = new ZstdCompressStream(new ZstdCompressionLevel(1))) {
+        try (ZstdCompressStream cs = Zstd.newCompressStream(ZstdCompressionLevel.of(1))) {
             long srcOff = 0;
             long total = source.byteSize();
             ZstdStreamResult r;
@@ -232,7 +233,7 @@ class LargeMemoryMappedFileTest {
         MemorySegment dst = arena.allocate(CHUNK);
 
         long outOff = 0;
-        try (ZstdDecompressStream ds = new ZstdDecompressStream()) {
+        try (ZstdDecompressStream ds = Zstd.newDecompressStream()) {
             long srcOff = 0;
             ZstdStreamResult r;
             do {

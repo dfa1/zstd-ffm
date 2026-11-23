@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd.bench;
 
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
@@ -86,11 +87,11 @@ public class DictionaryTransportBenchmark {
             trainingSamples.add(eventBatch(targetBytes, trainingRandom));
         }
         dictionary = ZstdDictionary.train(trainingSamples, MAX_DICT_BYTES);
-        compressDictionary = dictionary.compressDict();
-        decompressDictionary = dictionary.decompressDict();
+        compressDictionary = Zstd.newCompressDictionary(dictionary);
+        decompressDictionary = Zstd.newDecompressDictionary(dictionary);
         availableDictionary = AvailableDictionaryHeader.of(dictionary);
-        cctx = new ZstdCompressContext();
-        dctx = new ZstdDecompressContext();
+        cctx = Zstd.newCompressContext();
+        dctx = Zstd.newDecompressContext();
 
         // The payload under test is its own fixed seed, disjoint from the
         // training corpus above — dictionaries must not be evaluated against

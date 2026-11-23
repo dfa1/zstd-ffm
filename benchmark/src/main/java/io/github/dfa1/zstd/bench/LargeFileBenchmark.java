@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd.bench;
 
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdCompressStream;
 import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdEndDirective;
@@ -44,7 +45,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 /// conventional buffered-stream paths - this library's own [ZstdOutputStream]
 /// and zstd-jni's classic `ZstdOutputStream`, both over a buffered
 /// `FileInputStream` - the comparison behind the numbers in
-/// `docs/explanation.md`.
+/// `docs/benchmarks.md` (Large files).
 ///
 /// Sizes run from 4 MiB up to 10 GiB, so each `@Benchmark` invocation is one
 /// full-file compression (seconds to tens of seconds), not a tight throughput
@@ -76,8 +77,8 @@ public class LargeFileBenchmark {
 
     private static final MethodHandle POSIX_MADVISE = lookupPosixMadvise();
 
-    // 4 MiB, 64 MiB, 2.25 GiB, 4 GiB, 10 GiB — matches the sizes historically
-    // reported in docs/explanation.md so the JMH numbers replace them directly.
+    // 4 MiB, 64 MiB, 2.25 GiB, 4 GiB, 10 GiB — the sizes tabulated in
+    // docs/benchmarks.md (Large files).
     @Param({"4194304", "67108864", "2415919104", "4294967296", "10737418240"})
     private long size;
 
@@ -114,7 +115,7 @@ public class LargeFileBenchmark {
     @Benchmark
     public long zstdJavaStream() throws IOException {
         try (InputStream in = new BufferedInputStream(Files.newInputStream(sourceFile), CHUNK);
-             ZstdOutputStream out = new ZstdOutputStream(Files.newOutputStream(destFile), new ZstdCompressionLevel(level))) {
+             ZstdOutputStream out = Zstd.newOutputStream(Files.newOutputStream(destFile), ZstdCompressionLevel.of(level))) {
             byte[] buffer = new byte[CHUNK];
             long total = 0;
             int n;
@@ -150,7 +151,7 @@ public class LargeFileBenchmark {
              FileChannel out = FileChannel.open(destFile, StandardOpenOption.WRITE,
                      StandardOpenOption.TRUNCATE_EXISTING);
              Arena arena = Arena.ofConfined();
-             ZstdCompressStream cs = new ZstdCompressStream(new ZstdCompressionLevel(level))) {
+             ZstdCompressStream cs = Zstd.newCompressStream(ZstdCompressionLevel.of(level))) {
             MemorySegment source = in.map(FileChannel.MapMode.READ_ONLY, 0, size, arena);
             if (advise) {
                 adviseWillNeed(source);

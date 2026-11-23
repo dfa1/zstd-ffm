@@ -43,3 +43,8 @@ guarded at the public boundary.
 ## References
 
 - [Bindings.java], [NativeCall.java], [ZstdException.java], [ZstdErrorCode.java]
+
+[Bindings.java]: ../zstd/src/main/java/io/github/dfa1/zstd/Bindings.java
+[NativeCall.java]: ../zstd/src/main/java/io/github/dfa1/zstd/NativeCall.java
+[ZstdException.java]: ../zstd/src/main/java/io/github/dfa1/zstd/ZstdException.java
+[ZstdErrorCode.java]: ../zstd/src/main/java/io/github/dfa1/zstd/ZstdErrorCode.java

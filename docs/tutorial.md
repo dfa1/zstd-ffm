@@ -59,8 +59,24 @@ runtimeOnly("io.github.dfa1.zstd:zstd-native-osx-aarch64")
 ```
 
 Classifiers: `osx-aarch64`, `osx-x86_64`, `linux-x86_64`, `linux-aarch64`,
-`windows-x86_64`, `windows-aarch64`. Need JDK 25+. Building the native lib from
-source is only for contributors — see the [reference](reference.md).
+`windows-x86_64`, `windows-aarch64` — each verified on real hardware by the
+[release smoke matrix](../.github/workflows/release-smoke.yml). Need JDK 25+.
+Building the native lib from source is only for contributors — see
+[contributing.md](contributing.md).
+
+For RFC 9842 (Compression Dictionary Transport), add the optional `zstd-rfc9842`
+module on top (its version is managed by the BOM too):
+
+```xml
+<dependency>
+  <groupId>io.github.dfa1.zstd</groupId>
+  <artifactId>zstd-rfc9842</artifactId>
+  <version>0.15</version>
+</dependency>
+```
+
+The snippets on this page pin `0.15`; use the latest release shown on
+[Maven Central](https://central.sonatype.com/artifact/io.github.dfa1.zstd/zstd).
 
 Every artifact has **zero transitive dependencies** — the bindings are the JDK's
 FFM API plus the bundled `libzstd`, nothing else on your classpath.
@@ -93,7 +109,28 @@ an arena buffer — that copy is pure waste. This is the library's strong point:
 the `MemorySegment` overloads hand zstd the segment address directly, so there is
 **no copy in, no copy out, and no per-call heap allocation** (hence no GC churn).
 
-The recipe — with the full segment-API map — is in the how-to guide:
+```java
+import io.github.dfa1.zstd.*;
+import java.lang.foreign.*;
+
+byte[] original = "hello world".getBytes();
+
+try (Arena arena = Arena.ofConfined();
+     ZstdCompressContext cctx = Zstd.newCompressContext();
+     ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
+    // stand-in for data that is already off-heap (an mmap slice, a network buffer)
+    MemorySegment src = arena.allocate(original.length);
+    MemorySegment.copy(original, 0, src, ValueLayout.JAVA_BYTE, 0, original.length);
+
+    MemorySegment frame    = cctx.compress(arena, src);     // compressed straight into the arena
+    MemorySegment restored = dctx.decompress(arena, frame); // sized from the frame header
+    assert restored.mismatch(src) == -1;
+}                                                           // closing the arena frees both
+```
+
+The contexts are reusable: create them once and keep them for the whole hot loop.
+The recipes — sizing the output yourself, `ByteBuffer` interop, the full
+segment-API map — are in the how-to guide:
 [Avoid heap copies with `MemorySegment`](how-to.md#avoid-heap-copies-with-memorysegment).
 
 In benchmarks this path allocates ~0 bytes/op regardless of payload size, while
@@ -108,13 +145,17 @@ For large or unbounded data, don't buffer the whole thing — wrap an ordinary
 incrementally, so memory stays flat no matter how big the payload.
 
 ```java
+Path source   = Path.of("data.bin");
+Path packed   = Path.of("data.bin.zst");
+Path restored = Path.of("data.restored.bin");
+
 // compress a file as you write it
-try (var out = new ZstdOutputStream(Files.newOutputStream(packed), new ZstdCompressionLevel(9))) {
+try (var out = Zstd.newOutputStream(Files.newOutputStream(packed), ZstdCompressionLevel.of(9))) {
     Files.copy(source, out);
 }
 
 // decompress as you read it back (transferTo loops internally until EOF)
-try (var in = new ZstdInputStream(Files.newInputStream(packed));
+try (var in = Zstd.newInputStream(Files.newInputStream(packed));
      var out = Files.newOutputStream(restored)) {
     in.transferTo(out);
 }

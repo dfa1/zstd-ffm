@@ -37,7 +37,7 @@ class ZstdStreamTest {
             byte[] original = randomBytes(7, size);
 
             // When streamed through compress then decompress
-            byte[] restored = streamDecompress(streamCompress(original, new ZstdCompressionLevel(3)));
+            byte[] restored = streamDecompress(streamCompress(original, ZstdCompressionLevel.of(3)));
 
             // Then it is recovered byte for byte
             assertThat(restored).isEqualTo(original);
@@ -47,7 +47,7 @@ class ZstdStreamTest {
         void compressesIncompressibleAndCompressibleAlike() throws IOException {
             byte[] text = "structured log line ".repeat(100_000).getBytes(StandardCharsets.UTF_8);
 
-            byte[] frame = streamCompress(text, new ZstdCompressionLevel(9));
+            byte[] frame = streamCompress(text, ZstdCompressionLevel.of(9));
 
             assertThat(frame).hasSizeLessThan(text.length);
             assertThat(streamDecompress(frame)).isEqualTo(text);
@@ -58,7 +58,7 @@ class ZstdStreamTest {
             // Given bytes written one at a time via write(int)
             byte[] original = "abcdefghij".getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = new ZstdOutputStream(sink)) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink)) {
                 for (byte value : original) {
                     zout.write(value);
                 }
@@ -76,10 +76,10 @@ class ZstdStreamTest {
         void streamOutputDecodesWithOneShot() throws IOException {
             // Given a frame produced by the streaming compressor
             byte[] original = "interop payload ".repeat(1000).getBytes(StandardCharsets.UTF_8);
-            byte[] frame = streamCompress(original, new ZstdCompressionLevel(6));
+            byte[] frame = streamCompress(original, ZstdCompressionLevel.of(6));
 
             // Then the one-shot decompressor reads it (frame stores no size -> give a bound)
-            assertThat(Zstd.decompress(frame, new ZstdByteSize(original.length))).isEqualTo(original);
+            assertThat(Zstd.decompress(frame, ZstdByteSize.of(original.length))).isEqualTo(original);
         }
 
         @Test
@@ -104,11 +104,11 @@ class ZstdStreamTest {
 
             // When streamed through compress and decompress with the same dictionary
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = new ZstdOutputStream(sink, dict)) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink, dict)) {
                 zout.write(sample);
             }
             byte[] restored;
-            try (ZstdInputStream zin = new ZstdInputStream(new ByteArrayInputStream(sink.toByteArray()), dict)) {
+            try (ZstdInputStream zin = Zstd.newInputStream(new ByteArrayInputStream(sink.toByteArray()), dict)) {
                 restored = zin.readAllBytes();
             }
 
@@ -122,7 +122,7 @@ class ZstdStreamTest {
             byte[] sample = sample(123);
 
             ByteArrayOutputStream withDict = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = new ZstdOutputStream(withDict, dict)) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(withDict, dict)) {
                 zout.write(sample);
             }
 
@@ -136,13 +136,13 @@ class ZstdStreamTest {
             ZstdDictionary dict = trainDictionary(3000);
             byte[] sample = sample(7);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = new ZstdOutputStream(sink, dict)) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink, dict)) {
                 zout.write(sample);
             }
 
             // Then the one-shot context decodes it with the same dictionary
-            try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
-                assertThat(ctx.decompress(sink.toByteArray(), new ZstdByteSize(sample.length), dict)).isEqualTo(sample);
+            try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
+                assertThat(ctx.decompress(sink.toByteArray(), ZstdByteSize.of(sample.length), dict)).isEqualTo(sample);
             }
         }
 
@@ -157,10 +157,10 @@ class ZstdStreamTest {
             // Given a valid frame with its tail bytes lopped off (random data so the
             // frame stays large enough to drop bytes from)
             byte[] original = randomBytes(7, 50_000);
-            byte[] frame = streamCompress(original, new ZstdCompressionLevel(6));
+            byte[] frame = streamCompress(original, ZstdCompressionLevel.of(6));
             byte[] cut = java.util.Arrays.copyOf(frame, frame.length - bytesDropped);
 
-            try (ZstdInputStream sut = new ZstdInputStream(new ByteArrayInputStream(cut))) {
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(cut))) {
                 // When the streaming decompressor drains it
                 ThrowingCallable result = sut::readAllBytes;
 
@@ -175,7 +175,7 @@ class ZstdStreamTest {
         void emptyInputIsCleanEofNotTruncation() throws IOException {
             // Given no input at all
             // When read, it is end-of-stream, not an error
-            try (ZstdInputStream zin = new ZstdInputStream(new ByteArrayInputStream(new byte[0]))) {
+            try (ZstdInputStream zin = Zstd.newInputStream(new ByteArrayInputStream(new byte[0]))) {
                 assertThat(zin.read()).isEqualTo(-1);
             }
         }
@@ -189,13 +189,13 @@ class ZstdStreamTest {
             // Given a stream told the exact total up front
             byte[] original = "pledged payload ".repeat(300).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = ZstdOutputStream.withPledgedSize(sink, new ZstdCompressionLevel(6), new ZstdByteSize(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdCompressionLevel.of(6), ZstdByteSize.of(original.length))) {
                 zout.write(original);
             }
             byte[] frame = sink.toByteArray();
 
             // Then the frame header carries the size, so size-less decompress works
-            assertThat(ZstdFrame.header(frame).contentSize()).hasValue(new ZstdByteSize(original.length));
+            assertThat(ZstdFrame.header(frame).contentSize()).hasValue(ZstdByteSize.of(original.length));
             assertThat(Zstd.decompress(frame)).isEqualTo(original);
         }
 
@@ -203,7 +203,7 @@ class ZstdStreamTest {
         void plainStreamFrameCannotBeSizedForZeroCopyDecode() throws IOException {
             // Given a streamed frame with no pledged size
             byte[] original = "no pledge ".repeat(500).getBytes(StandardCharsets.UTF_8);
-            byte[] frame = streamCompress(original, new ZstdCompressionLevel(6));
+            byte[] frame = streamCompress(original, ZstdCompressionLevel.of(6));
 
             // When the zero-copy decoder asks the frame how big the output is
             try (Arena arena = Arena.ofConfined()) {
@@ -222,14 +222,14 @@ class ZstdStreamTest {
             // Given a frame that records its decompressed size
             byte[] original = "sized frame ".repeat(300).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = ZstdOutputStream.withPledgedSize(sink, new ZstdCompressionLevel(6), new ZstdByteSize(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdCompressionLevel.of(6), ZstdByteSize.of(original.length))) {
                 zout.write(original);
             }
             byte[] frame = sink.toByteArray();
 
             // When decompressed through a context with no explicit bound
             byte[] restored;
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 restored = dctx.decompress(frame);
             }
 
@@ -241,11 +241,11 @@ class ZstdStreamTest {
         void contextDecompressWithoutABoundNeedsAStoredSize() throws IOException {
             // Given a streamed frame with no pledged size
             byte[] original = "no pledge ".repeat(500).getBytes(StandardCharsets.UTF_8);
-            byte[] frame = streamCompress(original, new ZstdCompressionLevel(6));
+            byte[] frame = streamCompress(original, ZstdCompressionLevel.of(6));
 
             // When decompressed through a context with no explicit bound
             ThrowingCallable result = () -> {
-                try (ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                     dctx.decompress(frame);
                 }
             };
@@ -261,7 +261,7 @@ class ZstdStreamTest {
             // Given a streamed frame that pledged its total up front
             byte[] original = "pledge enables zero-copy ".repeat(500).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = ZstdOutputStream.withPledgedSize(sink, new ZstdCompressionLevel(6), new ZstdByteSize(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdCompressionLevel.of(6), ZstdByteSize.of(original.length))) {
                 zout.write(original);
             }
             byte[] frame = sink.toByteArray();
@@ -272,7 +272,7 @@ class ZstdStreamTest {
             // When it decodes straight into its arena and hands the result back as a ByteBuffer
             byte[] restored;
             try (Arena arena = Arena.ofConfined();
-                 ZstdDecompressContext dctx = new ZstdDecompressContext()) {
+                 ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 MemorySegment src = MemorySegment.ofBuffer(mmap);   // zero-copy input view
                 MemorySegment out = dctx.decompress(arena, src);    // one allocation, zero copies
                 ByteBuffer result = out.asByteBuffer();             // zero-copy hand-off out
@@ -292,7 +292,7 @@ class ZstdStreamTest {
         @Test
         void returnsTheSameStreamForChaining() throws IOException {
             // Given a fresh output stream
-            try (ZstdOutputStream zout = new ZstdOutputStream(new ByteArrayOutputStream())) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(new ByteArrayOutputStream())) {
                 // When setting an advanced parameter
                 ZstdOutputStream result = zout.parameter(ZstdCompressParameter.CHECKSUM_FLAG, 1);
 
@@ -304,7 +304,7 @@ class ZstdStreamTest {
         @Test
         void rejectsOutOfRangeValue() throws IOException {
             // Given a fresh output stream
-            try (ZstdOutputStream zout = new ZstdOutputStream(new ByteArrayOutputStream())) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(new ByteArrayOutputStream())) {
                 // When setting an absurd window log
                 ThrowingCallable result = () -> zout.parameter(ZstdCompressParameter.WINDOW_LOG, 99);
 
@@ -322,7 +322,7 @@ class ZstdStreamTest {
             // Given a payload written but not yet closed
             byte[] original = "flushed payload ".repeat(2000).getBytes(StandardCharsets.UTF_8);
             CountingOutputStream sink = new CountingOutputStream();
-            try (ZstdOutputStream zout = new ZstdOutputStream(sink, new ZstdCompressionLevel(3))) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink, ZstdCompressionLevel.of(3))) {
                 zout.write(original);
 
                 // When flushed mid-stream
@@ -346,7 +346,7 @@ class ZstdStreamTest {
             // Given a payload written to a stream that tracks flush/close on its sink
             byte[] original = "epilogue payload ".repeat(1000).getBytes(StandardCharsets.UTF_8);
             CountingOutputStream sink = new CountingOutputStream();
-            ZstdOutputStream zout = new ZstdOutputStream(sink, new ZstdCompressionLevel(3));
+            ZstdOutputStream zout = Zstd.newOutputStream(sink, ZstdCompressionLevel.of(3));
             zout.write(original);
 
             // When closed twice
@@ -375,6 +375,21 @@ class ZstdStreamTest {
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("closed");
         }
+
+        @Test
+        void parameterAfterCloseThrowsInsteadOfTouchingTheFreedContext() throws IOException {
+            // Given a closed stream, whose native cctx has been freed
+            ZstdOutputStream sut = Zstd.newOutputStream(new ByteArrayOutputStream());
+            sut.close();
+
+            // When a parameter is set on it
+            ThrowingCallable result = () -> sut.parameter(ZstdCompressParameter.NB_WORKERS, 2);
+
+            // Then it refuses before reaching native code
+            assertThatThrownBy(result)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("stream closed");
+        }
     }
 
     @Nested
@@ -387,7 +402,7 @@ class ZstdStreamTest {
             ZstdDictionary dict = trainDictionary(3000);
 
             // When constructing the stream, which fails once the native context exists
-            ThrowingCallable result = () -> new ZstdOutputStream(sink, null, dict);
+            ThrowingCallable result = () -> Zstd.newOutputStream(sink, null, dict);
 
             // Then the failure propagates (after the half-built stream released its context)
             assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
@@ -401,7 +416,7 @@ class ZstdStreamTest {
             ByteArrayInputStream source = new ByteArrayInputStream(new byte[0]);
 
             // When constructing the stream, which digests the dictionary eagerly
-            ThrowingCallable result = () -> new ZstdInputStream(source, corrupt);
+            ThrowingCallable result = () -> Zstd.newInputStream(source, corrupt);
 
             // Then the native rejection propagates as a ZstdException
             assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -415,10 +430,10 @@ class ZstdStreamTest {
         void singleByteReadReturnsTheUnsignedValue() throws IOException {
             // Given a frame whose first decoded byte has its high bit set
             byte[] original = {(byte) 0xFF, (byte) 0x80, 0x01};
-            byte[] frame = streamCompress(original, new ZstdCompressionLevel(3));
+            byte[] frame = streamCompress(original, ZstdCompressionLevel.of(3));
 
             // When read one byte at a time
-            try (ZstdInputStream zin = new ZstdInputStream(new ByteArrayInputStream(frame))) {
+            try (ZstdInputStream zin = Zstd.newInputStream(new ByteArrayInputStream(frame))) {
                 // Then each byte comes back as its unsigned 0..255 value, not a sign-extended int
                 assertThat(zin.read()).isEqualTo(0xFF);
                 assertThat(zin.read()).isEqualTo(0x80);
@@ -430,8 +445,8 @@ class ZstdStreamTest {
         @Test
         void readPastEndOfStreamStaysMinusOne() throws IOException {
             // Given a compressed frame
-            byte[] frame = streamCompress("done".getBytes(StandardCharsets.UTF_8), new ZstdCompressionLevel(3));
-            try (ZstdInputStream zin = new ZstdInputStream(new ByteArrayInputStream(frame))) {
+            byte[] frame = streamCompress("done".getBytes(StandardCharsets.UTF_8), ZstdCompressionLevel.of(3));
+            try (ZstdInputStream zin = Zstd.newInputStream(new ByteArrayInputStream(frame))) {
                 // When the stream is drained to the end, then read again past EOF
                 byte[] all = zin.readAllBytes();
                 int afterByte = zin.read();
@@ -447,9 +462,9 @@ class ZstdStreamTest {
         @Test
         void closeClosesTheUnderlyingStreamExactlyOnce() throws IOException {
             // Given an input stream over a source that tracks close()
-            byte[] frame = streamCompress("payload".getBytes(StandardCharsets.UTF_8), new ZstdCompressionLevel(3));
+            byte[] frame = streamCompress("payload".getBytes(StandardCharsets.UTF_8), ZstdCompressionLevel.of(3));
             CountingInputStream source = new CountingInputStream(frame);
-            ZstdInputStream zin = new ZstdInputStream(source);
+            ZstdInputStream zin = Zstd.newInputStream(source);
 
             // When closed twice
             zin.close();
@@ -465,10 +480,10 @@ class ZstdStreamTest {
             // byte per read so the first decode calls produce nothing until the header
             // is complete — the decoder must keep refilling before returning a byte
             byte[] original = {(byte) 0xFF, 0x10, 0x20};
-            byte[] frame = streamCompress(original, new ZstdCompressionLevel(3));
+            byte[] frame = streamCompress(original, ZstdCompressionLevel.of(3));
 
             // When the very first byte is read
-            try (ZstdInputStream zin = new ZstdInputStream(new DribbleInputStream(frame))) {
+            try (ZstdInputStream zin = Zstd.newInputStream(new DribbleInputStream(frame))) {
                 // Then it is the real first byte, not a premature zero from an empty slice
                 assertThat(zin.read()).isEqualTo(0xFF);
             }
@@ -480,11 +495,11 @@ class ZstdStreamTest {
             // Given a frame fed through a source that yields a single byte per read,
             // forcing the decoder across many refill/no-progress iterations
             byte[] original = randomBytes(7, size);
-            byte[] frame = streamCompress(original, new ZstdCompressionLevel(3));
+            byte[] frame = streamCompress(original, ZstdCompressionLevel.of(3));
 
             // When drained
             byte[] restored;
-            try (ZstdInputStream zin = new ZstdInputStream(new DribbleInputStream(frame))) {
+            try (ZstdInputStream zin = Zstd.newInputStream(new DribbleInputStream(frame))) {
                 restored = zin.readAllBytes();
             }
 
@@ -497,18 +512,18 @@ class ZstdStreamTest {
     private static Stream<Arguments> closedStreamOperations() {
         return Stream.of(
                 Arguments.of("write after close", (ClosedStreamOperation) () -> {
-                    ZstdOutputStream stream = new ZstdOutputStream(new ByteArrayOutputStream());
+                    ZstdOutputStream stream = Zstd.newOutputStream(new ByteArrayOutputStream());
                     stream.close();
                     return () -> stream.write(1);
                 }),
                 Arguments.of("flush after close", (ClosedStreamOperation) () -> {
-                    ZstdOutputStream stream = new ZstdOutputStream(new ByteArrayOutputStream());
+                    ZstdOutputStream stream = Zstd.newOutputStream(new ByteArrayOutputStream());
                     stream.close();
                     return stream::flush;
                 }),
                 Arguments.of("read after close", (ClosedStreamOperation) () -> {
-                    byte[] frame = streamCompress("payload".getBytes(StandardCharsets.UTF_8), new ZstdCompressionLevel(3));
-                    ZstdInputStream stream = new ZstdInputStream(new ByteArrayInputStream(frame));
+                    byte[] frame = streamCompress("payload".getBytes(StandardCharsets.UTF_8), ZstdCompressionLevel.of(3));
+                    ZstdInputStream stream = Zstd.newInputStream(new ByteArrayInputStream(frame));
                     stream.close();
                     return stream::read;
                 })
@@ -584,14 +599,14 @@ class ZstdStreamTest {
 
     private static byte[] streamCompress(byte[] data, ZstdCompressionLevel level) throws IOException {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
-        try (ZstdOutputStream zout = new ZstdOutputStream(sink, level)) {
+        try (ZstdOutputStream zout = Zstd.newOutputStream(sink, level)) {
             zout.write(data);
         }
         return sink.toByteArray();
     }
 
     private static byte[] streamDecompress(byte[] frame) throws IOException {
-        try (ZstdInputStream zin = new ZstdInputStream(new ByteArrayInputStream(frame))) {
+        try (ZstdInputStream zin = Zstd.newInputStream(new ByteArrayInputStream(frame))) {
             return zin.readAllBytes();
         }
     }

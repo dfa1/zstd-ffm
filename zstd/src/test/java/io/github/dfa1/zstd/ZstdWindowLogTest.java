@@ -26,7 +26,7 @@ class ZstdWindowLogTest {
             int inRange = BOUNDS.lowerBound();
 
             // When wrapped
-            ZstdWindowLog sut = new ZstdWindowLog(inRange);
+            ZstdWindowLog sut = ZstdWindowLog.of(inRange);
 
             // Then it holds that value
             assertThat(sut.value()).isEqualTo(inRange);
@@ -35,7 +35,7 @@ class ZstdWindowLogTest {
         @Test
         void zeroEqualsAuto() {
             // When zero is wrapped explicitly
-            ZstdWindowLog sut = new ZstdWindowLog(0);
+            ZstdWindowLog sut = ZstdWindowLog.of(0);
 
             // Then it equals AUTO
             assertThat(sut).isEqualTo(ZstdWindowLog.AUTO);
@@ -51,7 +51,7 @@ class ZstdWindowLogTest {
             int belowMin = BOUNDS.lowerBound() - 1;
 
             // When wrapped
-            ThrowingCallable result = () -> new ZstdWindowLog(belowMin);
+            ThrowingCallable result = () -> ZstdWindowLog.of(belowMin);
 
             // Then it is rejected before reaching native code
             assertThatThrownBy(result)
@@ -65,7 +65,7 @@ class ZstdWindowLogTest {
             int aboveMax = BOUNDS.upperBound() + 1;
 
             // When wrapped
-            ThrowingCallable result = () -> new ZstdWindowLog(aboveMax);
+            ThrowingCallable result = () -> ZstdWindowLog.of(aboveMax);
 
             // Then it is rejected before reaching native code
             assertThatThrownBy(result)

@@ -21,7 +21,7 @@ class ZstdByteSizeTest {
         void acceptsAnyNonNegativeValue(long value) {
             // Given a non-negative byte size
             // When wrapped
-            ZstdByteSize sut = new ZstdByteSize(value);
+            ZstdByteSize sut = ZstdByteSize.of(value);
 
             // Then it carries that value
             assertThat(sut.value()).isEqualTo(value);
@@ -37,7 +37,7 @@ class ZstdByteSizeTest {
             // Given a negative byte size
 
             // When wrapped
-            ThrowingCallable result = () -> new ZstdByteSize(value);
+            ThrowingCallable result = () -> ZstdByteSize.of(value);
 
             // Then it is rejected before reaching native code
             assertThatThrownBy(result)
@@ -58,7 +58,7 @@ class ZstdByteSizeTest {
             Optional<ZstdByteSize> result = ZstdByteSize.fromUnsignedFrameHeaderField(0L);
 
             // Then it is present with value zero
-            assertThat(result).contains(new ZstdByteSize(0L));
+            assertThat(result).contains(ZstdByteSize.of(0L));
         }
 
         @Test
@@ -68,7 +68,7 @@ class ZstdByteSizeTest {
             Optional<ZstdByteSize> result = ZstdByteSize.fromUnsignedFrameHeaderField(1024L);
 
             // Then it is present with that value
-            assertThat(result).contains(new ZstdByteSize(1024L));
+            assertThat(result).contains(ZstdByteSize.of(1024L));
         }
 
         @ParameterizedTest
@@ -92,7 +92,7 @@ class ZstdByteSizeTest {
         @ValueSource(longs = {0L, 1L, 1024L, Integer.MAX_VALUE})
         void returnsTheValueForAnInRangeSize(long value) {
             // Given a size that fits an int
-            ZstdByteSize sut = new ZstdByteSize(value);
+            ZstdByteSize sut = ZstdByteSize.of(value);
 
             // When narrowed
             int narrowed = sut.toArraySize();
@@ -104,7 +104,7 @@ class ZstdByteSizeTest {
         @Test
         void throwsForAValueAboveIntegerMaxValue() {
             // Given a size that exceeds the maximum array length
-            ZstdByteSize sut = new ZstdByteSize((long) Integer.MAX_VALUE + 1);
+            ZstdByteSize sut = ZstdByteSize.of((long) Integer.MAX_VALUE + 1);
 
             // When narrowed
             ThrowingCallable result = sut::toArraySize;
@@ -126,7 +126,7 @@ class ZstdByteSizeTest {
             ZstdByteSize sut = ZstdByteSize.ofKiB(8);
 
             // Then it holds the byte count
-            assertThat(sut).isEqualTo(new ZstdByteSize(8 * 1024L));
+            assertThat(sut).isEqualTo(ZstdByteSize.of(8 * 1024L));
         }
 
         @Test
@@ -161,7 +161,7 @@ class ZstdByteSizeTest {
             ZstdByteSize sut = ZstdByteSize.ofMiB(4);
 
             // Then it holds the byte count
-            assertThat(sut).isEqualTo(new ZstdByteSize(4 * 1024L * 1024L));
+            assertThat(sut).isEqualTo(ZstdByteSize.of(4 * 1024L * 1024L));
         }
 
         @Test

@@ -26,7 +26,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 ///
 /// {@snippet :
 /// ZstdDictionary dict = ZstdDictionary.train(sampleRecords, ZstdByteSize.ofKiB(64));
-/// try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+/// try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
 ///     byte[] packed = ctx.compress(record, dict);
 /// }
 /// }
@@ -306,7 +306,7 @@ public final class ZstdDictionary {
             if (zdictIsError(size)) {
                 throw new ZstdException("not a valid dictionary: " + zdictErrorName(size));
             }
-            return new ZstdByteSize(size);
+            return ZstdByteSize.of(size);
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -323,42 +323,7 @@ public final class ZstdDictionary {
     ///
     /// @return the dictionary size in bytes
     public ZstdByteSize size() {
-        return new ZstdByteSize(bytes.length);
-    }
-
-    /// Digests this dictionary once for compression at `level`, ready to share by
-    /// reference across contexts with [ZstdCompressContext#refDictionary(ZstdCompressDictionary)].
-    ///
-    /// The returned dictionary owns native memory — close it when done (it is
-    /// [AutoCloseable]). For a single context, prefer
-    /// [ZstdCompressContext#loadDictionary(ZstdDictionary)], which the context digests,
-    /// owns, and frees for you.
-    ///
-    /// @param level the compression level to fix for the digested dictionary
-    /// @return a digested compression dictionary the caller must close
-    public ZstdCompressDictionary compressDict(ZstdCompressionLevel level) {
-        return new ZstdCompressDictionary(this, level);
-    }
-
-    /// Digests this dictionary for compression at the library default level.
-    /// Otherwise identical to [#compressDict(ZstdCompressionLevel)].
-    ///
-    /// @return a digested compression dictionary the caller must close
-    public ZstdCompressDictionary compressDict() {
-        return new ZstdCompressDictionary(this);
-    }
-
-    /// Digests this dictionary once for decompression, ready to share by reference
-    /// across contexts with [ZstdDecompressContext#refDictionary(ZstdDecompressDictionary)].
-    ///
-    /// The returned dictionary owns native memory — close it when done (it is
-    /// [AutoCloseable]). For a single context, prefer
-    /// [ZstdDecompressContext#loadDictionary(ZstdDictionary)], which the context owns
-    /// and frees for you.
-    ///
-    /// @return a digested decompression dictionary the caller must close
-    public ZstdDecompressDictionary decompressDict() {
-        return new ZstdDecompressDictionary(this);
+        return ZstdByteSize.of(bytes.length);
     }
 
     /// Internal: direct view of the bytes for native calls. Not exposed.

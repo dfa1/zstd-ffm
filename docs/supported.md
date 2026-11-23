@@ -5,7 +5,7 @@ and semantics follow the [official manual](https://facebook.github.io/zstd/doc/a
 
 - zstd version: **1.5.7** (vendored `third_party/zstd`, pinned to tag `v1.5.7`)
 - Public symbols exported by `libzstd`: **185**
-- Bound so far: **68** (~37%)
+- Bound so far: **76** (~41%), counted from the lookups in `Bindings.java`
 
 "Bound" means the symbol has a `MethodHandle` in `Bindings` and is reachable
 through the public Java API. The rest are reachable from native code but not yet
@@ -26,15 +26,15 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 | Area | Bound / Total | Notes |
 |---|:---:|---|
 | Core one-shot | 6 / 7 | compress/decompress/bound/levels — complete for practical use |
-| Version | 2 / 2 | complete |
+| Version | 1 / 2 | `versionNumber`; `versionString` is not bound — `ZstdVersion.toString()` formats the number |
 | Errors | 4 / 4 | complete: name, typed `ZstdErrorCode`, and `description()` |
-| Reusable contexts | 6 / 8 | CCtx/DCtx create/free/compress/decompress |
-| Dictionary — simple | 11 / 23 | raw + digested (CDict/DDict) + dict-id queries; `_advanced`/`_byReference`/`Begin` variants not bound |
+| Reusable contexts | 5 / 8 | CCtx/DCtx create/free + `decompressDCtx`; context compression goes through `compress2`, so `compressCCtx` is not bound |
+| Dictionary — simple | 12 / 23 | raw + digested (CDict/DDict) + dict-id queries; `_advanced`/`_byReference`/`Begin` variants not bound |
 | Dictionary training (ZDICT) | 8 / 12 | trainFromBuffer, cover/fastCover optimizers, finalizeDictionary, getDictHeaderSize |
 | Streaming — compress | 3 / 22 | `ZstdOutputStream` (`byte[]`/`java.io`) and `ZstdCompressStream` (zero-copy `MemorySegment`) — both drive `compressStream2` + buffer sizes |
 | Streaming — decompress | 3 / 15 | `ZstdInputStream` (`byte[]`/`java.io`) and `ZstdDecompressStream` (zero-copy `MemorySegment`) — both drive `decompressStream` + buffer sizes |
 | Advanced parameters | 14 / 38 | all `ZSTD_cParameter` + `ZSTD_dParameter` via `ZstdCompressParameter`/`ZstdDecompressParameter`; `compress2`, `C/DCtx_setParameter`, `C/DCtx_reset`, `C/DCtx_loadDictionary`, `CCtx_refCDict`/`DCtx_refDDict`, `C/DCtx_refPrefix`, `c/dParam_getBounds`; multithreaded compression via `NB_WORKERS` (ADR 0015) is reachable from `ZstdCompressContext.parameter()` and from both streaming classes' `parameter()` (`ZstdCompressStream`, `ZstdOutputStream`). The `ZSTD_CCtx_params` bundle (the 10 unbound rows in this section's table below) is experimental (`ZSTDLIB_STATIC_API`, no stability guarantee — exported, but intentionally not surfaced) — see [ADR 0013](../adr/0013-binding-coverage-scope.md) |
-| Frame inspection | 12 / 13 | `ZstdFrame` + getFrameProgression; `_advanced` not bound |
+| Frame inspection | 11 / 13 | `ZstdFrame` + `ZstdCompressStream.progress()` (getFrameProgression); `_advanced` and the deprecated `getDecompressedSize` not bound |
 | Memory sizing | 9 / 14 | sizeof_C/DCtx, sizeof_C/DDict, estimate C/DCtx + C/DDict size, in-place decompression margin |
 | Low-level block | 0 / 12 | expert block/continue API not bound |
 | Sequences | 0 / 5 | sequence producer API not bound |
@@ -46,13 +46,17 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 |---|---|
 | `ZSTD_compress`, `ZSTD_decompress`, `ZSTD_compressBound` | `Zstd.compress` / `decompress` / `compressBound` |
 | `ZSTD_maxCLevel`, `ZSTD_minCLevel`, `ZSTD_defaultCLevel` | `ZstdCompressionLevel.MAX` / `FASTEST` / `DEFAULT` |
-| `ZSTD_versionNumber`, `ZSTD_versionString` | `Zstd.version` (returns `ZstdVersion`) |
-| `ZSTD_isError`, `ZSTD_getErrorName` | internal error mapping in `Zstd` |
+| `ZSTD_versionNumber` | `Zstd.version` (returns `ZstdVersion`) |
+| `ZSTD_isError`, `ZSTD_getErrorName` | internal error mapping in `NativeCall` |
 | `ZSTD_getFrameContentSize` | `Zstd.decompress(byte[])`, `Zstd.decompressedSize` |
-| `ZSTD_createCCtx`, `ZSTD_freeCCtx`, `ZSTD_compressCCtx` | `ZstdCompressContext` |
-| `ZSTD_createDCtx`, `ZSTD_freeDCtx`, `ZSTD_decompressDCtx` | `ZstdDecompressContext` |
+| `ZSTD_findDecompressedSize` | `ZstdFrame.decompressedSize` (sums every frame in the input) |
+| `ZSTD_frameHeaderSize` | `ZstdFrame.headerSize` |
+| `ZSTD_decompressionMargin` | `ZstdFrame.decompressionMargin` |
+| `ZSTD_getDictID_fromDict` | `Zstd.dictId(byte[])` / `Zstd.dictId(MemorySegment)` (id of raw dictionary bytes) |
+| `ZSTD_createCCtx`, `ZSTD_freeCCtx` | `Zstd.newCompressContext()` → `ZstdCompressContext` (`close()`) |
+| `ZSTD_createDCtx`, `ZSTD_freeDCtx`, `ZSTD_decompressDCtx` | `Zstd.newDecompressContext()` → `ZstdDecompressContext` (`close()`) |
 | `ZSTD_compress_usingDict` | `ZstdCompressContext.compress(byte[], ZstdDictionary)` |
-| `ZSTD_decompress_usingDict` | `ZstdDecompressContext.decompress(byte[], int, ZstdDictionary)` |
+| `ZSTD_decompress_usingDict` | `ZstdDecompressContext.decompress(byte[], ZstdByteSize, ZstdDictionary)` |
 | `ZSTD_createCDict`, `ZSTD_freeCDict`, `ZSTD_compress_usingCDict` | `ZstdCompressDictionary` |
 | `ZSTD_createDDict`, `ZSTD_freeDDict`, `ZSTD_decompress_usingDDict` | `ZstdDecompressDictionary` |
 | `ZDICT_trainFromBuffer` | `ZstdDictionary.train` |
@@ -62,13 +66,14 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 | `ZSTD_decompressStream`, `ZSTD_DStreamInSize`, `ZSTD_DStreamOutSize` | `ZstdInputStream`, `ZstdDecompressStream` |
 | `ZSTD_compress2`, `ZSTD_CCtx_setParameter` | `ZstdCompressContext.parameter` / `checksum` / `longDistanceMatching` / `windowLog` (all of `ZstdCompressParameter`) |
 | `ZSTD_DCtx_setParameter` | `ZstdDecompressContext.parameter` / `windowLogMax` (`ZstdDecompressParameter`) |
-| `ZSTD_CCtx_setPledgedSrcSize` | `ZstdOutputStream.withPledgedSize` |
+| `ZSTD_CCtx_setPledgedSrcSize` | `Zstd.newPledgedOutputStream` |
 | `ZSTD_CCtx_reset`, `ZSTD_DCtx_reset` | `ZstdCompressContext.reset` / `ZstdDecompressContext.reset` (`ZstdResetDirective`) |
 | `ZSTD_getDictID_fromCDict`, `ZSTD_getDictID_fromDDict` | `ZstdCompressDictionary.id()` / `ZstdDecompressDictionary.id()` |
 | `ZSTD_getErrorString` | `ZstdErrorCode.description()` |
 | `ZSTD_cParam_getBounds`, `ZSTD_dParam_getBounds` | `ZstdCompressParameter.bounds()` / `ZstdDecompressParameter.bounds()` (`ZstdBounds`) |
-| `ZSTD_CCtx_loadDictionary`, `ZSTD_DCtx_loadDictionary` | `ZstdCompressContext.loadDictionary` / `ZstdDecompressContext.loadDictionary`; `ZstdOutputStream` / `ZstdInputStream` dictionary constructors |
+| `ZSTD_CCtx_loadDictionary`, `ZSTD_DCtx_loadDictionary` | `ZstdCompressContext.loadDictionary` / `ZstdDecompressContext.loadDictionary`; `Zstd.newOutputStream(..., ZstdDictionary)` / `Zstd.newInputStream(..., ZstdDictionary)` overloads |
 | `ZSTD_CCtx_refCDict`, `ZSTD_DCtx_refDDict` | `ZstdCompressContext.refDictionary` / `ZstdDecompressContext.refDictionary` |
+| `ZSTD_CCtx_refPrefix`, `ZSTD_DCtx_refPrefix` | `ZstdCompressContext.refPrefix` / `ZstdDecompressContext.refPrefix` |
 | `ZSTD_isFrame`, `ZSTD_findFrameCompressedSize`, `ZSTD_decompressBound`, `ZSTD_getDictID_fromFrame`, `ZSTD_getFrameHeader`, `ZSTD_isSkippableFrame`, `ZSTD_writeSkippableFrame`, `ZSTD_readSkippableFrame` | `ZstdFrame` (+ `ZstdFrameHeader`, `ZstdFrameType`, `ZstdSkippableContent`) |
 | `ZSTD_getErrorCode` | `ZstdException.code()` (+ `ZstdErrorCode`) |
 | `ZSTD_getFrameProgression` | `ZstdCompressStream.progress()` (`ZstdFrameProgression`) |
@@ -79,9 +84,9 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 
 ## Roadmap (priority order)
 
-1. ~~**Streaming**~~ — done: `ZstdOutputStream` / `ZstdInputStream` (`byte[]`/`java.io`, `compressStream2`, `decompressStream`, bounded buffers, dictionary constructors, `pledgedSrcSize` via `withPledgedSize`) and `ZstdCompressStream` / `ZstdDecompressStream` (zero-copy `MemorySegment` driver on the same native calls).
+1. ~~**Streaming**~~ — done: `ZstdOutputStream` / `ZstdInputStream` (`byte[]`/`java.io`, `compressStream2`, `decompressStream`, bounded buffers, dictionary overloads, `pledgedSrcSize` via `Zstd.newPledgedOutputStream`) and `ZstdCompressStream` / `ZstdDecompressStream` (zero-copy `MemorySegment` driver on the same native calls).
 2. ~~**Advanced parameters**~~ — done: every `ZSTD_cParameter`/`ZSTD_dParameter` via `ZstdCompressParameter`/`ZstdDecompressParameter` (+ `bounds()`), on both contexts; `pledgedSrcSize`. `nbWorkers` is functional (ADR 0015) and reachable from `ZstdCompressContext.parameter()` and from `ZstdCompressStream.parameter()` / `ZstdOutputStream.parameter()`.
-3. ~~**Frame inspection**~~ — done: `ZstdFrame` (`isFrame`, `header`, `compressedSize`, `decompressedBound`, `decompressedSize`, `dictId`, skippable, `getFrameProgression`); dict-id from raw/CDict/DDict.
+3. ~~**Frame inspection**~~ — done: `ZstdFrame` (`isZstdFrame`, `header`, `compressedSize`, `decompressedBound`, `decompressedSize`, `dictId`, skippable frames) and `ZstdCompressStream.progress()` (getFrameProgression); dict-id from raw/CDict/DDict.
 4. ~~**Better dictionaries**~~ — done: COVER / fast-COVER optimizers, `finalizeDictionary`, `getDictHeaderSize`.
 5. ~~**Typed errors**~~ — done: `ZstdException.code()` returns `ZstdErrorCode` (via `getErrorCode`).
 
@@ -92,7 +97,7 @@ zstd-jni's JNI sources (v1.5.7-11, `src/main/native/*.c`). The latter is
 symbol-exact, not functional equivalence: zstd-jni may expose an operation through
 a different symbol than this library — e.g. it routes one-shot compression through
 `ZSTD_compress2`, so `ZSTD_compress` reads `—` for it even though `Zstd.compress`
-works. zstd-jni references 53 of these symbols; this library binds 59. They
+works. zstd-jni references 53 of these symbols; this library binds 76. They
 overlap on the modern context/streaming API and diverge mainly on zstd-jni's
 sequence-producer hooks vs this library's frame-inspection and typed-error surface.
 
@@ -112,12 +117,12 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_minCLevel` | ✅ | ✅ |
 | `ZSTD_compress_advanced` | — ᵈ | — |
 
-### Version (2/2)
+### Version (1/2)
 
 | Symbol | Bound | zstd-jni |
 |---|:---:|:---:|
 | `ZSTD_versionNumber` | ✅ | — |
-| `ZSTD_versionString` | ✅ | — |
+| `ZSTD_versionString` | — | — |
 
 ### Errors (4/4)
 
@@ -128,11 +133,11 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_getErrorCode` | ✅ | ✅ |
 | `ZSTD_getErrorString` | ✅ | — |
 
-### Reusable contexts (6/8)
+### Reusable contexts (5/8)
 
 | Symbol | Bound | zstd-jni |
 |---|:---:|:---:|
-| `ZSTD_compressCCtx` | ✅ | — |
+| `ZSTD_compressCCtx` | — | — |
 | `ZSTD_createCCtx` | ✅ | ✅ |
 | `ZSTD_createDCtx` | ✅ | ✅ |
 | `ZSTD_decompressDCtx` | ✅ | ✅ |
@@ -141,7 +146,7 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_createCCtx_advanced` | — | — |
 | `ZSTD_createDCtx_advanced` | — | — |
 
-### Dictionary — simple (11/23)
+### Dictionary — simple (12/23)
 
 | Symbol | Bound | zstd-jni |
 |---|:---:|:---:|
@@ -276,7 +281,7 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_estimateCCtxSize_usingCCtxParams` | — | — |
 | `ZSTD_freeCCtxParams` | — | — |
 
-### Frame inspection (12/13)
+### Frame inspection (11/13)
 
 | Symbol | Bound | zstd-jni |
 |---|:---:|:---:|

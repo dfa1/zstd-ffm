@@ -89,6 +89,16 @@
         <module name="TodoComment">
             <property name="format" value="TODO:"/>
         </module>
+
+        <!-- Instance fields are initialized in the constructor; inline initialization is
+             allowed only for static fields. Anonymous classes and enum-constant bodies have
+             no constructor, so only class and enum bodies are checked. -->
+        <module name="MatchXpath">
+            <property name="query"
+                      value="//OBJBLOCK[parent::CLASS_DEF or parent::ENUM_DEF]/VARIABLE_DEF[ASSIGN and not(MODIFIERS/LITERAL_STATIC)]"/>
+            <message key="matchxpath.match"
+                     value="Initialize instance fields in the constructor; inline initialization is allowed only for static fields."/>
+        </module>
     </module>
 
 

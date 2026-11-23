@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd.rfc9842.demo;
 
+import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
 import io.github.dfa1.zstd.rfc9842.AvailableDictionaryHeader;
@@ -78,8 +79,8 @@ public final class Rfc9842ClientDemo {
                     + dataRequest.request().headers().map());
 
             // Step 2 & 3: fetch data, advertising the dictionary when it applies.
-            try (ZstdDecompressContext dctx = new ZstdDecompressContext();
-                 ZstdDecompressDictionary decompressDictionary = negotiated.dictionary().decompressDict()) {
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext();
+                 ZstdDecompressDictionary decompressDictionary = Zstd.newDecompressDictionary(negotiated.dictionary())) {
                 for (int i = 0; i < 3; i++) {
                     fetchData(http, dataRequest, dctx, negotiated.availableDictionary(), decompressDictionary);
                 }

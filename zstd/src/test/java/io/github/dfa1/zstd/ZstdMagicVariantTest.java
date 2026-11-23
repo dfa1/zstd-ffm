@@ -14,7 +14,7 @@ class ZstdMagicVariantTest {
     void acceptsVariantsInRange(int value) {
         // Given a variant selector in 0..15
         // When wrapped
-        ZstdMagicVariant sut = new ZstdMagicVariant(value);
+        ZstdMagicVariant sut = ZstdMagicVariant.of(value);
 
         // Then it holds that value
         assertThat(sut.value()).isEqualTo(value);
@@ -25,7 +25,7 @@ class ZstdMagicVariantTest {
     void rejectsVariantsOutOfRange(int value) {
         // Given a variant selector outside 0..15
         // When wrapped
-        ThrowingCallable result = () -> new ZstdMagicVariant(value);
+        ThrowingCallable result = () -> ZstdMagicVariant.of(value);
 
         // Then it is rejected before reaching native code
         assertThatThrownBy(result)

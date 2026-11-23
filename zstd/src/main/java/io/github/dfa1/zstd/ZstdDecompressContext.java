@@ -11,7 +11,7 @@ import java.util.Objects;
 /// on hot paths. Not thread-safe: confine an instance to one thread or pool it.
 ///
 /// {@snippet :
-/// try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
+/// try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
 ///     for (byte[] frame : frames) {
 ///         sink.accept(ctx.decompress(frame));
 ///     }
@@ -23,12 +23,11 @@ public final class ZstdDecompressContext extends NativeObject {
 
     private ZstdDecompressDictionary refDict;
 
-    /// Creates a new decompression context.
-    public ZstdDecompressContext() {
-        super(create());
+    ZstdDecompressContext() {
+        super(createNative());
     }
 
-    private static MemorySegment create() {
+    private static MemorySegment createNative() {
         return NativeCall.createOrThrow("ZSTD_createDCtx", () -> (MemorySegment) Bindings.CREATE_DCTX.invokeExact());
     }
 
@@ -337,7 +336,7 @@ public final class ZstdDecompressContext extends NativeObject {
     /// @return the live context size
     public ZstdByteSize sizeOf() {
         try {
-            return new ZstdByteSize((long) Bindings.SIZEOF_DCTX.invokeExact(ptr()));
+            return ZstdByteSize.of((long) Bindings.SIZEOF_DCTX.invokeExact(ptr()));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }

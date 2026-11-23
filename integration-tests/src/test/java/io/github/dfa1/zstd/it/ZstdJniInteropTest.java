@@ -55,13 +55,13 @@ class ZstdJniInteropTest {
     @MethodSource("payloadsAndLevels")
     void jniCompressJavaDecompress(int level, byte[] data) {
         byte[] frame = com.github.luben.zstd.Zstd.compress(data, level);
-        assertThat(Zstd.decompress(frame, new ZstdByteSize(data.length))).isEqualTo(data);
+        assertThat(Zstd.decompress(frame, ZstdByteSize.of(data.length))).isEqualTo(data);
     }
 
     @ParameterizedTest
     @MethodSource("payloadsAndLevels")
     void javaCompressJniDecompress(int level, byte[] data) {
-        byte[] frame = Zstd.compress(data, new ZstdCompressionLevel(level));
+        byte[] frame = Zstd.compress(data, ZstdCompressionLevel.of(level));
         assertThat(com.github.luben.zstd.Zstd.decompress(frame, data.length)).isEqualTo(data);
     }
 
@@ -73,7 +73,7 @@ class ZstdJniInteropTest {
             byte[] data = "interop streaming ".repeat(50_000).getBytes(StandardCharsets.UTF_8);
 
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = new ZstdOutputStream(sink, new ZstdCompressionLevel(7))) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink, ZstdCompressionLevel.of(7))) {
                 zout.write(data);
             }
             byte[] restored;
@@ -93,7 +93,7 @@ class ZstdJniInteropTest {
                 zout.write(data);
             }
             byte[] restored;
-            try (ZstdInputStream zin = new ZstdInputStream(new ByteArrayInputStream(sink.toByteArray()))) {
+            try (ZstdInputStream zin = Zstd.newInputStream(new ByteArrayInputStream(sink.toByteArray()))) {
                 restored = zin.readAllBytes();
             }
             assertThat(restored).isEqualTo(data);
@@ -112,7 +112,7 @@ class ZstdJniInteropTest {
             byte[] data = compressible(new Random(0x5EED), MULTI_THREAD_PAYLOAD_SIZE);
 
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 ctx.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
                 frame = ctx.compress(data);
             }
@@ -128,7 +128,7 @@ class ZstdJniInteropTest {
                 zout.setWorkers(2);
                 zout.write(data);
             }
-            assertThat(Zstd.decompress(sink.toByteArray(), new ZstdByteSize(data.length))).isEqualTo(data);
+            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(data.length))).isEqualTo(data);
         }
 
         @Test
@@ -136,7 +136,7 @@ class ZstdJniInteropTest {
             byte[] data = compressible(new Random(0xC0FFEE), MULTI_THREAD_PAYLOAD_SIZE);
 
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = new ZstdOutputStream(sink)) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink)) {
                 zout.parameter(ZstdCompressParameter.NB_WORKERS, 2);
                 zout.write(data);
             }
@@ -153,7 +153,7 @@ class ZstdJniInteropTest {
             byte[] sample = sample(11);
 
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 frame = ctx.compress(sample, dict);
             }
             ZstdDictDecompress jniDict = new ZstdDictDecompress(dict.toByteArray());
@@ -169,8 +169,8 @@ class ZstdJniInteropTest {
             byte[] frame = com.github.luben.zstd.Zstd.compress(sample, jniDict);
 
             byte[] restored;
-            try (ZstdDecompressContext ctx = new ZstdDecompressContext()) {
-                restored = ctx.decompress(frame, new ZstdByteSize(sample.length), dict);
+            try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
+                restored = ctx.decompress(frame, ZstdByteSize.of(sample.length), dict);
             }
             assertThat(restored).isEqualTo(sample);
         }
@@ -184,7 +184,7 @@ class ZstdJniInteropTest {
             byte[] sample = sample(33);
 
             byte[] frame;
-            try (ZstdCompressContext ctx = new ZstdCompressContext().checksum(true)) {
+            try (ZstdCompressContext ctx = Zstd.newCompressContext().checksum(true)) {
                 ctx.loadDictionary(dict);
                 frame = ctx.compress(sample);
             }
@@ -199,8 +199,8 @@ class ZstdJniInteropTest {
             byte[] sample = sample(44);
 
             byte[] frame;
-            try (ZstdCompressDictionary cdict = new ZstdCompressDictionary(dict, ZstdCompressionLevel.DEFAULT);
-                 ZstdCompressContext ctx = new ZstdCompressContext()) {
+            try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict, ZstdCompressionLevel.DEFAULT);
+                 ZstdCompressContext ctx = Zstd.newCompressContext()) {
                 ctx.refDictionary(cdict);
                 frame = ctx.compress(sample);
             }

@@ -45,3 +45,5 @@ directory created atomically, and `dlopen`s that. To run a self-built
 - [ADR 0004 — per-classifier native jars](0004-per-classifier-native-jars.md)
 - Implemented in `9e505c6` / `8d0ea6a` (#8, bundled-only loader), `b2ed28b`
   (owner-only temp dir, Sonar S5443), `c9929b9` (#20, follow-up Sonar fixes).
+
+[NativeLibrary.java]: ../zstd/src/main/java/io/github/dfa1/zstd/NativeLibrary.java

@@ -105,7 +105,7 @@ final class ZstdTestSupport {
     static Stream<ZstdCompressionLevel> levels() {
         return Stream.of(
                 ZstdCompressionLevel.FASTEST,
-                new ZstdCompressionLevel(1),
+                ZstdCompressionLevel.of(1),
                 ZstdCompressionLevel.DEFAULT,
                 ZstdCompressionLevel.MAX);
     }

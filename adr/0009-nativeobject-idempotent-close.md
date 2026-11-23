@@ -17,6 +17,15 @@ All native-pointer holders extend `NativeObject`, which is `AutoCloseable` with
 an **idempotent** `close()` — the second and later calls are no-ops. Callers use
 try-with-resources. The wrapped pointer is freed exactly once.
 
+> **Amended (2026-11-22, [#143](https://github.com/dfa1/zstd-ffm/issues/143)):**
+> the digested dictionaries (`ZstdCompressDictionary`, `ZstdDecompressDictionary`)
+> extend [NativePointerWithRefCount.java] instead of `NativeObject`. It keeps this
+> decision's contract — `AutoCloseable`, idempotent `close()`, pointer freed
+> exactly once — but frees only when the last reference is released, because a
+> context that attaches a dictionary with `refDictionary` holds its own reference.
+> The closed handle itself throws on use. Contexts and segment streams still
+> extend `NativeObject`.
+
 ## Consequences
 
 ### Positive
@@ -40,5 +49,8 @@ try-with-resources. The wrapped pointer is freed exactly once.
 
 ## References
 
-- [NativeObject.java]
+- [NativeObject.java], [NativePointerWithRefCount.java]
 - [ADR 0010 — native-context pool](0010-native-context-pool.md)
+
+[NativeObject.java]: ../zstd/src/main/java/io/github/dfa1/zstd/NativeObject.java
+[NativePointerWithRefCount.java]: ../zstd/src/main/java/io/github/dfa1/zstd/NativePointerWithRefCount.java
