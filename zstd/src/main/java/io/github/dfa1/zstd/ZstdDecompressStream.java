@@ -4,6 +4,8 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
+
 /// A low-level, zero-copy streaming decompressor driven with native
 /// [MemorySegment] buffers — no heap `byte[]` bounce.
 ///
@@ -16,8 +18,9 @@ import java.util.Objects;
 public final class ZstdDecompressStream extends NativeObject {
 
     private final Arena arena;
-    private final ZstdStreamBuffer in;
-    private final ZstdStreamBuffer out;
+    // size_t cells the _simpleArgs calls advance: bytes written to dst, read from src
+    private final MemorySegment dstPos;
+    private final MemorySegment srcPos;
 
     ZstdDecompressStream() {
         this(null);
@@ -29,8 +32,8 @@ public final class ZstdDecompressStream extends NativeObject {
         // close() — one release path, no leak on a half-built stream.
         super(createDctx());
         this.arena = Arena.ofConfined();
-        this.in = new ZstdStreamBuffer(arena);
-        this.out = new ZstdStreamBuffer(arena);
+        this.dstPos = arena.allocate(JAVA_LONG);
+        this.srcPos = arena.allocate(JAVA_LONG);
         try {
             if (dictionary != null) {
                 loadDictionary(dictionary);
@@ -110,11 +113,11 @@ public final class ZstdDecompressStream extends NativeObject {
     public ZstdStreamResult decompress(MemorySegment dst, MemorySegment src) {
         NativeCall.requireWritable(dst, "dst");
         NativeCall.requireReadable(src, "src");
-        in.set(src, src.byteSize());
-        out.set(dst, dst.byteSize());
-        long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_STREAM.invokeExact(
-                ptr(), out.segment(), in.segment()));
-        return ZstdStreamResult.of(in.pos(), out.pos(), remaining);
+        dstPos.set(JAVA_LONG, 0, 0L);
+        srcPos.set(JAVA_LONG, 0, 0L);
+        long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_STREAM_SIMPLE_ARGS.invokeExact(
+                ptr(), dst, dst.byteSize(), dstPos, src, src.byteSize(), srcPos));
+        return ZstdStreamResult.of(srcPos.get(JAVA_LONG, 0), dstPos.get(JAVA_LONG, 0), remaining);
     }
 
     /// Current native memory used by this stream's context, in bytes.

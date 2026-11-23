@@ -93,6 +93,11 @@ final class NativeCall {
     /// C. Fails fast with a clear message instead of the FFM linker's cryptic
     /// error. Entry points call one of those two, so each site states whether zstd
     /// reads or writes the segment.
+    ///
+    /// Liveness and thread confinement are left to the linker: every guarded
+    /// segment is then passed as a direct downcall argument, which the linker
+    /// checks and keeps alive for the call. Never store a caller's segment address
+    /// into a native struct instead, since the linker cannot check that.
     static void requireNative(MemorySegment seg, String name) {
         Objects.requireNonNull(seg, name);
         if (!seg.isNative()) {

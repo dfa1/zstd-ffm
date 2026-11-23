@@ -47,6 +47,15 @@ git tags, which trigger publication to Maven Central.
   way. The nine `ZstdFrame` `MemorySegment` readers had no guard either and
   now reject a null or heap `data` up front. Read-only inputs stay accepted.
   ([#163](https://github.com/dfa1/zstd-ffm/issues/163))
+- `ZstdCompressStream#compress` and `ZstdDecompressStream#decompress` wrote the
+  caller's segment addresses into a `ZSTD_in/outBuffer` struct, which the FFM
+  linker never checks, so a `dst`/`src` from a closed arena, one confined to
+  another thread, or a shared arena closed mid-call sent zstd into freed or
+  foreign memory (JVM crash). They now call `ZSTD_compressStream2_simpleArgs` /
+  `ZSTD_decompressStream_simpleArgs`, which take the buffers as direct
+  arguments: the linker throws `IllegalStateException` / `WrongThreadException`
+  up front and keeps both arenas alive for the duration of the call.
+  ([#161](https://github.com/dfa1/zstd-ffm/issues/161))
 
 ## [0.16] - 2026-11-23
 

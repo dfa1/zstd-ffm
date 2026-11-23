@@ -401,5 +401,99 @@ class ZstdSegmentStreamTest {
                 assertThat(bytesOf(backing, original.length)).containsOnly((byte) 0);
             }
         }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"dst", "src"})
+        void compressRejectsSegmentOfClosedArena(String closedSide) {
+            // Given a compress stream and one buffer whose arena is already closed
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
+                MemorySegment closed = closedSegment();
+                MemorySegment dst = "dst".equals(closedSide) ? closed : arena.allocate(64);
+                MemorySegment src = "src".equals(closedSide) ? closed : arena.allocate(64);
+
+                // When compressing through it
+                ThrowingCallable result = () -> sut.compress(dst, src, ZstdEndDirective.END);
+
+                // Then the linker rejects it before zstd follows a freed address
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("closed");
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"dst", "src"})
+        void decompressRejectsSegmentOfClosedArena(String closedSide) {
+            // Given a decompress stream and one buffer whose arena is already closed
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream()) {
+                MemorySegment closed = closedSegment();
+                MemorySegment dst = "dst".equals(closedSide) ? closed : arena.allocate(64);
+                MemorySegment src = "src".equals(closedSide) ? closed : arena.allocate(64);
+
+                // When decompressing through it
+                ThrowingCallable result = () -> sut.decompress(dst, src);
+
+                // Then the linker rejects it before zstd follows a freed address
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("closed");
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"dst", "src"})
+        void compressRejectsSegmentConfinedToAnotherThread(String foreignSide) throws InterruptedException {
+            // Given a compress stream and one buffer owned by another thread
+            MemorySegment foreign = confinedToAnotherThread();
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
+                MemorySegment dst = "dst".equals(foreignSide) ? foreign : arena.allocate(64);
+                MemorySegment src = "src".equals(foreignSide) ? foreign : arena.allocate(64);
+
+                // When compressing through it
+                ThrowingCallable result = () -> sut.compress(dst, src, ZstdEndDirective.END);
+
+                // Then the linker rejects it before zstd touches another thread's memory
+                assertThatThrownBy(result)
+                        .isInstanceOf(WrongThreadException.class);
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"dst", "src"})
+        void decompressRejectsSegmentConfinedToAnotherThread(String foreignSide) throws InterruptedException {
+            // Given a decompress stream and one buffer owned by another thread
+            MemorySegment foreign = confinedToAnotherThread();
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream()) {
+                MemorySegment dst = "dst".equals(foreignSide) ? foreign : arena.allocate(64);
+                MemorySegment src = "src".equals(foreignSide) ? foreign : arena.allocate(64);
+
+                // When decompressing through it
+                ThrowingCallable result = () -> sut.decompress(dst, src);
+
+                // Then the linker rejects it before zstd touches another thread's memory
+                assertThatThrownBy(result)
+                        .isInstanceOf(WrongThreadException.class);
+            }
+        }
+
+        /// A segment from a confined arena opened (and left open) on a thread that
+        /// has since finished, so it is alive but never accessible from this thread.
+        private static MemorySegment confinedToAnotherThread() throws InterruptedException {
+            MemorySegment[] seg = new MemorySegment[1];
+            Thread owner = Thread.ofPlatform().start(() -> seg[0] = Arena.ofConfined().allocate(64));
+            owner.join();
+            return seg[0];
+        }
+
+        private static MemorySegment closedSegment() {
+            Arena arena = Arena.ofConfined();
+            MemorySegment seg = arena.allocate(64);
+            arena.close();
+            return seg;
+        }
     }
 }
