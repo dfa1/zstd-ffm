@@ -8,64 +8,25 @@ git tags, which trigger publication to Maven Central.
 
 ### Added
 - `ZstdDecompressContext#ignoreChecksum(boolean)` skips content-checksum
-  validation, backed by the new `ZstdDecompressParameter.FORCE_IGNORE_CHECKSUM`
-  (`ZSTD_d_forceIgnoreChecksum`). For callers whose integrity is guaranteed
-  elsewhere, or to recover data from a frame with a bad checksum. Experimental
-  upstream; corrupted payloads are no longer detected while it is on.
-  ([#148](https://github.com/dfa1/zstd-ffm/issues/148))
-- `ZstdInputStream` and `ZstdDecompressStream` gain `windowLogMax(ZstdWindowLog)`
-  and `ignoreChecksum(boolean)`; previously they accepted no decompression
-  parameters at all, so frames built with a window above the default limit
-  could not be streamed.
-- Magicless frame format (`ZSTD_f_zstd1_magicless`): frames without the 4-byte
-  magic number `28 B5 2F FD`, for storing many tiny frames (one per row or
-  cache entry). `ZstdCompressContext#magicless(boolean)` and
-  `ZstdDecompressContext#magicless(boolean)`, backed by the new
-  `ZstdCompressParameter.FORMAT` and `ZstdDecompressParameter.FORMAT`;
-  wire-compatible with zstd-jni's `setMagicless(true)`. Experimental upstream;
-  encoder and decoder must agree on the mode. `ZstdFrame` helpers and the
-  size-reading `decompress` overloads assume the standard format and do not
-  recognize magicless frames, so pass an explicit size.
-  ([#147](https://github.com/dfa1/zstd-ffm/issues/147))
+  validation (experimental upstream). ([#148](https://github.com/dfa1/zstd-ffm/issues/148))
+- `windowLogMax(ZstdWindowLog)` and `ignoreChecksum(boolean)` on `ZstdInputStream`
+  and `ZstdDecompressStream`. ([#154](https://github.com/dfa1/zstd-ffm/pull/154))
+- Magicless frames (experimental upstream): `magicless(boolean)` on both
+  contexts, compatible with zstd-jni's `setMagicless`; `ZstdFrame` helpers don't
+  recognize them. ([#147](https://github.com/dfa1/zstd-ffm/issues/147))
 
 ### Fixed
 - `refPrefix` crashed the JVM when the prefix's arena was closed before a frame
   used it; it now throws `IllegalStateException`.
   ([#162](https://github.com/dfa1/zstd-ffm/issues/162))
-- `ZstdCompressContext#longDistanceMatching(false)` did not disable
-  long-distance matching: it sent `0`, which zstd reads as *auto*
-  (`ZSTD_c_enableLongDistanceMatching` is a three-state `ZSTD_ParamSwitch_e`).
-  Auto turns it on for a btopt-or-stronger strategy with an effective window
-  log of 27+ (level 22, or an explicit `windowLog` of 27+, on large inputs), so
-  `false` behaved like `true` there and cost the same memory. `false` now sends
-  `ZSTD_ps_disable` (`2`). ([#165](https://github.com/dfa1/zstd-ffm/issues/165))
-- `windowLogMax` javadoc described it as a limit every decoder enforces. It is
-  zstd's memory limit for **streaming** decompression only (`ZstdInputStream`,
-  `ZstdDecompressStream`): `ZstdDecompressContext`'s `decompress` methods are
-  all one-shot and never check it, so `ZstdDecompressContext#windowLogMax` has
-  no effect on them. `ZstdWindowLog.AUTO` on the decoder side restores the
-  default limit of `27` (128 MiB), not "no limit". Docs only; behavior is
-  unchanged and now pinned by tests.
-- The zero-copy `dst` of `ZstdCompressContext#compress`,
-  `ZstdDecompressContext#decompress` and `ZstdCompressStream#compress` was only
-  checked for being native, never for being writable: the FFM linker passes a
-  read-only segment's address through unchecked, so a read-only mmap crashed
-  the JVM (SIGBUS) and an `asReadOnly()` view was silently overwritten. A
-  read-only `dst` now throws `IllegalArgumentException` before any native
-  call. `ZstdDecompressStream#decompress` had no segment guard at all and now
-  rejects a null, heap or read-only `dst` and a null or heap `src` the same
-  way. The nine `ZstdFrame` `MemorySegment` readers had no guard either and
-  now reject a null or heap `data` up front. Read-only inputs stay accepted.
-  ([#163](https://github.com/dfa1/zstd-ffm/issues/163))
-- `ZstdCompressStream#compress` and `ZstdDecompressStream#decompress` wrote the
-  caller's segment addresses into a `ZSTD_in/outBuffer` struct, which the FFM
-  linker never checks, so a `dst`/`src` from a closed arena, one confined to
-  another thread, or a shared arena closed mid-call sent zstd into freed or
-  foreign memory (JVM crash). They now call `ZSTD_compressStream2_simpleArgs` /
-  `ZSTD_decompressStream_simpleArgs`, which take the buffers as direct
-  arguments: the linker throws `IllegalStateException` / `WrongThreadException`
-  up front and keeps both arenas alive for the duration of the call.
-  ([#161](https://github.com/dfa1/zstd-ffm/issues/161))
+- `longDistanceMatching(false)` selected zstd's automatic mode instead of
+  disabling long-distance matching. ([#165](https://github.com/dfa1/zstd-ffm/issues/165))
+- `windowLogMax` javadoc: it limits streaming decompression only; one-shot
+  `ZstdDecompressContext` decoding ignores it. ([#157](https://github.com/dfa1/zstd-ffm/pull/157))
+- A read-only `dst` segment crashed the JVM or was silently overwritten; it now
+  throws `IllegalArgumentException`. ([#163](https://github.com/dfa1/zstd-ffm/issues/163))
+- The segment streams crashed the JVM on a `dst`/`src` from a closed arena or
+  another thread; they now throw. ([#161](https://github.com/dfa1/zstd-ffm/issues/161))
 
 ## [0.16] - 2026-11-23
 
