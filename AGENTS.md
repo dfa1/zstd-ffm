@@ -114,4 +114,28 @@ Never mutate `~/.m2/repository` by hand either.
 - **American English everywhere** (javadoc, comments, identifiers): `recognize`/`optimize`/
   `finalize`/`serialize`/`behavior`/`color`, never `-ise`/`-isation`/`-our`. Matches the JDK
   (`Object.finalize`, `Serializable`) and zstd's C docs.
-- Check: `./mvnw javadoc:javadoc -pl core` must produce zero output.
+- Check: `./mvnw javadoc:javadoc -pl zstd` must produce zero output.
+
+## Workflow
+
+- Read the relevant code before editing; match the surrounding style.
+- Run `./mvnw validate` and the relevant tests before reporting; quote real output, never
+  claim green without running. Commit/push only when explicitly asked.
+
+## Reviewing changes
+
+Review the diff (`git diff`, `git diff --staged`) against this file, in priority order:
+
+1. **Correctness / safety** — arena/segment lifetime, use-after-close, bounds, alignment;
+   idempotent `NativeObject.close()`; every native return checked for zstd's negative
+   sentinels; no `byte[]` for decode output on the hot path; off-by-one, size overflow,
+   signed/unsigned confusion; leaked arenas/segments/`NativeObject`s.
+2. **Tests** — new behavior covered (happy, negative, corners); round-trips and format
+   boundaries have an integration test vs `zstd-jni` or the golden corpus; tests assert the
+   real thing (no vacuous assertions, no mocked-away ground truth).
+3. **Style / build gates** — the conventions above.
+
+Report findings as **Blocker** / **Should-fix** / **Nit**, one line each
+(`file:line — problem — fix`), ending with APPROVE or CHANGES NEEDED. An empty list is a valid
+outcome: don't manufacture findings, and skip nits the build already enforces or that you'd
+tell the author to ignore.
