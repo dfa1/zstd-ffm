@@ -13,6 +13,7 @@ import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressStream;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdEndDirective;
+import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.ZstdInputStream;
 import io.github.dfa1.zstd.ZstdOutputStream;
 import io.github.dfa1.zstd.ZstdStreamResult;
@@ -44,6 +45,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 /// version (1.5.x) than this library (1.6.0); the frame format is compatible, so
 /// these prove real interop, not just internal round-trips.
 class ZstdJniInteropTest {
+
+    /// 2 MiB: above zstd's 512 KiB cutoff, below which a one-shot compress with a
+    /// known source size runs single-threaded, and four jobs at the minimum job size.
+    private static final int MULTI_THREAD_PAYLOAD_SIZE = 2 * 1024 * 1024;
+
+    /// zstd's smallest job size (`ZSTDMT_JOBSIZE_MIN`, 512 KiB). The default
+    /// (`4 << windowLog`, 8 MiB at level 3) would put the whole payload in one job.
+    private static final int MIN_JOB_SIZE = 512 * 1024;
 
     static Stream<Arguments> payloadsAndLevels() {
         Random r = new Random(0xABCD);
@@ -110,6 +119,8 @@ class ZstdJniInteropTest {
     @Nested
     class SegmentStreaming {
 
+        private static final ZstdDictionary DICT = trainDict();
+
         // Seeded payloads crossing zstd's 128 KiB block size, pushed through chunk
         // sizes small enough that every call consumes or produces only part of a block.
         static Stream<Arguments> payloadsAndChunks() {
@@ -156,6 +167,74 @@ class ZstdJniInteropTest {
             }
         }
 
+        @ParameterizedTest
+        @ValueSource(ints = {1, 7, 4096})
+        void segmentCompressStreamWithDictionaryToJni(int chunk) {
+            // Given records the dictionary was trained on, and a dictionary-loaded stream
+            byte[] data = records(200);
+            byte[] frame;
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = Zstd.newCompressStream(ZstdCompressionLevel.DEFAULT, DICT)) {
+                // When they are compressed chunk by chunk and then ended
+                frame = compressInChunks(arena, sut, data, chunk);
+            }
+
+            // Then the frame names the dictionary, and zstd-jni decodes it against the same one
+            assertThat(ZstdFrame.dictId(frame)).isEqualTo(DICT.id());
+            ZstdDictDecompress jniDict = new ZstdDictDecompress(DICT.toByteArray());
+            assertThat(com.github.luben.zstd.Zstd.decompress(frame, jniDict, data.length)).isEqualTo(data);
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {1, 7, 4096})
+        void jniDictionaryToSegmentDecompressStream(int chunk) {
+            // Given a frame zstd-jni compressed against the dictionary
+            byte[] data = records(200);
+            ZstdDictCompress jniDict = new ZstdDictCompress(DICT.toByteArray(), ZstdCompressionLevel.DEFAULT.value());
+            byte[] frame = com.github.luben.zstd.Zstd.compress(data, jniDict);
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream(DICT)) {
+                // When a dictionary-loaded ZstdDecompressStream decodes it chunk by chunk
+                byte[] restored = decompressInChunks(arena, sut, frame, chunk);
+
+                // Then the records are restored exactly
+                assertThat(restored).isEqualTo(data);
+            }
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {1, 2})
+        void multithreadedSegmentCompressStreamToJni(int nbWorkers) {
+            // Given a stream split into minimum-size jobs. Streaming starts with CONTINUE,
+            // so the source size is unknown and multithreading engages regardless of
+            // payload size; it is the job size that makes the payload span several jobs.
+            byte[] data = compressible(new Random(0x57EA), MULTI_THREAD_PAYLOAD_SIZE);
+            byte[] frame;
+            int jobs;
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
+                sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers)
+                        .parameter(ZstdCompressParameter.JOB_SIZE, MIN_JOB_SIZE);
+
+                // When it is compressed through 64 KiB segments by the worker pool
+                frame = compressInChunks(arena, sut, data, 64 * 1024);
+                jobs = sut.progress().currentJobId();
+            }
+
+            // Then the payload really went through several jobs (single-threaded reports 0),
+            // and zstd-jni decodes the frame back to the payload
+            assertThat(jobs).isGreaterThanOrEqualTo(MULTI_THREAD_PAYLOAD_SIZE / MIN_JOB_SIZE);
+            assertThat(com.github.luben.zstd.Zstd.decompress(frame, data.length)).isEqualTo(data);
+        }
+
+        private static byte[] records(int count) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            for (int i = 0; i < count; i++) {
+                out.writeBytes(sample(i));
+            }
+            return out.toByteArray();
+        }
+
         private static byte[] compressInChunks(Arena arena, ZstdCompressStream cs, byte[] data, int chunk) {
             MemorySegment src = arena.allocate(Math.max(data.length, 1));
             MemorySegment.copy(data, 0, src, ValueLayout.JAVA_BYTE, 0, data.length);
@@ -193,8 +272,6 @@ class ZstdJniInteropTest {
     @Nested
     class Multithreaded {
 
-        /// Above zstd's 512 KiB minimum job size, so workers actually engage.
-        private static final int MULTI_THREAD_PAYLOAD_SIZE = 2 * 1024 * 1024;
 
         @ParameterizedTest
         @ValueSource(ints = {1, 2})
@@ -296,19 +373,6 @@ class ZstdJniInteropTest {
             }
             ZstdDictDecompress jniDict = new ZstdDictDecompress(dict.toByteArray());
             assertThat(com.github.luben.zstd.Zstd.decompress(frame, jniDict, sample.length)).isEqualTo(sample);
-        }
-
-        private ZstdDictionary trainDict() {
-            List<byte[]> samples = new ArrayList<>();
-            for (int i = 0; i < 3000; i++) {
-                samples.add(sample(i));
-            }
-            return ZstdDictionary.train(samples, ZstdByteSize.ofKiB(8));
-        }
-
-        private byte[] sample(int i) {
-            return ("{\"id\":" + i + ",\"user\":\"u" + (i % 30) + "\",\"event\":\"click\"}")
-                    .getBytes(StandardCharsets.UTF_8);
         }
     }
 
@@ -425,5 +489,18 @@ class ZstdJniInteropTest {
             // Then the input comes back
             assertThat(restored).isEqualTo(data);
         }
+    }
+
+    private static ZstdDictionary trainDict() {
+        List<byte[]> samples = new ArrayList<>();
+        for (int i = 0; i < 3000; i++) {
+            samples.add(sample(i));
+        }
+        return ZstdDictionary.train(samples, ZstdByteSize.ofKiB(8));
+    }
+
+    private static byte[] sample(int i) {
+        return ("{\"id\":" + i + ",\"user\":\"u" + (i % 30) + "\",\"event\":\"click\"}")
+                .getBytes(StandardCharsets.UTF_8);
     }
 }
