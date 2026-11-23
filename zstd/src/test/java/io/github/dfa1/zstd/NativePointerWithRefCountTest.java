@@ -76,7 +76,7 @@ class NativePointerWithRefCountTest {
 
         // When the owner closes it
         sut.close();
-        ThrowingCallable result = sut::ptr;
+        ThrowingCallable result = () -> sut.withRetained(MemorySegment::address);
 
         // Then the native pointer is not freed, but the closed handle rejects use
         assertThat(sut.tryCloseCount).hasValue(0);
@@ -282,17 +282,17 @@ class NativePointerWithRefCountTest {
 
     @Test
     void withRetainedReleasesItsReferenceWhenTheCallThrows() {
-        // Given a call that fails
+        // Given a live handle
         TestObject sut = new TestObject();
-        ThrowingCallable failing = () -> sut.withRetained(_ -> {
+
+        // When a call run with it fails
+        ThrowingCallable result = () -> sut.withRetained(_ -> {
             throw new IllegalArgumentException("native failure");
         });
-        assertThatThrownBy(failing).isInstanceOf(IllegalArgumentException.class);
 
-        // When the owner closes the handle
+        // Then the failure propagates and leaves no reference behind: close alone frees it
+        assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
         sut.close();
-
-        // Then the failed call left no reference behind: close alone frees it
         assertThat(sut.tryCloseCount).hasValue(1);
     }
 

@@ -18,6 +18,10 @@ import java.util.function.ToLongFunction;
 /// is safe to call more than once.
 public abstract class NativePointerWithRefCount implements AutoCloseable {
 
+    /// Reachable only through [#withRetained(ToLongFunction)] and
+    /// [#swap(NativePointerWithRefCount, NativePointerWithRefCount, Consumer)],
+    /// both of which hold a reference while native code uses it: there is
+    /// deliberately no bare accessor, so a native call without one cannot compile.
     private final MemorySegment ptr;
     private final AtomicInteger refCount;
     private final AtomicBoolean closed;
@@ -30,22 +34,6 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
         this.ptr = owningPointer;
         this.refCount = new AtomicInteger(1); // the constructor's own reference
         this.closed = new AtomicBoolean(false);
-    }
-
-    /// Returns the live native pointer, failing once this handle is closed.
-    ///
-    /// A closed handle is unusable even while borrowers that retained it (e.g. a
-    /// context holding it via `refDictionary`) keep the native pointer alive:
-    /// those borrowers hold the pointer itself, not this accessor.
-    ///
-    /// @return the live native pointer
-    /// @throws IllegalStateException if this handle was closed, or the last
-    ///                               reference has already been released
-    protected final MemorySegment ptr() {
-        if (closed.get() || refCount.get() == 0) {
-            throw new IllegalStateException("native object is closed");
-        }
-        return ptr;
     }
 
     /// Acquires a new reference on top of the constructor's own.
@@ -72,8 +60,8 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
     final long withRetained(ToLongFunction<MemorySegment> nativeCall) {
         retain();
         try {
-            // The field, not ptr(): holding a reference keeps the pointer valid even
-            // if another thread closes this handle after retain() succeeded.
+            // Holding a reference keeps the pointer valid even if another thread
+            // closes this handle after retain() succeeded.
             return nativeCall.applyAsLong(ptr);
         } finally {
             release();
@@ -131,8 +119,8 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
         if (next != null) {
             next.retain();
         }
-        // next.ptr, not next.ptr(): the retain above keeps it valid, and ptr() would throw
-        // (leaking that retain) if another thread closed `next` in between.
+        // The retain above keeps next's pointer valid even if another thread closes
+        // `next` right after it.
         MemorySegment nextPtr = next == null ? MemorySegment.NULL : ((NativePointerWithRefCount) next).ptr;
         try {
             nativeCall.accept(nextPtr);
