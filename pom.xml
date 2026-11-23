@@ -79,9 +79,14 @@
 		<!-- The benchmark module is a JMH harness, not shipped runtime: its
 		     @Setup/@TearDown lifecycle trips false "resource not closed" reports and
 		     it has no tests by design. Exclude from analysis entirely (which also
-		     keeps it out of the coverage ratio). -->
+		     keeps it out of the coverage ratio).
+		     .github/scripts holds CI helper scripts (benchmark report formatting),
+		     not shipped code, and only ever read files the workflow itself wrote:
+		     pythonsecurity:S8707 path-traversal reports on them have no attacker,
+		     and NOSONAR does not suppress taint-analysis findings. -->
 		<sonar.exclusions>
-			**/benchmark/**
+			**/benchmark/**,
+			**/.github/scripts/**
 		</sonar.exclusions>
 		<!-- S7474 ("Markdown, HTML and Javadoc tags should be consistent") flags our
 		     JEP 467 Markdown reference links ([ClassName#method]) and wants the
