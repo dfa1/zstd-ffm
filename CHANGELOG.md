@@ -31,12 +31,15 @@ git tags, which trigger publication to Maven Central.
 ### Fixed
 - `refPrefix(MemorySegment)` on `ZstdCompressContext` and
   `ZstdDecompressContext` no longer crashes the JVM when the prefix's arena is
-  closed before a frame uses it. zstd keeps only the raw address, so the next
-  `compress`/`decompress` read freed memory (SIGSEGV). The contexts now track
-  the pending prefix and throw `IllegalStateException`, dropping it, instead.
-  The per-call dictionary overloads do not use a pending prefix, which stays
-  pending for the next frame; the javadoc now says so.
-  ([#162](https://github.com/dfa1/zstd-ffm/issues/162))
+  closed before a frame uses it. zstd kept only the raw address, so the next
+  `compress`/`decompress` read freed memory (SIGSEGV). The contexts now hold
+  the prefix in Java and hand it to zstd only right before the frame that uses
+  it, as a direct native argument, so a closed or other-thread prefix fails
+  with `IllegalStateException` / `WrongThreadException` instead. `refPrefix`
+  also rejects such a segment up front. The prefix is still single use, also
+  when that frame fails. The per-call dictionary overloads do not use a
+  pending prefix, which stays pending for the next frame; the javadoc now
+  says so. ([#162](https://github.com/dfa1/zstd-ffm/issues/162))
 - `ZstdCompressContext#longDistanceMatching(false)` did not disable
   long-distance matching: it sent `0`, which zstd reads as *auto*
   (`ZSTD_c_enableLongDistanceMatching` is a three-state `ZSTD_ParamSwitch_e`).

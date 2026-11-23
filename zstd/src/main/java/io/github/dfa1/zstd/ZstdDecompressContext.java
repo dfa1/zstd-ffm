@@ -23,8 +23,9 @@ public final class ZstdDecompressContext extends NativeObject {
 
     private ZstdDecompressDictionary refDict;
     /// The segment last passed to [#refPrefix(MemorySegment)] that no frame has
-    /// used yet, or `null`. zstd keeps only its raw address, so it is checked
-    /// for liveness before every call that reads it.
+    /// used yet, or `null`. Held in Java only: zstd is handed the prefix just
+    /// before the frame that uses it, so it never keeps a pointer into an arena
+    /// the caller may close in between.
     private MemorySegment pendingPrefix;
 
     ZstdDecompressContext() {
@@ -216,43 +217,59 @@ public final class ZstdDecompressContext extends NativeObject {
     /// @param prefix native prefix content, or `null` / [MemorySegment#NULL] to clear it
     /// @return `this`, for chaining
     /// @throws ZstdException if the prefix cannot be referenced
+    /// @throws IllegalStateException if `prefix` is already closed
+    /// @throws WrongThreadException if `prefix` is confined to another thread
     public ZstdDecompressContext refPrefix(MemorySegment prefix) {
         if (NativeCall.isNull(prefix)) {
             return refPrefix(MemorySegment.NULL, 0L);
         }
-        NativeCall.requireReadable(prefix, "prefix");
+        NativeCall.requireRetainable(prefix, "prefix");
         return refPrefix(prefix, prefix.byteSize());
     }
 
     private ZstdDecompressContext refPrefix(MemorySegment prefix, long size) {
-        NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(ptr(), prefix, size));
+        // Clear natively now, as referencing a prefix always has (it drops any
+        // loaded or referenced dictionary); the prefix itself is handed to zstd
+        // only by decompressDCtx, right before the frame that uses it.
+        clearNativePrefix();
         refDict = NativePointerWithRefCount.release(refDict);
         pendingPrefix = size == 0 ? null : prefix;
         return this;
     }
 
-    /// Runs `ZSTD_decompressDCtx`, which uses up any pending prefix before it
-    /// decodes (`ZSTD_getDDict` drops a single-use dictionary as it returns it),
-    /// whether or not decompression then succeeds.
+    private void clearNativePrefix() {
+        NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(ptr(), MemorySegment.NULL, 0L));
+    }
+
+    /// Runs `ZSTD_decompressDCtx`, first handing zstd the pending prefix, if any.
+    ///
+    /// The prefix is single use: it is taken from [#pendingPrefix] up front and
+    /// zstd consumes it before decoding (`ZSTD_getDDict` drops a single-use
+    /// dictionary as it returns it) whether or not decompression then succeeds.
+    /// Passing it as a direct downcall argument lets the FFM linker reject a
+    /// closed or other-thread segment before zstd sees it. If the linker then
+    /// refuses `dst`/`src` (C never ran, so zstd still holds the prefix), the
+    /// native prefix is cleared before the error propagates.
     private long decompressDCtx(MemorySegment dst, long dstCapacity, MemorySegment src, long srcSize) {
-        requirePendingPrefixAlive();
+        MemorySegment prefix = pendingPrefix;
+        pendingPrefix = null;
+        if (prefix != null) {
+            if (!prefix.scope().isAlive()) {
+                throw new IllegalStateException("the prefix passed to refPrefix was closed before a frame used it");
+            }
+            NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(
+                    ptr(), prefix, prefix.byteSize()));
+        }
         try {
             return NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_DCTX.invokeExact(
                     ptr(), dst, dstCapacity, src, srcSize));
-        } finally {
-            pendingPrefix = null;
-        }
-    }
-
-    /// Fails fast, and drops the native prefix, when the segment given to
-    /// [#refPrefix(MemorySegment)] was closed before a frame used it: zstd would
-    /// otherwise read freed memory and crash the JVM.
-    private void requirePendingPrefixAlive() {
-        if (pendingPrefix != null && !pendingPrefix.scope().isAlive()) {
-            NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(ptr(), MemorySegment.NULL, 0L));
-            pendingPrefix = null;
-            throw new IllegalStateException(
-                    "the prefix passed to refPrefix was closed before a frame used it; the prefix was dropped");
+        } catch (RuntimeException e) {
+            // A ZstdException means zstd ran and consumed the prefix. Anything else is the
+            // linker refusing dst/src before C ran, so zstd still holds the prefix.
+            if (prefix != null && !(e instanceof ZstdException)) {
+                clearNativePrefix();
+            }
+            throw e;
         }
     }
 
