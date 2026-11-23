@@ -128,6 +128,16 @@ Never mutate `~/.m2/repository` by hand either.
 - Run `./mvnw validate` and the relevant tests before reporting; quote real output, never
   claim green without running. Commit/push only when explicitly asked.
 
+## Changelog
+
+- One bullet per user-visible change under `## [Unreleased]`, in `Added` /
+  `Changed` / `Fixed` / `Removed`.
+- **One or two lines:** what changed for the caller, in API terms, then the
+  issue or PR link. No root cause, native function names, internals, or test
+  notes — those belong in the PR description and commit message.
+- A breaking change starts with **Breaking:** and names the replacement; a short
+  migration list under it is fine.
+
 ## Reviewing changes
 
 Review the diff (`git diff`, `git diff --staged`) against this file, in priority order:
