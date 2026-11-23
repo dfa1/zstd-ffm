@@ -6,7 +6,6 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,13 +68,25 @@ class Rfc9842NegotiationTest {
         UseAsDictionaryHeader useAsDictionary = UseAsDictionaryHeader.of("/api/*");
         AvailableDictionaryHeader availableDictionary = AvailableDictionaryHeader.of(dictionary);
 
-        assertThatThrownBy(() -> Rfc9842Negotiation.of(null, useAsDictionary, availableDictionary, Optional.empty()))
+        assertThatThrownBy(() -> Rfc9842Negotiation.of(null, useAsDictionary, availableDictionary, null))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Rfc9842Negotiation.of(dictionary, null, availableDictionary, Optional.empty()))
+        assertThatThrownBy(() -> Rfc9842Negotiation.of(dictionary, null, availableDictionary, null))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Rfc9842Negotiation.of(dictionary, useAsDictionary, null, Optional.empty()))
+        assertThatThrownBy(() -> Rfc9842Negotiation.of(dictionary, useAsDictionary, null, null))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Rfc9842Negotiation.of(dictionary, useAsDictionary, availableDictionary, null))
-                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void nullDictionaryIdMeansTheServerAssignedNone() {
+        // Given the components of a negotiation without a Dictionary-ID
+        ZstdDictionary dictionary = ZstdDictionary.of(DICT_BYTES);
+        UseAsDictionaryHeader useAsDictionary = UseAsDictionaryHeader.of("/api/*");
+        AvailableDictionaryHeader availableDictionary = AvailableDictionaryHeader.of(dictionary);
+
+        // When built with a null id
+        Rfc9842Negotiation sut = Rfc9842Negotiation.of(dictionary, useAsDictionary, availableDictionary, null);
+
+        // Then the accessor reports it as absent
+        assertThat(sut.dictionaryId()).isEmpty();
     }
 }

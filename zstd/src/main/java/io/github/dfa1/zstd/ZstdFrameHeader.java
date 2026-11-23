@@ -13,18 +13,19 @@ import java.util.Optional;
 /// throwing while the header is parsed.
 public final class ZstdFrameHeader {
 
-    private final Optional<ZstdByteSize> contentSize;
-    private final Optional<ZstdByteSize> windowSize;
+    /// `null` when the frame does not record a representable content size.
+    private final ZstdByteSize contentSize;
+    /// `null` when the frame declares an unrepresentable window size.
+    private final ZstdByteSize windowSize;
     private final ZstdByteSize blockSizeMax;
     private final ZstdFrameType frameType;
     private final ZstdByteSize headerSize;
     private final ZstdDictionaryId dictId;
     private final boolean hasChecksum;
 
-    @SuppressWarnings("java:S3553") // mirrors the Optional accessors; absence is data, not a missing argument
     private ZstdFrameHeader(
-            Optional<ZstdByteSize> contentSize,
-            Optional<ZstdByteSize> windowSize,
+            ZstdByteSize contentSize,
+            ZstdByteSize windowSize,
             ZstdByteSize blockSizeMax,
             ZstdFrameType frameType,
             ZstdByteSize headerSize,
@@ -41,9 +42,9 @@ public final class ZstdFrameHeader {
 
     /// Creates a [ZstdFrameHeader] from its components; only the library itself builds these.
     ///
-    /// @param contentSize  the stored decompressed size, or empty if the frame does not record
+    /// @param contentSize  the stored decompressed size, or `null` if the frame does not record
     ///                     a representable one
-    /// @param windowSize   the back-reference window size needed to decode the frame, or empty
+    /// @param windowSize   the back-reference window size needed to decode the frame, or `null`
     ///                     if the frame declares an unrepresentable one
     /// @param blockSizeMax the maximum block size used in the frame
     /// @param frameType    whether this is a standard or skippable frame
@@ -58,10 +59,9 @@ public final class ZstdFrameHeader {
     ///                     and is not exposed here. Gate on it to require integrity before
     ///                     decompressing
     /// @return the new [ZstdFrameHeader]
-    @SuppressWarnings("java:S3553") // mirrors the Optional accessors; absence is data, not a missing argument
     static ZstdFrameHeader of(
-            Optional<ZstdByteSize> contentSize,
-            Optional<ZstdByteSize> windowSize,
+            ZstdByteSize contentSize,
+            ZstdByteSize windowSize,
             ZstdByteSize blockSizeMax,
             ZstdFrameType frameType,
             ZstdByteSize headerSize,
@@ -74,7 +74,7 @@ public final class ZstdFrameHeader {
     ///
     /// @return the `contentSize` component
     public Optional<ZstdByteSize> contentSize() {
-        return contentSize;
+        return Optional.ofNullable(contentSize);
     }
 
     /// The back-reference window size needed to decode the frame, or empty if the frame
@@ -82,7 +82,7 @@ public final class ZstdFrameHeader {
     ///
     /// @return the `windowSize` component
     public Optional<ZstdByteSize> windowSize() {
-        return windowSize;
+        return Optional.ofNullable(windowSize);
     }
 
     /// The maximum block size used in the frame.
@@ -131,8 +131,8 @@ public final class ZstdFrameHeader {
     @Override
     public boolean equals(Object o) {
         return o instanceof ZstdFrameHeader other
-                && contentSize.equals(other.contentSize)
-                && windowSize.equals(other.windowSize)
+                && Objects.equals(contentSize, other.contentSize)
+                && Objects.equals(windowSize, other.windowSize)
                 && blockSizeMax.equals(other.blockSizeMax)
                 && frameType.equals(other.frameType)
                 && headerSize.equals(other.headerSize)
@@ -153,6 +153,6 @@ public final class ZstdFrameHeader {
     /// @return `ZstdFrameHeader[component=value, ...]`
     @Override
     public String toString() {
-        return "ZstdFrameHeader[contentSize=" + contentSize + ", windowSize=" + windowSize + ", blockSizeMax=" + blockSizeMax + ", frameType=" + frameType + ", headerSize=" + headerSize + ", dictId=" + dictId + ", hasChecksum=" + hasChecksum + "]";
+        return "ZstdFrameHeader[contentSize=" + contentSize() + ", windowSize=" + windowSize() + ", blockSizeMax=" + blockSizeMax + ", frameType=" + frameType + ", headerSize=" + headerSize + ", dictId=" + dictId + ", hasChecksum=" + hasChecksum + "]";
     }
 }
