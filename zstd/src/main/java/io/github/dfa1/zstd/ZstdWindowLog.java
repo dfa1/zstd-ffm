@@ -66,7 +66,7 @@ public final class ZstdWindowLog {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdWindowLog[component=value, ...]`
+    /// @return this value as `ZstdWindowLog[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdWindowLog[value=" + value + "]";

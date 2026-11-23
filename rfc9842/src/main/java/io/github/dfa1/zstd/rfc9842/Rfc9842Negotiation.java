@@ -138,7 +138,7 @@ public final class Rfc9842Negotiation {
 
     /// Record-style description listing every component.
     ///
-    /// @return `Rfc9842Negotiation[component=value, ...]`
+    /// @return this value as `Rfc9842Negotiation[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "Rfc9842Negotiation[dictionary=" + dictionary + ", useAsDictionary=" + useAsDictionary + ", availableDictionary=" + availableDictionary + ", dictionaryId=" + dictionaryId + "]";

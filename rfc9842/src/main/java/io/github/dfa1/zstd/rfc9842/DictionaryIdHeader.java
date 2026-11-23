@@ -85,7 +85,7 @@ public final class DictionaryIdHeader {
 
     /// Record-style description listing every component.
     ///
-    /// @return `DictionaryIdHeader[component=value, ...]`
+    /// @return this value as `DictionaryIdHeader[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "DictionaryIdHeader[value=" + value + "]";

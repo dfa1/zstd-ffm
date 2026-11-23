@@ -150,7 +150,7 @@ public final class ZstdFrameHeader {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdFrameHeader[component=value, ...]`
+    /// @return this value as `ZstdFrameHeader[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdFrameHeader[contentSize=" + contentSize + ", windowSize=" + windowSize + ", blockSizeMax=" + blockSizeMax + ", frameType=" + frameType + ", headerSize=" + headerSize + ", dictId=" + dictId + ", hasChecksum=" + hasChecksum + "]";

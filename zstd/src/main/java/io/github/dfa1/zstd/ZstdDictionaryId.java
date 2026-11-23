@@ -70,7 +70,7 @@ public final class ZstdDictionaryId {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdDictionaryId[component=value, ...]`
+    /// @return this value as `ZstdDictionaryId[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdDictionaryId[raw=" + raw + "]";

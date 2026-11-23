@@ -222,7 +222,7 @@ public final class UseAsDictionaryHeader {
 
     /// Record-style description listing every component.
     ///
-    /// @return `UseAsDictionaryHeader[component=value, ...]`
+    /// @return this value as `UseAsDictionaryHeader[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "UseAsDictionaryHeader[match=" + match + ", id=" + id + ", type=" + type + "]";

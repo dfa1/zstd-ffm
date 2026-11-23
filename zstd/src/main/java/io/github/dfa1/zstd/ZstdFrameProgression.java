@@ -114,7 +114,7 @@ public final class ZstdFrameProgression {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdFrameProgression[component=value, ...]`
+    /// @return this value as `ZstdFrameProgression[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdFrameProgression[ingested=" + ingested + ", consumed=" + consumed + ", produced=" + produced + ", flushed=" + flushed + ", currentJobId=" + currentJobId + ", activeWorkers=" + activeWorkers + "]";

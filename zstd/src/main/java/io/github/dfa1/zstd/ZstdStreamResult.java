@@ -80,7 +80,7 @@ public final class ZstdStreamResult {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdStreamResult[component=value, ...]`
+    /// @return this value as `ZstdStreamResult[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdStreamResult[bytesConsumed=" + bytesConsumed + ", bytesProduced=" + bytesProduced + ", remaining=" + remaining + "]";
