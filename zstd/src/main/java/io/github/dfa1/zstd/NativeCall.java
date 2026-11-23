@@ -87,14 +87,42 @@ final class NativeCall {
         return seg == null || MemorySegment.NULL.equals(seg);
     }
 
-    /// Guards a zero-copy entry point: the segment handed to zstd must be backed
-    /// by native (off-heap) memory, since its address is dereferenced in C. Fails
-    /// fast with a clear message instead of the FFM linker's cryptic error.
+    /// The shared base of [#requireReadable(MemorySegment, String)] and
+    /// [#requireWritable(MemorySegment, String)]: the segment handed to zstd must
+    /// be backed by native (off-heap) memory, since its address is dereferenced in
+    /// C. Fails fast with a clear message instead of the FFM linker's cryptic
+    /// error. Entry points call one of those two, so each site states whether zstd
+    /// reads or writes the segment.
+    ///
+    /// Liveness and thread confinement are left to the linker: every guarded
+    /// segment is then passed as a direct downcall argument, which the linker
+    /// checks and keeps alive for the call. Never store a caller's segment address
+    /// into a native struct instead, since the linker cannot check that.
     static void requireNative(MemorySegment seg, String name) {
         Objects.requireNonNull(seg, name);
         if (!seg.isNative()) {
             throw new IllegalArgumentException(
                     name + " must be a native (off-heap) MemorySegment; got a heap segment");
+        }
+    }
+
+    /// Guards a zero-copy input (a source, frame, dictionary or prefix) that zstd
+    /// only reads through: it must be native, and may be read-only, so a read-only
+    /// mmap of a compressed file is accepted.
+    static void requireReadable(MemorySegment seg, String name) {
+        requireNative(seg, name);
+    }
+
+    /// Guards a zero-copy destination: on top of [#requireNative(MemorySegment, String)],
+    /// the segment must be writable, since zstd writes through its address. The FFM
+    /// linker passes a read-only segment's address unchecked, so without this a
+    /// read-only mmap faults the JVM (SIGBUS/SIGSEGV) and an
+    /// [MemorySegment#asReadOnly()] view of writable memory is silently overwritten.
+    static void requireWritable(MemorySegment seg, String name) {
+        requireNative(seg, name);
+        if (seg.isReadOnly()) {
+            throw new IllegalArgumentException(
+                    name + " must be a writable MemorySegment; got a read-only segment");
         }
     }
 

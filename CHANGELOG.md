@@ -43,6 +43,26 @@ git tags, which trigger publication to Maven Central.
   no effect on them. `ZstdWindowLog.AUTO` on the decoder side restores the
   default limit of `27` (128 MiB), not "no limit". Docs only; behavior is
   unchanged and now pinned by tests.
+- The zero-copy `dst` of `ZstdCompressContext#compress`,
+  `ZstdDecompressContext#decompress` and `ZstdCompressStream#compress` was only
+  checked for being native, never for being writable: the FFM linker passes a
+  read-only segment's address through unchecked, so a read-only mmap crashed
+  the JVM (SIGBUS) and an `asReadOnly()` view was silently overwritten. A
+  read-only `dst` now throws `IllegalArgumentException` before any native
+  call. `ZstdDecompressStream#decompress` had no segment guard at all and now
+  rejects a null, heap or read-only `dst` and a null or heap `src` the same
+  way. The nine `ZstdFrame` `MemorySegment` readers had no guard either and
+  now reject a null or heap `data` up front. Read-only inputs stay accepted.
+  ([#163](https://github.com/dfa1/zstd-ffm/issues/163))
+- `ZstdCompressStream#compress` and `ZstdDecompressStream#decompress` wrote the
+  caller's segment addresses into a `ZSTD_in/outBuffer` struct, which the FFM
+  linker never checks, so a `dst`/`src` from a closed arena, one confined to
+  another thread, or a shared arena closed mid-call sent zstd into freed or
+  foreign memory (JVM crash). They now call `ZSTD_compressStream2_simpleArgs` /
+  `ZSTD_decompressStream_simpleArgs`, which take the buffers as direct
+  arguments: the linker throws `IllegalStateException` / `WrongThreadException`
+  up front and keeps both arenas alive for the duration of the call.
+  ([#161](https://github.com/dfa1/zstd-ffm/issues/161))
 
 ## [0.16] - 2026-11-23
 

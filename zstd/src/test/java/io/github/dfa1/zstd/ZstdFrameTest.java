@@ -3,6 +3,9 @@ package io.github.dfa1.zstd;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.foreign.Arena;
@@ -10,6 +13,8 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -519,6 +524,49 @@ class ZstdFrameTest {
                 // Then the segment overload reports it is not skippable
                 assertThat(ZstdFrame.isSkippableFrame(seg)).isFalse();
             }
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("segmentReaders")
+        void rejectHeapSegment(String method, Function<MemorySegment, Object> reader) {
+            // Given a heap-backed frame segment
+            MemorySegment heap = MemorySegment.ofArray(Zstd.compress(PAYLOAD));
+
+            // When inspected through the zero-copy overload
+            ThrowingCallable result = () -> reader.apply(heap);
+
+            // Then the guard names the argument before any native call
+            assertThatThrownBy(result)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("data must be a native");
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("segmentReaders")
+        void acceptReadOnlySegment(String method, Function<MemorySegment, Object> reader) {
+            // Given a frame in a read-only native segment, as from a read-only mmap
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment frame = Zstd.copyIn(arena, Zstd.compress(PAYLOAD));
+
+                // When inspected through the read-only view
+                Object viaReadOnly = reader.apply(frame.asReadOnly());
+
+                // Then it reads the same as the writable segment: inputs need not be writable
+                assertThat(viaReadOnly).isEqualTo(reader.apply(frame));
+            }
+        }
+
+        static Stream<Arguments> segmentReaders() {
+            return Stream.of(
+                    Arguments.of("isZstdFrame", (Function<MemorySegment, Object>) ZstdFrame::isZstdFrame),
+                    Arguments.of("compressedSize", (Function<MemorySegment, Object>) ZstdFrame::compressedSize),
+                    Arguments.of("decompressedBound", (Function<MemorySegment, Object>) ZstdFrame::decompressedBound),
+                    Arguments.of("decompressedSize", (Function<MemorySegment, Object>) ZstdFrame::decompressedSize),
+                    Arguments.of("decompressionMargin", (Function<MemorySegment, Object>) ZstdFrame::decompressionMargin),
+                    Arguments.of("dictId", (Function<MemorySegment, Object>) ZstdFrame::dictId),
+                    Arguments.of("headerSize", (Function<MemorySegment, Object>) ZstdFrame::headerSize),
+                    Arguments.of("header", (Function<MemorySegment, Object>) ZstdFrame::header),
+                    Arguments.of("isSkippableFrame", (Function<MemorySegment, Object>) ZstdFrame::isSkippableFrame));
         }
     }
 

@@ -294,4 +294,105 @@ class ZstdSegmentTest {
         }
     }
 
+    @Nested
+    class ReadOnlyDestinationGuard {
+
+        private static final byte[] ORIGINAL = "read-only destination ".repeat(50).getBytes(StandardCharsets.UTF_8);
+        private static final String READ_ONLY_DST = "dst must be a writable MemorySegment; got a read-only segment";
+
+        @Test
+        void compressRejectsReadOnlyDestinationAndLeavesItUntouched() {
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressContext sut = Zstd.newCompressContext()) {
+                // Given a read-only view over writable native memory
+                MemorySegment backing = arena.allocate(Zstd.compressBound(ZstdByteSize.of(ORIGINAL.length)).value());
+                MemorySegment src = segmentOf(arena, ORIGINAL);
+
+                // When compressing into the view
+                ThrowingCallable result = () -> sut.compress(backing.asReadOnly(), src);
+
+                // Then it fails fast and zstd never wrote through the view
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(READ_ONLY_DST);
+                assertThat(bytesOf(backing, backing.byteSize())).containsOnly((byte) 0);
+            }
+        }
+
+        @Test
+        void decompressRejectsReadOnlyDestinationAndLeavesItUntouched() {
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                // Given a valid frame and a read-only view over writable native memory
+                MemorySegment frame = segmentOf(arena, Zstd.compress(ORIGINAL));
+                MemorySegment backing = arena.allocate(ORIGINAL.length);
+
+                // When decompressing into the view
+                ThrowingCallable result = () -> sut.decompress(backing.asReadOnly(), frame);
+
+                // Then it fails fast and zstd never wrote through the view
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(READ_ONLY_DST);
+                assertThat(bytesOf(backing, backing.byteSize())).containsOnly((byte) 0);
+            }
+        }
+
+        @Test
+        void compressWithDictionaryRejectsReadOnlyDestination() {
+            ZstdDictionary dict = trainDictionary(2000);
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressContext sut = Zstd.newCompressContext();
+                 ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict)) {
+                // Given a read-only destination handed to the dictionary zero-copy API
+                MemorySegment dst = arena.allocate(64).asReadOnly();
+                MemorySegment src = arena.allocate(64);
+
+                // When compressing against the digested dictionary
+                ThrowingCallable result = () -> sut.compress(dst, src, cdict);
+
+                // Then it fails fast before reaching native code
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(READ_ONLY_DST);
+            }
+        }
+
+        @Test
+        void decompressWithDictionaryRejectsReadOnlyDestination() {
+            ZstdDictionary dict = trainDictionary(2000);
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressContext sut = Zstd.newDecompressContext();
+                 ZstdDecompressDictionary ddict = Zstd.newDecompressDictionary(dict)) {
+                // Given a read-only destination handed to the dictionary zero-copy API
+                MemorySegment dst = arena.allocate(64).asReadOnly();
+                MemorySegment src = arena.allocate(64);
+
+                // When decompressing against the digested dictionary
+                ThrowingCallable result = () -> sut.decompress(dst, src, ddict);
+
+                // Then it fails fast before reaching native code
+                assertThatThrownBy(result)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(READ_ONLY_DST);
+            }
+        }
+
+        @Test
+        void decompressAcceptsReadOnlySource() {
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressContext sut = Zstd.newDecompressContext()) {
+                // Given a frame in a read-only segment, as from a read-only mmap
+                MemorySegment frame = segmentOf(arena, Zstd.compress(ORIGINAL)).asReadOnly();
+                MemorySegment dst = arena.allocate(ORIGINAL.length);
+
+                // When decompressing from it
+                long written = sut.decompress(dst, frame);
+
+                // Then the source side stays usable: only the destination must be writable
+                assertThat(bytesOf(dst, written)).isEqualTo(ORIGINAL);
+            }
+        }
+    }
+
 }

@@ -31,8 +31,9 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 public final class ZstdCompressStream extends NativeObject {
 
     private final Arena arena;
-    private final ZstdStreamBuffer in;
-    private final ZstdStreamBuffer out;
+    // size_t cells the _simpleArgs calls advance: bytes written to dst, read from src
+    private final MemorySegment dstPos;
+    private final MemorySegment srcPos;
 
     ZstdCompressStream() {
         this(ZstdCompressionLevel.DEFAULT);
@@ -47,8 +48,8 @@ public final class ZstdCompressStream extends NativeObject {
         // close() — one release path, no leak on a half-built stream.
         super(createCctx());
         this.arena = Arena.ofConfined();
-        this.in = new ZstdStreamBuffer(arena);
-        this.out = new ZstdStreamBuffer(arena);
+        this.dstPos = arena.allocate(JAVA_LONG);
+        this.srcPos = arena.allocate(JAVA_LONG);
         try {
             NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(
                     ptr(), ZstdCompressParameter.COMPRESSION_LEVEL.value(), level.value()));
@@ -95,19 +96,19 @@ public final class ZstdCompressStream extends NativeObject {
     /// [ZstdStreamResult#bytesProduced()] bytes of `dst` after each call. With
     /// [ZstdEndDirective#END], repeat until [ZstdStreamResult#isComplete()].
     ///
-    /// @param dst       native destination buffer for compressed bytes
+    /// @param dst       native, writable destination buffer for compressed bytes
     /// @param src       native source bytes to compress
     /// @param directive whether to continue, flush, or end the frame
     /// @return how much was consumed and produced, and the remaining hint
     /// @throws ZstdException if compression fails
     public ZstdStreamResult compress(MemorySegment dst, MemorySegment src, ZstdEndDirective directive) {
-        NativeCall.requireNative(dst, "dst");
-        NativeCall.requireNative(src, "src");
-        in.set(src, src.byteSize());
-        out.set(dst, dst.byteSize());
-        long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS_STREAM2.invokeExact(
-                ptr(), out.segment(), in.segment(), directive.value()));
-        return ZstdStreamResult.of(in.pos(), out.pos(), remaining);
+        NativeCall.requireWritable(dst, "dst");
+        NativeCall.requireReadable(src, "src");
+        dstPos.set(JAVA_LONG, 0, 0L);
+        srcPos.set(JAVA_LONG, 0, 0L);
+        long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS_STREAM2_SIMPLE_ARGS.invokeExact(
+                ptr(), dst, dst.byteSize(), dstPos, src, src.byteSize(), srcPos, directive.value()));
+        return ZstdStreamResult.of(srcPos.get(JAVA_LONG, 0), dstPos.get(JAVA_LONG, 0), remaining);
     }
 
     /// A live snapshot of how much this stream has ingested, compressed, produced,

@@ -221,6 +221,25 @@ final class Bindings {
             NativeLibrary.lookup("ZSTD_decompressStream",
                     FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, ADDRESS));
 
+    // The _simpleArgs variants take the caller's buffers as direct arguments rather
+    // than raw addresses inside a ZSTD_in/outBuffer struct, so the linker checks each
+    // segment and keeps its arena alive for the whole call. The segment streams use
+    // them for caller-supplied buffers; the java.io streams keep the struct form for
+    // their own arena-owned buffers.
+    // size_t ZSTD_compressStream2_simpleArgs(ZSTD_CCtx*, void* dst, size_t dstCapacity, size_t* dstPos,
+    //                                        const void* src, size_t srcSize, size_t* srcPos, ZSTD_EndDirective)
+    static final MethodHandle COMPRESS_STREAM2_SIMPLE_ARGS =
+            NativeLibrary.lookup("ZSTD_compressStream2_simpleArgs",
+                    FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS,
+                            ADDRESS, JAVA_LONG, ADDRESS, JAVA_INT));
+
+    // size_t ZSTD_decompressStream_simpleArgs(ZSTD_DCtx*, void* dst, size_t dstCapacity, size_t* dstPos,
+    //                                         const void* src, size_t srcSize, size_t* srcPos)
+    static final MethodHandle DECOMPRESS_STREAM_SIMPLE_ARGS =
+            NativeLibrary.lookup("ZSTD_decompressStream_simpleArgs",
+                    FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS,
+                            ADDRESS, JAVA_LONG, ADDRESS));
+
     // size_t ZSTD_CCtx_loadDictionary(ZSTD_CCtx*, const void* dict, size_t dictSize)
     static final MethodHandle CCTX_LOAD_DICTIONARY =
             NativeLibrary.lookup("ZSTD_CCtx_loadDictionary",

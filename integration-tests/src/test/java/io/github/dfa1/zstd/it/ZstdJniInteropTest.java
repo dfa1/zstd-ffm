@@ -8,10 +8,14 @@ import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
 import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdCompressParameter;
+import io.github.dfa1.zstd.ZstdCompressStream;
 import io.github.dfa1.zstd.ZstdDecompressContext;
+import io.github.dfa1.zstd.ZstdDecompressStream;
 import io.github.dfa1.zstd.ZstdDictionary;
+import io.github.dfa1.zstd.ZstdEndDirective;
 import io.github.dfa1.zstd.ZstdInputStream;
 import io.github.dfa1.zstd.ZstdOutputStream;
+import io.github.dfa1.zstd.ZstdStreamResult;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,6 +25,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -97,6 +104,89 @@ class ZstdJniInteropTest {
                 restored = zin.readAllBytes();
             }
             assertThat(restored).isEqualTo(data);
+        }
+    }
+
+    @Nested
+    class SegmentStreaming {
+
+        // Seeded payloads crossing zstd's 128 KiB block size, pushed through chunk
+        // sizes small enough that every call consumes or produces only part of a block.
+        static Stream<Arguments> payloadsAndChunks() {
+            Random r = new Random(0x5E6);
+            List<Arguments> cases = new ArrayList<>();
+            int[] sizes = {0, 1, 4096, 300 * 1024};
+            int[] chunks = {1, 7, 4096};
+            for (int size : sizes) {
+                byte[] data = size % 2 == 0 ? compressible(r, size) : random(r, size);
+                for (int chunk : chunks) {
+                    cases.add(Arguments.of(data, chunk));
+                }
+            }
+            return cases.stream();
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloadsAndChunks")
+        void segmentCompressStreamToJni(byte[] data, int chunk) {
+            // Given a payload fed to ZstdCompressStream in chunk-sized segments
+            byte[] frame;
+            try (Arena arena = Arena.ofConfined();
+                 ZstdCompressStream sut = Zstd.newCompressStream(ZstdCompressionLevel.of(5))) {
+                // When it is compressed chunk by chunk and then ended
+                frame = compressInChunks(arena, sut, data, chunk);
+            }
+
+            // Then zstd-jni decodes the frame back to the payload
+            assertThat(com.github.luben.zstd.Zstd.decompress(frame, data.length)).isEqualTo(data);
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloadsAndChunks")
+        void jniToSegmentDecompressStream(byte[] data, int chunk) {
+            // Given a frame produced by zstd-jni
+            byte[] frame = com.github.luben.zstd.Zstd.compress(data, 5);
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream()) {
+                // When ZstdDecompressStream decodes it through chunk-sized segments
+                byte[] restored = decompressInChunks(arena, sut, frame, chunk);
+
+                // Then the payload is restored exactly
+                assertThat(restored).isEqualTo(data);
+            }
+        }
+
+        private static byte[] compressInChunks(Arena arena, ZstdCompressStream cs, byte[] data, int chunk) {
+            MemorySegment src = arena.allocate(Math.max(data.length, 1));
+            MemorySegment.copy(data, 0, src, ValueLayout.JAVA_BYTE, 0, data.length);
+            MemorySegment dst = arena.allocate(chunk);
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            long off = 0;
+            ZstdStreamResult r;
+            do {
+                long n = Math.min(chunk, data.length - off);
+                boolean last = off + n == data.length;
+                r = cs.compress(dst, src.asSlice(off, n), last ? ZstdEndDirective.END : ZstdEndDirective.CONTINUE);
+                off += r.bytesConsumed();
+                sink.writeBytes(dst.asSlice(0, r.bytesProduced()).toArray(ValueLayout.JAVA_BYTE));
+            } while (off < data.length || !r.isComplete());
+            return sink.toByteArray();
+        }
+
+        private static byte[] decompressInChunks(Arena arena, ZstdDecompressStream ds, byte[] frame, int chunk) {
+            MemorySegment src = arena.allocate(frame.length);
+            MemorySegment.copy(frame, 0, src, ValueLayout.JAVA_BYTE, 0, frame.length);
+            MemorySegment dst = arena.allocate(chunk);
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            long off = 0;
+            ZstdStreamResult r;
+            do {
+                long n = Math.min(chunk, frame.length - off);
+                r = ds.decompress(dst, src.asSlice(off, n));
+                off += r.bytesConsumed();
+                sink.writeBytes(dst.asSlice(0, r.bytesProduced()).toArray(ValueLayout.JAVA_BYTE));
+            } while (!r.isComplete());
+            return sink.toByteArray();
         }
     }
 
