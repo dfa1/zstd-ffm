@@ -29,6 +29,9 @@ git tags, which trigger publication to Maven Central.
   ([#147](https://github.com/dfa1/zstd-ffm/issues/147))
 
 ### Fixed
+- `refPrefix` crashed the JVM when the prefix's arena was closed before a frame
+  used it; it now throws `IllegalStateException`.
+  ([#162](https://github.com/dfa1/zstd-ffm/issues/162))
 - `ZstdCompressContext#longDistanceMatching(false)` did not disable
   long-distance matching: it sent `0`, which zstd reads as *auto*
   (`ZSTD_c_enableLongDistanceMatching` is a three-state `ZSTD_ParamSwitch_e`).

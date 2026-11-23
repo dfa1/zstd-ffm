@@ -113,6 +113,21 @@ final class NativeCall {
         requireNative(seg, name);
     }
 
+    /// Guards a segment the library holds onto after the call returns, rather than
+    /// passing it as a downcall argument (where the FFM linker would check it):
+    /// it must be readable, still alive, and accessible from the calling thread.
+    /// Throws what the linker would: [IllegalStateException] for a closed
+    /// segment, [WrongThreadException] for one confined to another thread.
+    static void requireRetainable(MemorySegment seg, String name) {
+        requireReadable(seg, name);
+        if (!seg.scope().isAlive()) {
+            throw new IllegalStateException(name + " is already closed");
+        }
+        if (!seg.isAccessibleBy(Thread.currentThread())) {
+            throw new WrongThreadException(name + " is confined to another thread");
+        }
+    }
+
     /// Guards a zero-copy destination: on top of [#requireNative(MemorySegment, String)],
     /// the segment must be writable, since zstd writes through its address. The FFM
     /// linker passes a read-only segment's address unchecked, so without this a

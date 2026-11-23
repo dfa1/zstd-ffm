@@ -22,6 +22,11 @@ public final class ZstdDecompressContext extends NativeObject {
     private static final String COMPRESSED = "compressed";
 
     private ZstdDecompressDictionary refDict;
+    /// The segment last passed to [#refPrefix(MemorySegment)] that no frame has
+    /// used yet, or `null`. Held in Java only: zstd is handed the prefix just
+    /// before the frame that uses it, so it never keeps a pointer into an arena
+    /// the caller may close in between.
+    private MemorySegment pendingPrefix;
 
     ZstdDecompressContext() {
         super(createNative());
@@ -102,7 +107,7 @@ public final class ZstdDecompressContext extends NativeObject {
     /// - [ZstdResetDirective#PARAMETERS] and
     ///   [ZstdResetDirective#SESSION_AND_PARAMETERS] also restore every
     ///   parameter to its default and clear the dictionary. A parameter reset is
-    ///   valid only between frames — one-shot [#decompress(byte[], int)] always
+    ///   valid only between frames — one-shot [#decompress(byte[], ZstdByteSize)] always
     ///   consumes its frame, so this constraint only bites advanced multi-frame reuse.
     ///
     /// @param directive what to clear
@@ -113,12 +118,13 @@ public final class ZstdDecompressContext extends NativeObject {
         NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_RESET.invokeExact(ptr(), directive.value()));
         if (directive != ZstdResetDirective.SESSION_ONLY) {
             refDict = NativePointerWithRefCount.release(refDict);
+            pendingPrefix = null;
         }
         return this;
     }
 
     /// Loads `dict` as the sticky dictionary for this context, so subsequent
-    /// [#decompress(byte[], int)] / [#decompress(MemorySegment, MemorySegment)]
+    /// [#decompress(byte[], ZstdByteSize)] / [#decompress(MemorySegment, MemorySegment)]
     /// calls decode frames compressed against it while still honoring the
     /// advanced parameters (e.g. window-log max) set on this context.
     ///
@@ -161,11 +167,12 @@ public final class ZstdDecompressContext extends NativeObject {
     private ZstdDecompressContext loadDictionary(MemorySegment dict, long size) {
         NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_LOAD_DICTIONARY.invokeExact(ptr(), dict, size));
         refDict = NativePointerWithRefCount.release(refDict);
+        pendingPrefix = null;
         return this;
     }
 
     /// Attaches a pre-digested `dict` to this context by reference — no per-call
-    /// digesting and no copy. Subsequent [#decompress(byte[], int)] /
+    /// digesting and no copy. Subsequent [#decompress(byte[], ZstdByteSize)] /
     /// [#decompress(MemorySegment, MemorySegment)] calls decode against it while
     /// honoring this context's advanced parameters. This is the hot path for a
     /// pooled context recycled with [#reset(ZstdResetDirective)] between frames.
@@ -184,6 +191,7 @@ public final class ZstdDecompressContext extends NativeObject {
         MemorySegment dctxPtr = ptr();
         refDict = NativePointerWithRefCount.swap(refDict, dict, ddict ->
                 NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_DDICT.invokeExact(dctxPtr, ddict)));
+        pendingPrefix = null;
         return this;
     }
 
@@ -193,10 +201,15 @@ public final class ZstdDecompressContext extends NativeObject {
     /// the frame was compressed against, or decoding fails.
     ///
     /// The prefix is referenced, not copied (no digest, no heap copy): `prefix`
-    /// must stay valid until the next [#decompress(byte[], int)] /
+    /// must stay valid until the next [#decompress(byte[], ZstdByteSize)] /
     /// [#decompress(MemorySegment, MemorySegment)], which consumes it — it does not
-    /// stick across frames. Pass `null` / [MemorySegment#NULL] to clear a prefix
-    /// set but not yet consumed.
+    /// stick across frames. The per-call dictionary overloads
+    /// (`decompress(src, maxSize, dict)`) do **not** use it: the prefix stays
+    /// pending for the next frame decoded without one. If `prefix`'s arena is
+    /// closed while the prefix is pending, that next call throws
+    /// [IllegalStateException] and drops the prefix instead of reading freed
+    /// memory. Pass `null` / [MemorySegment#NULL] to clear a prefix set but not
+    /// yet consumed.
     ///
     /// Heap callers that cannot manage native lifetime should use a copying
     /// dictionary ([#loadDictionary(ZstdDictionary)]) instead.
@@ -204,18 +217,60 @@ public final class ZstdDecompressContext extends NativeObject {
     /// @param prefix native prefix content, or `null` / [MemorySegment#NULL] to clear it
     /// @return `this`, for chaining
     /// @throws ZstdException if the prefix cannot be referenced
+    /// @throws IllegalStateException if `prefix` is already closed
+    /// @throws WrongThreadException if `prefix` is confined to another thread
     public ZstdDecompressContext refPrefix(MemorySegment prefix) {
         if (NativeCall.isNull(prefix)) {
             return refPrefix(MemorySegment.NULL, 0L);
         }
-        NativeCall.requireReadable(prefix, "prefix");
+        NativeCall.requireRetainable(prefix, "prefix");
         return refPrefix(prefix, prefix.byteSize());
     }
 
     private ZstdDecompressContext refPrefix(MemorySegment prefix, long size) {
-        NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(ptr(), prefix, size));
+        // Clear natively now, as referencing a prefix always has (it drops any
+        // loaded or referenced dictionary); the prefix itself is handed to zstd
+        // only by decompressDCtx, right before the frame that uses it.
+        clearNativePrefix();
         refDict = NativePointerWithRefCount.release(refDict);
+        pendingPrefix = size == 0 ? null : prefix;
         return this;
+    }
+
+    private void clearNativePrefix() {
+        NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(ptr(), MemorySegment.NULL, 0L));
+    }
+
+    /// Runs `ZSTD_decompressDCtx`, first handing zstd the pending prefix, if any.
+    ///
+    /// The prefix is single use: it is taken from [#pendingPrefix] up front and
+    /// zstd consumes it before decoding (`ZSTD_getDDict` drops a single-use
+    /// dictionary as it returns it) whether or not decompression then succeeds.
+    /// Passing it as a direct downcall argument lets the FFM linker reject a
+    /// closed or other-thread segment before zstd sees it. If the linker then
+    /// refuses `dst`/`src` (C never ran, so zstd still holds the prefix), the
+    /// native prefix is cleared before the error propagates.
+    private long decompressDCtx(MemorySegment dst, long dstCapacity, MemorySegment src, long srcSize) {
+        MemorySegment prefix = pendingPrefix;
+        pendingPrefix = null;
+        if (prefix != null) {
+            if (!prefix.scope().isAlive()) {
+                throw new IllegalStateException("the prefix passed to refPrefix was closed before a frame used it");
+            }
+            NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(
+                    ptr(), prefix, prefix.byteSize()));
+        }
+        try {
+            return NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_DCTX.invokeExact(
+                    ptr(), dst, dstCapacity, src, srcSize));
+        } catch (RuntimeException e) {
+            // A ZstdException means zstd ran and consumed the prefix. Anything else is the
+            // linker refusing dst/src before C ran, so zstd still holds the prefix.
+            if (prefix != null && !(e instanceof ZstdException)) {
+                clearNativePrefix();
+            }
+            throw e;
+        }
     }
 
     /// Decompresses a frame, sizing the output from the decompressed length
@@ -250,8 +305,7 @@ public final class ZstdDecompressContext extends NativeObject {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = Zstd.copyIn(arena, compressed);
             MemorySegment out = arena.allocate(maxSize.toArraySize());
-            long written = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_DCTX.invokeExact(
-                    ptr(), out, maxSize.value(), in, (long) compressed.length));
+            long written = decompressDCtx(out, maxSize.value(), in, compressed.length);
             return Zstd.copyOut(out, written);
         }
     }
@@ -321,8 +375,7 @@ public final class ZstdDecompressContext extends NativeObject {
     public long decompress(MemorySegment dst, MemorySegment src) {
         NativeCall.requireWritable(dst, "dst");
         NativeCall.requireReadable(src, "src");
-        return NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_DCTX.invokeExact(
-                ptr(), dst, dst.byteSize(), src, src.byteSize()));
+        return decompressDCtx(dst, dst.byteSize(), src, src.byteSize());
     }
 
     /// Zero-copy decompression against a pre-digested `dict`, segment to segment.
