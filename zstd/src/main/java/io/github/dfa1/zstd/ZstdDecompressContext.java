@@ -346,9 +346,9 @@ public final class ZstdDecompressContext extends NativeObject {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = Zstd.copyIn(arena, compressed);
             MemorySegment out = arena.allocate(maxSize.toArraySize());
-            MemorySegment ddict = dict.ptr();
-            long written = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_USING_DDICT.invokeExact(
-                    ptr(), out, maxSize.value(), in, (long) compressed.length, ddict));
+            long written = dict.withRetained(ddict -> NativeCall.checkReturnValue(
+                    () -> (long) Bindings.DECOMPRESS_USING_DDICT.invokeExact(
+                            ptr(), out, maxSize.value(), in, (long) compressed.length, ddict)));
             return Zstd.copyOut(out, written);
         }
     }
@@ -387,9 +387,9 @@ public final class ZstdDecompressContext extends NativeObject {
     public long decompress(MemorySegment dst, MemorySegment src, ZstdDecompressDictionary dict) {
         NativeCall.requireWritable(dst, "dst");
         NativeCall.requireReadable(src, "src");
-        MemorySegment ddict = dict.ptr();
-        return NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_USING_DDICT.invokeExact(
-                ptr(), dst, dst.byteSize(), src, src.byteSize(), ddict));
+        return dict.withRetained(ddict -> NativeCall.checkReturnValue(
+                () -> (long) Bindings.DECOMPRESS_USING_DDICT.invokeExact(
+                        ptr(), dst, dst.byteSize(), src, src.byteSize(), ddict)));
     }
 
     /// Zero-copy decompression that sizes and allocates the output for you: reads

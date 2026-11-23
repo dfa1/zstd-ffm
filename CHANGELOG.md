@@ -16,6 +16,8 @@ git tags, which trigger publication to Maven Central.
   recognize them. ([#147](https://github.com/dfa1/zstd-ffm/issues/147))
 
 ### Fixed
+- Closing a shared `ZstdCompressDictionary` / `ZstdDecompressDictionary` while another
+  thread uses it no longer frees it mid-call. ([#164](https://github.com/dfa1/zstd-ffm/issues/164))
 - `refPrefix` crashed the JVM when the prefix's arena was closed before a frame
   used it; it now throws `IllegalStateException`.
   ([#162](https://github.com/dfa1/zstd-ffm/issues/162))

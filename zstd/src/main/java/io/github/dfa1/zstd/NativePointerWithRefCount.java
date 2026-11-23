@@ -4,6 +4,7 @@ import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 /// Base class for a native pointer shared by more than one borrower — the
 /// `shared_ptr` shape, where [NativeObject]'s unconditional free on
@@ -17,6 +18,10 @@ import java.util.function.Consumer;
 /// is safe to call more than once.
 public abstract class NativePointerWithRefCount implements AutoCloseable {
 
+    /// Reachable only through [#withRetained(ToLongFunction)] and
+    /// [#swap(NativePointerWithRefCount, NativePointerWithRefCount, Consumer)],
+    /// both of which hold a reference while native code uses it: there is
+    /// deliberately no bare accessor, so a native call without one cannot compile.
     private final MemorySegment ptr;
     private final AtomicInteger refCount;
     private final AtomicBoolean closed;
@@ -31,22 +36,6 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
         this.closed = new AtomicBoolean(false);
     }
 
-    /// Returns the live native pointer, failing once this handle is closed.
-    ///
-    /// A closed handle is unusable even while borrowers that retained it (e.g. a
-    /// context holding it via `refDictionary`) keep the native pointer alive:
-    /// those borrowers hold the pointer itself, not this accessor.
-    ///
-    /// @return the live native pointer
-    /// @throws IllegalStateException if this handle was closed, or the last
-    ///                               reference has already been released
-    protected final MemorySegment ptr() {
-        if (closed.get() || refCount.get() == 0) {
-            throw new IllegalStateException("native object is closed");
-        }
-        return ptr;
-    }
-
     /// Acquires a new reference on top of the constructor's own.
     ///
     /// @throws IllegalStateException if this handle was closed, or the last
@@ -58,6 +47,24 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
         }
         if (refCount.getAndUpdate(c -> c == 0 ? 0 : c + 1) == 0) {
             throw new IllegalStateException("native object is closed");
+        }
+    }
+
+    /// Runs `nativeCall` with this handle's pointer while holding a reference on
+    /// it, so a [#close()] from another thread during the call defers the native
+    /// free until the call returns instead of freeing the pointer under it.
+    ///
+    /// @param nativeCall the native call, given the live pointer
+    /// @return what `nativeCall` returns
+    /// @throws IllegalStateException if this handle is already closed
+    final long withRetained(ToLongFunction<MemorySegment> nativeCall) {
+        retain();
+        try {
+            // Holding a reference keeps the pointer valid even if another thread
+            // closes this handle after retain() succeeded.
+            return nativeCall.applyAsLong(ptr);
+        } finally {
+            release();
         }
     }
 
@@ -112,7 +119,9 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
         if (next != null) {
             next.retain();
         }
-        MemorySegment nextPtr = next == null ? MemorySegment.NULL : next.ptr();
+        // The retain above keeps next's pointer valid even if another thread closes
+        // `next` right after it.
+        MemorySegment nextPtr = next == null ? MemorySegment.NULL : ((NativePointerWithRefCount) next).ptr;
         try {
             nativeCall.accept(nextPtr);
         } catch (RuntimeException e) {
