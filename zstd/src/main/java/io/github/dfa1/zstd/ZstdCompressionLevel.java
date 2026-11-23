@@ -115,7 +115,7 @@ public final class ZstdCompressionLevel {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdCompressionLevel[component=value, ...]`
+    /// @return this value as `ZstdCompressionLevel[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdCompressionLevel[value=" + value + "]";

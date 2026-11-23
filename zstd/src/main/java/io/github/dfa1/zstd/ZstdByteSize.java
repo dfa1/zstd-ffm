@@ -141,7 +141,7 @@ public final class ZstdByteSize {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdByteSize[component=value, ...]`
+    /// @return this value as `ZstdByteSize[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdByteSize[value=" + value + "]";

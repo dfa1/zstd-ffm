@@ -93,7 +93,7 @@ public final class ZstdBounds {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdBounds[component=value, ...]`
+    /// @return this value as `ZstdBounds[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdBounds[lowerBound=" + lowerBound + ", upperBound=" + upperBound + "]";

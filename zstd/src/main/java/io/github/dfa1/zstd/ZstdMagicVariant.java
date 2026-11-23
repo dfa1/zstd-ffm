@@ -57,7 +57,7 @@ public final class ZstdMagicVariant {
 
     /// Record-style description listing every component.
     ///
-    /// @return `ZstdMagicVariant[component=value, ...]`
+    /// @return this value as `ZstdMagicVariant[component=value, ...]`, naming every component
     @Override
     public String toString() {
         return "ZstdMagicVariant[value=" + value + "]";
