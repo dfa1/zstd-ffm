@@ -69,6 +69,12 @@ Never mutate `~/.m2/repository` by hand either.
   since the value's meaning depends on which enum constant is passed and native
   bounds-checking already validates it; the common cases have typed convenience
   methods (`level()`, `windowLog(ZstdWindowLog)`, `checksum(boolean)`).
+- **`Optional` is a return type only** — never a constructor or method
+  parameter, never a field. Take a nullable `T` (javadoc: "or `null` if …"),
+  store it as is, and expose it through an `Optional<T>` accessor returning
+  `Optional.ofNullable(field)`; see `ZstdFrameHeader`. A caller holding an
+  `Optional` passes `opt.orElse(null)`. Don't suppress Sonar `java:S3553` to
+  get around this.
 
 ## Testing
 

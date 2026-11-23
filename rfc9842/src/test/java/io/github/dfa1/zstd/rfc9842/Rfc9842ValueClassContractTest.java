@@ -12,7 +12,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -143,8 +142,8 @@ class Rfc9842ValueClassContractTest {
                         UseAsDictionaryHeader.of("/a/*", "id1", "other"),
                         "UseAsDictionaryHeader[match=/a/*, id=id1, type=raw]"),
                 valueCase("Rfc9842Negotiation",
-                        () -> Rfc9842Negotiation.of(DICT, use, available, Optional.of(DictionaryIdHeader.of("id1"))),
-                        Rfc9842Negotiation.of(DICT, use, available, Optional.empty()),
+                        () -> Rfc9842Negotiation.of(DICT, use, available, DictionaryIdHeader.of("id1")),
+                        Rfc9842Negotiation.of(DICT, use, available, null),
                         "Rfc9842Negotiation[dictionary=" + DICT + ", useAsDictionary=" + use
                                 + ", availableDictionary=" + available
                                 + ", dictionaryId=Optional[DictionaryIdHeader[value=id1]]]"));
@@ -156,7 +155,7 @@ class Rfc9842ValueClassContractTest {
         UseAsDictionaryHeader use = UseAsDictionaryHeader.of("/a/*", "id1", "raw");
         AvailableDictionaryHeader available = AvailableDictionaryHeader.of(DICT);
         ZstdDictionary otherDict = ZstdDictionary.of("another dictionary ".repeat(64).getBytes(StandardCharsets.UTF_8));
-        Optional<DictionaryIdHeader> id = Optional.of(DictionaryIdHeader.of("id1"));
+        DictionaryIdHeader id = DictionaryIdHeader.of("id1");
         Rfc9842Negotiation negotiation = Rfc9842Negotiation.of(DICT, use, available, id);
         return Stream.of(
                 componentCase("UseAsDictionaryHeader.match", use, UseAsDictionaryHeader.of("/b/*", "id1", "raw")),
@@ -169,7 +168,7 @@ class Rfc9842ValueClassContractTest {
                 componentCase("Rfc9842Negotiation.availableDictionary", negotiation,
                         Rfc9842Negotiation.of(DICT, use, AvailableDictionaryHeader.of(otherDict), id)),
                 componentCase("Rfc9842Negotiation.dictionaryId", negotiation,
-                        Rfc9842Negotiation.of(DICT, use, available, Optional.empty())));
+                        Rfc9842Negotiation.of(DICT, use, available, null)));
     }
 
     private static Arguments componentCase(String name, Object base, Object different) {

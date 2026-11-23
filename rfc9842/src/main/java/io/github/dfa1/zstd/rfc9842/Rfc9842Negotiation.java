@@ -19,18 +19,17 @@ public final class Rfc9842Negotiation {
     private final ZstdDictionary dictionary;
     private final UseAsDictionaryHeader useAsDictionary;
     private final AvailableDictionaryHeader availableDictionary;
-    private final Optional<DictionaryIdHeader> dictionaryId;
+    /// `null` when the server assigned no id.
+    private final DictionaryIdHeader dictionaryId;
 
-    @SuppressWarnings("java:S3553") // mirrors the Optional accessor; absence is data, not a missing argument
     private Rfc9842Negotiation(
             ZstdDictionary dictionary,
             UseAsDictionaryHeader useAsDictionary,
             AvailableDictionaryHeader availableDictionary,
-            Optional<DictionaryIdHeader> dictionaryId) {
+            DictionaryIdHeader dictionaryId) {
         Objects.requireNonNull(dictionary, "dictionary");
         Objects.requireNonNull(useAsDictionary, "useAsDictionary");
         Objects.requireNonNull(availableDictionary, "availableDictionary");
-        Objects.requireNonNull(dictionaryId, "dictionaryId");
         this.dictionary = dictionary;
         this.useAsDictionary = useAsDictionary;
         this.availableDictionary = availableDictionary;
@@ -48,16 +47,15 @@ public final class Rfc9842Negotiation {
     ///                            [Rfc9842Frame#wrap(byte[], AvailableDictionaryHeader)]/
     ///                            [Rfc9842Frame#unwrap(byte[], AvailableDictionaryHeader)]
     ///                            verify against
-    /// @param dictionaryId        the `Dictionary-ID` header value to echo back, or empty if
+    /// @param dictionaryId        the `Dictionary-ID` header value to echo back, or `null` if
     ///                            [UseAsDictionaryHeader#id()] was empty (the server assigned
     ///                            no id)
     /// @return the new [Rfc9842Negotiation]
-    @SuppressWarnings("java:S3553") // mirrors the Optional accessor; absence is data, not a missing argument
     static Rfc9842Negotiation of(
             ZstdDictionary dictionary,
             UseAsDictionaryHeader useAsDictionary,
             AvailableDictionaryHeader availableDictionary,
-            Optional<DictionaryIdHeader> dictionaryId) {
+            DictionaryIdHeader dictionaryId) {
         return new Rfc9842Negotiation(dictionary, useAsDictionary, availableDictionary, dictionaryId);
     }
 
@@ -77,9 +75,9 @@ public final class Rfc9842Negotiation {
         ZstdDictionary dictionary = ZstdDictionary.of(dictionaryBytes);
         UseAsDictionaryHeader useAsDictionary = UseAsDictionaryHeader.parse(useAsDictionaryHeaderValue);
         AvailableDictionaryHeader availableDictionary = AvailableDictionaryHeader.of(dictionary);
-        Optional<DictionaryIdHeader> dictionaryId = useAsDictionary.id().isEmpty()
-                ? Optional.empty()
-                : Optional.of(DictionaryIdHeader.of(useAsDictionary.id()));
+        DictionaryIdHeader dictionaryId = useAsDictionary.id().isEmpty()
+                ? null
+                : DictionaryIdHeader.of(useAsDictionary.id());
         return new Rfc9842Negotiation(dictionary, useAsDictionary, availableDictionary, dictionaryId);
     }
 
@@ -112,7 +110,7 @@ public final class Rfc9842Negotiation {
     ///
     /// @return the `dictionaryId` component
     public Optional<DictionaryIdHeader> dictionaryId() {
-        return dictionaryId;
+        return Optional.ofNullable(dictionaryId);
     }
 
     /// Value equality over all components.
@@ -125,7 +123,7 @@ public final class Rfc9842Negotiation {
                 && dictionary.equals(other.dictionary)
                 && useAsDictionary.equals(other.useAsDictionary)
                 && availableDictionary.equals(other.availableDictionary)
-                && dictionaryId.equals(other.dictionaryId);
+                && Objects.equals(dictionaryId, other.dictionaryId);
     }
 
     /// Hash code consistent with [#equals(Object)].
@@ -141,6 +139,6 @@ public final class Rfc9842Negotiation {
     /// @return this value as `Rfc9842Negotiation[component=value, ...]`, naming every component
     @Override
     public String toString() {
-        return "Rfc9842Negotiation[dictionary=" + dictionary + ", useAsDictionary=" + useAsDictionary + ", availableDictionary=" + availableDictionary + ", dictionaryId=" + dictionaryId + "]";
+        return "Rfc9842Negotiation[dictionary=" + dictionary + ", useAsDictionary=" + useAsDictionary + ", availableDictionary=" + availableDictionary + ", dictionaryId=" + dictionaryId() + "]";
     }
 }

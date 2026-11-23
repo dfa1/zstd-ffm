@@ -8,7 +8,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -128,9 +127,9 @@ class ZstdValueClassContractTest {
                         "ZstdFrameProgression[ingested=1, consumed=2, produced=3, flushed=4, currentJobId=5,"
                                 + " activeWorkers=6]"),
                 valueCase("ZstdFrameHeader",
-                        () -> ZstdFrameHeader.of(Optional.of(size), Optional.empty(), size, ZstdFrameType.STANDARD,
+                        () -> ZstdFrameHeader.of(size, null, size, ZstdFrameType.STANDARD,
                                 size, ZstdDictionaryId.NONE, true),
-                        ZstdFrameHeader.of(Optional.of(size), Optional.empty(), size, ZstdFrameType.STANDARD,
+                        ZstdFrameHeader.of(size, null, size, ZstdFrameType.STANDARD,
                                 size, ZstdDictionaryId.NONE, false),
                         "ZstdFrameHeader[contentSize=Optional[ZstdByteSize[value=1]], windowSize=Optional.empty,"
                                 + " blockSizeMax=ZstdByteSize[value=1], frameType=STANDARD,"
@@ -144,28 +143,28 @@ class ZstdValueClassContractTest {
     static Stream<Arguments> componentCases() {
         ZstdByteSize one = ZstdByteSize.of(1);
         ZstdByteSize two = ZstdByteSize.of(2);
-        Optional<ZstdByteSize> none = Optional.empty();
-        ZstdFrameHeader header = ZstdFrameHeader.of(Optional.of(one), Optional.of(one), one, ZstdFrameType.STANDARD,
+        ZstdByteSize none = null;
+        ZstdFrameHeader header = ZstdFrameHeader.of(one, one, one, ZstdFrameType.STANDARD,
                 one, ZstdDictionaryId.NONE, true);
         ZstdFrameProgression progression = ZstdFrameProgression.of(1, 2, 3, 4, 5, 6);
         ZstdBounds bounds = ZstdBounds.of(1, 2);
         ZstdStreamResult streamResult = ZstdStreamResult.of(1, 2, 3);
         ZstdVersion version = ZstdVersion.of(1, 2, 3);
         return Stream.of(
-                componentCase("ZstdFrameHeader.contentSize", header, ZstdFrameHeader.of(none, Optional.of(one), one,
+                componentCase("ZstdFrameHeader.contentSize", header, ZstdFrameHeader.of(none, one, one,
                         ZstdFrameType.STANDARD, one, ZstdDictionaryId.NONE, true)),
-                componentCase("ZstdFrameHeader.windowSize", header, ZstdFrameHeader.of(Optional.of(one), none, one,
+                componentCase("ZstdFrameHeader.windowSize", header, ZstdFrameHeader.of(one, none, one,
                         ZstdFrameType.STANDARD, one, ZstdDictionaryId.NONE, true)),
-                componentCase("ZstdFrameHeader.blockSizeMax", header, ZstdFrameHeader.of(Optional.of(one),
-                        Optional.of(one), two, ZstdFrameType.STANDARD, one, ZstdDictionaryId.NONE, true)),
-                componentCase("ZstdFrameHeader.frameType", header, ZstdFrameHeader.of(Optional.of(one),
-                        Optional.of(one), one, ZstdFrameType.SKIPPABLE, one, ZstdDictionaryId.NONE, true)),
-                componentCase("ZstdFrameHeader.headerSize", header, ZstdFrameHeader.of(Optional.of(one),
-                        Optional.of(one), one, ZstdFrameType.STANDARD, two, ZstdDictionaryId.NONE, true)),
-                componentCase("ZstdFrameHeader.dictId", header, ZstdFrameHeader.of(Optional.of(one),
-                        Optional.of(one), one, ZstdFrameType.STANDARD, one, ZstdDictionaryId.of(7), true)),
-                componentCase("ZstdFrameHeader.hasChecksum", header, ZstdFrameHeader.of(Optional.of(one),
-                        Optional.of(one), one, ZstdFrameType.STANDARD, one, ZstdDictionaryId.NONE, false)),
+                componentCase("ZstdFrameHeader.blockSizeMax", header, ZstdFrameHeader.of(one,
+                        one, two, ZstdFrameType.STANDARD, one, ZstdDictionaryId.NONE, true)),
+                componentCase("ZstdFrameHeader.frameType", header, ZstdFrameHeader.of(one,
+                        one, one, ZstdFrameType.SKIPPABLE, one, ZstdDictionaryId.NONE, true)),
+                componentCase("ZstdFrameHeader.headerSize", header, ZstdFrameHeader.of(one,
+                        one, one, ZstdFrameType.STANDARD, two, ZstdDictionaryId.NONE, true)),
+                componentCase("ZstdFrameHeader.dictId", header, ZstdFrameHeader.of(one,
+                        one, one, ZstdFrameType.STANDARD, one, ZstdDictionaryId.of(7), true)),
+                componentCase("ZstdFrameHeader.hasChecksum", header, ZstdFrameHeader.of(one,
+                        one, one, ZstdFrameType.STANDARD, one, ZstdDictionaryId.NONE, false)),
                 componentCase("ZstdFrameProgression.ingested", progression, ZstdFrameProgression.of(9, 2, 3, 4, 5, 6)),
                 componentCase("ZstdFrameProgression.consumed", progression, ZstdFrameProgression.of(1, 9, 3, 4, 5, 6)),
                 componentCase("ZstdFrameProgression.produced", progression, ZstdFrameProgression.of(1, 2, 9, 4, 5, 6)),

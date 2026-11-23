@@ -264,8 +264,8 @@ public final class ZstdFrame {
                 throw new ZstdException("incomplete frame header: need " + remaining + " more bytes");
             }
             return ZstdFrameHeader.of(
-                    ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 0)), // contentSize
-                    ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 8)), // windowSize
+                    ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 0)).orElse(null), // contentSize
+                    ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 8)).orElse(null), // windowSize
                     ZstdByteSize.of(zfh.get(JAVA_INT, 16) & 0xFFFFFFFFL),            // blockSizeMax
                     ZstdFrameType.of(zfh.get(JAVA_INT, 20)),                          // frameType
                     ZstdByteSize.of(zfh.get(JAVA_INT, 24)),                          // headerSize
