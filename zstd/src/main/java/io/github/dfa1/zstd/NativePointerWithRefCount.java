@@ -4,6 +4,7 @@ import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 /// Base class for a native pointer shared by more than one borrower — the
 /// `shared_ptr` shape, where [NativeObject]'s unconditional free on
@@ -61,6 +62,24 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
         }
     }
 
+    /// Runs `nativeCall` with this handle's pointer while holding a reference on
+    /// it, so a [#close()] from another thread during the call defers the native
+    /// free until the call returns instead of freeing the pointer under it.
+    ///
+    /// @param nativeCall the native call, given the live pointer
+    /// @return what `nativeCall` returns
+    /// @throws IllegalStateException if this handle is already closed
+    final long withRetained(ToLongFunction<MemorySegment> nativeCall) {
+        retain();
+        try {
+            // The field, not ptr(): holding a reference keeps the pointer valid even
+            // if another thread closes this handle after retain() succeeded.
+            return nativeCall.applyAsLong(ptr);
+        } finally {
+            release();
+        }
+    }
+
     /// Releases one reference acquired by [#retain()]. Frees the native pointer
     /// when this was the last outstanding reference.
     void release() {
@@ -112,7 +131,9 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
         if (next != null) {
             next.retain();
         }
-        MemorySegment nextPtr = next == null ? MemorySegment.NULL : next.ptr();
+        // next.ptr, not next.ptr(): the retain above keeps it valid, and ptr() would throw
+        // (leaking that retain) if another thread closed `next` in between.
+        MemorySegment nextPtr = next == null ? MemorySegment.NULL : ((NativePointerWithRefCount) next).ptr;
         try {
             nativeCall.accept(nextPtr);
         } catch (RuntimeException e) {

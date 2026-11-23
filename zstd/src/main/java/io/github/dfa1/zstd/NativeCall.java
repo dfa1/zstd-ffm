@@ -17,6 +17,16 @@ final class NativeCall {
         long run() throws Throwable;
     }
 
+    /// Invokes a native call whose result is not a zstd status code (an id, a
+    /// size), rethrowing whatever it throws unchecked.
+    static long invoke(ZstdCall c) {
+        try {
+            return c.run();
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
     /// Invokes a size-returning zstd call and converts a zstd error code into a
     /// [ZstdException].
     static long checkReturnValue(ZstdCall c) {

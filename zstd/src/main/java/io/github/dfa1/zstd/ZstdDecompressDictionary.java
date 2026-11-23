@@ -12,6 +12,8 @@ import java.util.Objects;
 /// memory, so the source may be discarded afterwards.
 ///
 /// Immutable once built and safe to share across threads (the digested dictionary is read-only).
+/// Closing it while another thread is still using it is safe too: the native
+/// memory is freed only once that call returns.
 ///
 /// A [ZstdDecompressContext] may hold a live reference to this dictionary via
 /// [ZstdDecompressContext#refDictionary(ZstdDecompressDictionary)]; the
@@ -48,22 +50,16 @@ public final class ZstdDecompressDictionary extends NativePointerWithRefCount {
     ///
     /// @return the dictionary id, or [ZstdDictionaryId#NONE] for a content-only dictionary
     public ZstdDictionaryId id() {
-        try {
-            return ZstdDictionaryId.of((int) Bindings.GET_DICT_ID_FROM_DDICT.invokeExact(ptr()));
-        } catch (Throwable t) {
-            throw NativeCall.rethrow(t);
-        }
+        return ZstdDictionaryId.of((int) withRetained(
+                dict -> NativeCall.invoke(() -> (int) Bindings.GET_DICT_ID_FROM_DDICT.invokeExact(dict))));
     }
 
     /// Current native memory used by this digested dictionary, in bytes.
     ///
     /// @return the live dictionary size
     public ZstdByteSize sizeOf() {
-        try {
-            return ZstdByteSize.of((long) Bindings.SIZEOF_DDICT.invokeExact(ptr()));
-        } catch (Throwable t) {
-            throw NativeCall.rethrow(t);
-        }
+        return ZstdByteSize.of(withRetained(
+                dict -> NativeCall.invoke(() -> (long) Bindings.SIZEOF_DDICT.invokeExact(dict))));
     }
 
     @Override

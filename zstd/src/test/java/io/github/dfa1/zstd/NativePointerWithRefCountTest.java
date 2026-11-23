@@ -249,4 +249,66 @@ class NativePointerWithRefCountTest {
         next.close();
         assertThat(next.tryCloseCount).hasValue(1);
     }
+
+    @Test
+    void withRetainedHandsTheCallTheLivePointer() {
+        // Given a live handle
+        try (TestObject sut = new TestObject()) {
+            // When a call runs with the retained pointer
+            long result = sut.withRetained(MemorySegment::address);
+
+            // Then it received the handle's pointer
+            assertThat(result).isEqualTo(POINTER.address());
+        }
+    }
+
+    @Test
+    void closeDuringACallDefersTheFreeUntilTheCallReturns() {
+        // Given a handle closed while a call holds it (as another thread could)
+        TestObject sut = new TestObject();
+        AtomicInteger freesSeenDuringTheCall = new AtomicInteger(-1);
+
+        // When the call closes the handle and then keeps using the pointer
+        sut.withRetained(ptr -> {
+            sut.close();
+            freesSeenDuringTheCall.set(sut.tryCloseCount.get());
+            return ptr.address();
+        });
+
+        // Then nothing was freed under the call, and the free happened on its return
+        assertThat(freesSeenDuringTheCall).hasValue(0);
+        assertThat(sut.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void withRetainedReleasesItsReferenceWhenTheCallThrows() {
+        // Given a call that fails
+        TestObject sut = new TestObject();
+        ThrowingCallable failing = () -> sut.withRetained(_ -> {
+            throw new IllegalArgumentException("native failure");
+        });
+        assertThatThrownBy(failing).isInstanceOf(IllegalArgumentException.class);
+
+        // When the owner closes the handle
+        sut.close();
+
+        // Then the failed call left no reference behind: close alone frees it
+        assertThat(sut.tryCloseCount).hasValue(1);
+    }
+
+    @Test
+    void withRetainedOnAClosedHandleThrowsWithoutRunningTheCall() {
+        // Given a closed handle
+        TestObject sut = new TestObject();
+        sut.close();
+        AtomicInteger calls = new AtomicInteger();
+
+        // When a call is attempted
+        ThrowingCallable result = () -> sut.withRetained(_ -> calls.incrementAndGet());
+
+        // Then it is refused before the call runs
+        assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
+        assertThat(calls).hasValue(0);
+        assertThat(sut.tryCloseCount).hasValue(1);
+    }
 }
