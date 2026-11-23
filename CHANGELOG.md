@@ -6,6 +6,8 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+## [0.16] - 2026-11-23
+
 ### Changed
 - **Breaking:** no public type has a public constructor any more.
   ([#143](https://github.com/dfa1/zstd-ffm/issues/143))
