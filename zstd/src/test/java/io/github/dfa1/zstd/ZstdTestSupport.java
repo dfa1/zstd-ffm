@@ -73,6 +73,18 @@ final class ZstdTestSupport {
         return ZstdDictionary.of(raw);
     }
 
+    /// A checksummed frame of `input` with one bit of its trailing 4-byte
+    /// checksum flipped: the compressed body, and so the decoded payload, is
+    /// intact — only checksum validation can reject it.
+    static byte[] withWrongChecksum(byte[] input) {
+        byte[] frame;
+        try (ZstdCompressContext ctx = Zstd.newCompressContext().checksum(true)) {
+            frame = ctx.compress(input);
+        }
+        frame[frame.length - 1] ^= 0x01;
+        return frame;
+    }
+
     /// `n` pseudo-random bytes from a fixed `seed`, so a failure reproduces.
     static byte[] randomBytes(long seed, int n) {
         byte[] b = new byte[n];

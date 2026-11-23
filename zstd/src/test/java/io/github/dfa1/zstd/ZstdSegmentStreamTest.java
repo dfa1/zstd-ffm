@@ -15,6 +15,7 @@ import static io.github.dfa1.zstd.ZstdTestSupport.bytesOf;
 import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.segmentOf;
+import static io.github.dfa1.zstd.ZstdTestSupport.withWrongChecksum;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -144,6 +145,72 @@ class ZstdSegmentStreamTest {
                 // Then it is rejected natively
                 assertThatThrownBy(result).isInstanceOf(ZstdException.class);
             }
+        }
+    }
+
+    @Nested
+    class DecompressParameters {
+
+        private static final byte[] PAYLOAD = randomBytes(0x3F, 64 * 1024);
+
+        @Test
+        void returnsTheSameStreamForChaining() {
+            // Given a fresh decompress stream
+            try (ZstdDecompressStream ds = Zstd.newDecompressStream()) {
+                // When setting an advanced parameter
+                ZstdDecompressStream result = ds.windowLogMax(ZstdWindowLog.of(27));
+
+                // Then it returns the same instance, for chaining
+                assertThat(result).isSameAs(ds);
+            }
+        }
+
+        @Test
+        void forceIgnoreChecksumRecoversTheIntactPayload() {
+            // Given a frame whose stored checksum is flipped
+            byte[] frame = withWrongChecksum(PAYLOAD);
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream().ignoreChecksum(true)) {
+                MemorySegment out = arena.allocate(PAYLOAD.length);
+
+                // When decoding it in one step with validation off
+                ZstdStreamResult result = sut.decompress(out, segmentOf(arena, frame));
+
+                // Then the whole payload comes back untouched
+                assertThat(result.isComplete()).isTrue();
+                assertThat(bytesOf(out, result.bytesProduced())).isEqualTo(PAYLOAD);
+            }
+        }
+
+        @Test
+        void defaultStreamRejectsAWrongChecksum() {
+            // Given a frame whose stored checksum is flipped
+            byte[] frame = withWrongChecksum(PAYLOAD);
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream()) {
+                MemorySegment out = arena.allocate(PAYLOAD.length);
+
+                // When decoding it with validation on
+                ThrowingCallable result = () -> sut.decompress(out, segmentOf(arena, frame));
+
+                // Then the mismatch is reported
+                assertThatThrownBy(result)
+                        .isInstanceOfSatisfying(ZstdException.class,
+                                e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.CHECKSUM_WRONG));
+            }
+        }
+
+        @Test
+        void parameterAfterCloseThrows() {
+            // Given a closed decompress stream
+            ZstdDecompressStream sut = Zstd.newDecompressStream();
+            sut.close();
+
+            // When a parameter is set on it
+            ThrowingCallable result = () -> sut.ignoreChecksum(true);
+
+            // Then it fails fast rather than using the freed context
+            assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
         }
     }
 

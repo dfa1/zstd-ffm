@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
+import static io.github.dfa1.zstd.ZstdTestSupport.withWrongChecksum;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -131,17 +132,6 @@ class ZstdParameterTest {
                 // Then the malformed frame is still rejected
                 assertThatThrownBy(result).isInstanceOf(ZstdException.class);
             }
-        }
-
-        /// A checksummed frame with one bit of its trailing 4-byte checksum
-        /// flipped: the compressed body, and so the decoded payload, is intact.
-        private static byte[] withWrongChecksum(byte[] input) {
-            byte[] frame;
-            try (ZstdCompressContext ctx = Zstd.newCompressContext().checksum(true)) {
-                frame = ctx.compress(input);
-            }
-            frame[frame.length - 1] ^= 0x01;
-            return frame;
         }
     }
 

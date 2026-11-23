@@ -165,6 +165,50 @@ public final class ZstdInputStream extends InputStream {
         }
     }
 
+    /// Sets the largest back-reference window this stream will accept, as a
+    /// power of two. Raise it to decode frames built with a large `windowLog`;
+    /// see [ZstdDecompressContext#windowLogMax(ZstdWindowLog)].
+    ///
+    /// zstd enforces the limit on its buffered streaming path only: a frame
+    /// that declares its content size and fits in one output step is decoded
+    /// in a single shot without the check, which bounds its memory anyway.
+    ///
+    /// Set it right after construction, before the first `read`.
+    ///
+    /// @param windowLogMax the base-2 log of the maximum accepted window size
+    /// @return `this`, for chaining
+    /// @throws ZstdException if a frame is in progress
+    /// @throws IllegalStateException if this stream is closed
+    public ZstdInputStream windowLogMax(ZstdWindowLog windowLogMax) {
+        Objects.requireNonNull(windowLogMax, "windowLogMax");
+        return parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, windowLogMax.value());
+    }
+
+    /// Skips validation of each frame's content checksum; see
+    /// [ZstdDecompressContext#ignoreChecksum(boolean)]. Off by default.
+    ///
+    /// **Experimental** in upstream zstd. While on, **corrupted payloads are
+    /// no longer detected** by the checksum. Set it right after construction,
+    /// before the first `read`.
+    ///
+    /// @param enabled whether to skip checksum validation
+    /// @return `this`, for chaining
+    /// @throws ZstdException if a frame is in progress
+    /// @throws IllegalStateException if this stream is closed
+    public ZstdInputStream ignoreChecksum(boolean enabled) {
+        return parameter(ZstdDecompressParameter.FORCE_IGNORE_CHECKSUM, enabled ? 1 : 0);
+    }
+
+    private ZstdInputStream parameter(ZstdDecompressParameter parameter, int value) {
+        if (closed) {
+            // close() frees the dctx: setting a parameter on it would be a use-after-free
+            throw new IllegalStateException("stream closed");
+        }
+        NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_SET_PARAMETER.invokeExact(
+                dctx, parameter.value(), value));
+        return this;
+    }
+
     @Override
     public void close() throws IOException {
         if (closed) {

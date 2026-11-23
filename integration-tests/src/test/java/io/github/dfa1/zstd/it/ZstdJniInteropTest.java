@@ -260,5 +260,26 @@ class ZstdJniInteropTest {
             assertThat(validated).isEqualTo(data);
             assertThat(ignored).isEqualTo(data);
         }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void jniChecksummedStreamDecodesWithValidationOff(byte[] data) throws Exception {
+            // Given a checksummed stream from zstd-jni
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            try (var zout = new com.github.luben.zstd.ZstdOutputStream(sink)) {
+                zout.setChecksum(true);
+                zout.write(data);
+            }
+
+            // When reading it through a zstd-ffm stream with validation off
+            byte[] restored;
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(sink.toByteArray()))
+                    .ignoreChecksum(true)) {
+                restored = sut.readAllBytes();
+            }
+
+            // Then the original input comes back
+            assertThat(restored).isEqualTo(data);
+        }
     }
 }
