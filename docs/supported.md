@@ -5,7 +5,8 @@ and semantics follow the [official manual](https://facebook.github.io/zstd/doc/a
 
 - zstd version: **1.5.7** (vendored `third_party/zstd`, pinned to tag `v1.5.7`)
 - Public symbols exported by `libzstd`: **185**
-- Bound so far: **76** (~41%), counted from the lookups in `Bindings.java`
+- Bound so far: **77** (~42%), counted from the lookups in `Bindings.java`;
+  one of them, `ZSTD_CCtx_getParameter`, is used only by tests
 
 "Bound" means the symbol has a `MethodHandle` in `Bindings` and is reachable
 through the public Java API. The rest are reachable from native code but not yet

@@ -149,6 +149,11 @@ final class Bindings {
             NativeLibrary.lookup("ZSTD_CCtx_setParameter",
                     FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_INT));
 
+    // size_t ZSTD_CCtx_getParameter(const ZSTD_CCtx*, ZSTD_cParameter, int* value)
+    static final MethodHandle CCTX_GET_PARAMETER =
+            NativeLibrary.lookup("ZSTD_CCtx_getParameter",
+                    FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS));
+
     // size_t ZSTD_CCtx_reset(ZSTD_CCtx*, ZSTD_ResetDirective)
     static final MethodHandle CCTX_RESET =
             NativeLibrary.lookup("ZSTD_CCtx_reset",

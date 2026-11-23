@@ -26,6 +26,11 @@ import java.util.Objects;
 /// }
 public final class ZstdCompressContext extends NativeObject {
 
+    /// `ZSTD_ps_enable`, a `ZSTD_ParamSwitch_e` value.
+    private static final int PARAM_SWITCH_ENABLE = 1;
+    /// `ZSTD_ps_disable`, a `ZSTD_ParamSwitch_e` value.
+    private static final int PARAM_SWITCH_DISABLE = 2;
+
     private ZstdCompressionLevel level;
     private ZstdCompressDictionary refDict;
 
@@ -86,12 +91,23 @@ public final class ZstdCompressContext extends NativeObject {
         return parameter(ZstdCompressParameter.FORMAT, enabled ? 1 : 0);
     }
 
-    /// Enables long-distance matching for a better ratio on large, repetitive inputs.
+    /// Forces long-distance matching on (`true`) or off (`false`). On, it gives a
+    /// better ratio on large, repetitive inputs at the cost of memory.
     ///
-    /// @param enabled whether to enable long-distance matching
+    /// Without this call zstd decides on its own, from the *effective*
+    /// parameters (after it shrinks the window to fit an input of known size):
+    /// it enables long-distance matching when the strategy is btopt or stronger
+    /// (level 16+ on large inputs) and the window log is at least 27. Out of the
+    /// box that means level 22, or an explicit `windowLog` of 27+, and only for
+    /// inputs over 64 MiB or of unknown size.
+    ///
+    /// @param enabled `true` to force long-distance matching on, `false` to force it off
     /// @return `this`, for chaining
     public ZstdCompressContext longDistanceMatching(boolean enabled) {
-        return parameter(ZstdCompressParameter.ENABLE_LONG_DISTANCE_MATCHING, enabled ? 1 : 0);
+        // ZSTD_c_enableLongDistanceMatching is a ZSTD_ParamSwitch_e, not a boolean:
+        // 0 = auto, 1 = enable, 2 = disable. Sending 0 for `false` would select auto.
+        return parameter(ZstdCompressParameter.ENABLE_LONG_DISTANCE_MATCHING,
+                enabled ? PARAM_SWITCH_ENABLE : PARAM_SWITCH_DISABLE);
     }
 
     /// Sets the maximum back-reference distance as a power of two (larger window =
