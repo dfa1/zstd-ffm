@@ -9,6 +9,7 @@ Usage:
   format-contestants.py <results.json>
 """
 import json
+import os
 import sys
 
 # Windows' default console code page isn't UTF-8, so stdout would otherwise
@@ -22,8 +23,17 @@ CONTEXT_PAIRS = [
 ]
 
 
-def load(path):
-    with open(path) as f:
+def confined_to_cwd(arg):
+    """Resolve `arg` and reject it unless it stays inside the working directory."""
+    base = os.path.realpath(os.getcwd())
+    path = os.path.realpath(os.path.join(base, arg))
+    if os.path.commonpath([base, path]) != base:
+        sys.exit(f"refusing to read {arg!r}: outside the working directory")
+    return path
+
+
+def load(arg):
+    with open(confined_to_cwd(arg)) as f:
         results = json.load(f)
 
     by_class = {}
