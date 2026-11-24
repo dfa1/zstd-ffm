@@ -2,9 +2,10 @@ package io.github.dfa1.zstd;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.MemoryLayout.PathElement;
 import java.lang.foreign.SegmentAllocator;
+import java.lang.invoke.VarHandle;
 
-import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 /// A low-level, zero-copy streaming compressor driven with native
@@ -30,6 +31,15 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 /// Not thread-safe: confine an instance to a single thread.
 public final class ZstdCompressStream extends NativeObject {
 
+    // ZSTD_frameProgression fields, read through handles derived from the named layout.
+    // Layout VarHandles have coordinates (MemorySegment, long base); we always pass base 0.
+    private static final VarHandle FP_INGESTED = progressionField("ingested");
+    private static final VarHandle FP_CONSUMED = progressionField("consumed");
+    private static final VarHandle FP_PRODUCED = progressionField("produced");
+    private static final VarHandle FP_FLUSHED = progressionField("flushed");
+    private static final VarHandle FP_CURRENT_JOB_ID = progressionField("currentJobID");
+    private static final VarHandle FP_ACTIVE_WORKERS = progressionField("nbActiveWorkers");
+
     private final Arena arena;
     // size_t cells the _simpleArgs calls advance: bytes written to dst, read from src
     private final MemorySegment dstPos;
@@ -47,10 +57,12 @@ public final class ZstdCompressStream extends NativeObject {
         // Own the context first, so any failure setting it up is cleaned up by
         // close() — one release path, no leak on a half-built stream.
         super(createCctx());
-        this.arena = Arena.ofConfined();
-        this.dstPos = arena.allocate(JAVA_LONG);
-        this.srcPos = arena.allocate(JAVA_LONG);
         try {
+            // Inside the try: a failed arena or allocation must still free the
+            // context (and the arena, once it exists) through close().
+            this.arena = Arena.ofConfined();
+            this.dstPos = arena.allocate(JAVA_LONG);
+            this.srcPos = arena.allocate(JAVA_LONG);
             NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(
                     ptr(), ZstdCompressParameter.COMPRESSION_LEVEL.value(), level.value()));
             if (dictionary != null) {
@@ -120,12 +132,12 @@ public final class ZstdCompressStream extends NativeObject {
             MemorySegment p = (MemorySegment) Bindings.GET_FRAME_PROGRESSION.invokeExact(
                     (SegmentAllocator) scratch, ptr());
             return ZstdFrameProgression.of(
-                    p.get(JAVA_LONG, 0),    // ingested
-                    p.get(JAVA_LONG, 8),    // consumed
-                    p.get(JAVA_LONG, 16),   // produced
-                    p.get(JAVA_LONG, 24),   // flushed
-                    p.get(JAVA_INT, 32),    // currentJobID
-                    p.get(JAVA_INT, 36));   // nbActiveWorkers
+                    (long) FP_INGESTED.get(p, 0L),
+                    (long) FP_CONSUMED.get(p, 0L),
+                    (long) FP_PRODUCED.get(p, 0L),
+                    (long) FP_FLUSHED.get(p, 0L),
+                    (int) FP_CURRENT_JOB_ID.get(p, 0L),
+                    (int) FP_ACTIVE_WORKERS.get(p, 0L));
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
@@ -142,12 +154,19 @@ public final class ZstdCompressStream extends NativeObject {
         }
     }
 
+    private static VarHandle progressionField(String name) {
+        return Bindings.FRAME_PROGRESSION_LAYOUT.varHandle(PathElement.groupElement(name));
+    }
+
     @Override
     protected void tryClose(MemorySegment ptr) throws Throwable {
         try {
             var _ = (long) Bindings.FREE_CCTX.invokeExact(ptr);
         } finally {
-            arena.close();
+            // null only when the constructor failed before creating the arena
+            if (arena != null) {
+                arena.close();
+            }
         }
     }
 }

@@ -113,11 +113,11 @@ public final class ZstdOutputStream extends OutputStream {
     ZstdOutputStream(OutputStream out, ZstdCompressionLevel level, ZstdDictionary dictionary) {
         this.out = Objects.requireNonNull(out, "out");
         this.arena = Arena.ofConfined();
-        this.in = new ZstdStreamBuffer(arena);
-        this.outBuf = new ZstdStreamBuffer(arena);
         this.single = new byte[1];
         MemorySegment c = null;
         try {
+            this.in = new ZstdStreamBuffer(arena);
+            this.outBuf = new ZstdStreamBuffer(arena);
             c = NativeCall.createOrThrow("ZSTD_createCCtx", () -> (MemorySegment) Bindings.CREATE_CCTX.invokeExact());
             this.cctx = c;
             NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(

@@ -1,11 +1,12 @@
 package io.github.dfa1.zstd;
 
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemoryLayout.PathElement;
 import java.lang.foreign.MemorySegment;
+import java.lang.invoke.VarHandle;
 import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_INT;
-import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 /// Inspection of zstd frames without decompressing them — useful for parsing a
 /// stream of concatenated frames, sizing buffers, or routing by dictionary id.
@@ -18,6 +19,16 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 /// returns `false`, [#dictId(byte[])] returns [ZstdDictionaryId#NONE], and the
 /// size and header queries throw [ZstdException].
 public final class ZstdFrame {
+
+    // ZSTD_FrameHeader fields, read through handles derived from the named layout.
+    // Layout VarHandles have coordinates (MemorySegment, long base); we always pass base 0.
+    private static final VarHandle FH_CONTENT_SIZE = frameHeaderField("frameContentSize");
+    private static final VarHandle FH_WINDOW_SIZE = frameHeaderField("windowSize");
+    private static final VarHandle FH_BLOCK_SIZE_MAX = frameHeaderField("blockSizeMax");
+    private static final VarHandle FH_FRAME_TYPE = frameHeaderField("frameType");
+    private static final VarHandle FH_HEADER_SIZE = frameHeaderField("headerSize");
+    private static final VarHandle FH_DICT_ID = frameHeaderField("dictID");
+    private static final VarHandle FH_CHECKSUM_FLAG = frameHeaderField("checksumFlag");
 
     /// Tests whether `data` begins with a valid zstd frame (standard or skippable).
     ///
@@ -267,19 +278,19 @@ public final class ZstdFrame {
 
     private static ZstdFrameHeader header(MemorySegment data, long size) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment zfh = arena.allocate(48);
+            MemorySegment zfh = arena.allocate(Bindings.FRAME_HEADER_LAYOUT);
             long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.GET_FRAME_HEADER.invokeExact(zfh, data, size));
             if (remaining != 0) {
                 throw new ZstdException("incomplete frame header: need " + remaining + " more bytes");
             }
             return ZstdFrameHeader.of(
-                    ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 0)).orElse(null), // contentSize
-                    ZstdByteSize.fromUnsignedFrameHeaderField(zfh.get(JAVA_LONG, 8)).orElse(null), // windowSize
-                    ZstdByteSize.of(zfh.get(JAVA_INT, 16) & 0xFFFFFFFFL),            // blockSizeMax
-                    ZstdFrameType.of(zfh.get(JAVA_INT, 20)),                          // frameType
-                    ZstdByteSize.of(zfh.get(JAVA_INT, 24)),                          // headerSize
-                    ZstdDictionaryId.of(zfh.get(JAVA_INT, 28)),                       // dictID
-                    zfh.get(JAVA_INT, 32) != 0);                                      // checksumFlag
+                    ZstdByteSize.fromUnsignedFrameHeaderField((long) FH_CONTENT_SIZE.get(zfh, 0L)).orElse(null),
+                    ZstdByteSize.fromUnsignedFrameHeaderField((long) FH_WINDOW_SIZE.get(zfh, 0L)).orElse(null),
+                    ZstdByteSize.of(Integer.toUnsignedLong((int) FH_BLOCK_SIZE_MAX.get(zfh, 0L))),
+                    ZstdFrameType.of((int) FH_FRAME_TYPE.get(zfh, 0L)),
+                    ZstdByteSize.of((int) FH_HEADER_SIZE.get(zfh, 0L)),
+                    ZstdDictionaryId.of((int) FH_DICT_ID.get(zfh, 0L)),
+                    (int) FH_CHECKSUM_FLAG.get(zfh, 0L) != 0);
         }
     }
 
@@ -338,6 +349,10 @@ public final class ZstdFrame {
         } catch (Throwable t) {
             throw NativeCall.rethrow(t);
         }
+    }
+
+    private static VarHandle frameHeaderField(String name) {
+        return Bindings.FRAME_HEADER_LAYOUT.varHandle(PathElement.groupElement(name));
     }
 
     private ZstdFrame() {

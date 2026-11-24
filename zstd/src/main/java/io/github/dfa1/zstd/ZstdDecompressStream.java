@@ -31,10 +31,12 @@ public final class ZstdDecompressStream extends NativeObject {
         // Own the context first, so any failure setting it up is cleaned up by
         // close() — one release path, no leak on a half-built stream.
         super(createDctx());
-        this.arena = Arena.ofConfined();
-        this.dstPos = arena.allocate(JAVA_LONG);
-        this.srcPos = arena.allocate(JAVA_LONG);
         try {
+            // Inside the try: a failed arena or allocation must still free the
+            // context (and the arena, once it exists) through close().
+            this.arena = Arena.ofConfined();
+            this.dstPos = arena.allocate(JAVA_LONG);
+            this.srcPos = arena.allocate(JAVA_LONG);
             if (dictionary != null) {
                 loadDictionary(dictionary);
             }
@@ -136,7 +138,10 @@ public final class ZstdDecompressStream extends NativeObject {
         try {
             var _ = (long) Bindings.FREE_DCTX.invokeExact(ptr);
         } finally {
-            arena.close();
+            // null only when the constructor failed before creating the arena
+            if (arena != null) {
+                arena.close();
+            }
         }
     }
 }

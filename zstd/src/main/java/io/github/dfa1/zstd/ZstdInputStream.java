@@ -53,11 +53,11 @@ public final class ZstdInputStream extends InputStream {
     ZstdInputStream(InputStream in, ZstdDictionary dictionary) {
         this.in = Objects.requireNonNull(in, "in");
         this.arena = Arena.ofConfined();
-        this.inBuf = new ZstdStreamBuffer(arena);
-        this.outBufView = new ZstdStreamBuffer(arena);
         this.single = new byte[1];
         MemorySegment d = null;
         try {
+            this.inBuf = new ZstdStreamBuffer(arena);
+            this.outBufView = new ZstdStreamBuffer(arena);
             d = NativeCall.createOrThrow("ZSTD_createDCtx", () -> (MemorySegment) Bindings.CREATE_DCTX.invokeExact());
             this.dctx = d;
             if (dictionary != null) {

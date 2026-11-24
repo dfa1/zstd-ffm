@@ -2,6 +2,7 @@ package io.github.dfa1.zstd;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemoryLayout;
+import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -68,6 +69,22 @@ final class Bindings {
     static final MethodHandle GET_DICT_ID_FROM_FRAME =
             NativeLibrary.lookup("ZSTD_getDictID_fromFrame",
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG));
+
+    // ZSTD_FrameHeader: { u64 frameContentSize; u64 windowSize; unsigned blockSizeMax;
+    // ZSTD_FrameType_e frameType; unsigned headerSize, dictID, checksumFlag, _reserved1, _reserved2; }
+    // The trailing padding rounds it up to the C sizeof (48), which ZSTD_getFrameHeader fills.
+    static final StructLayout FRAME_HEADER_LAYOUT =
+            MemoryLayout.structLayout(
+                    JAVA_LONG.withName("frameContentSize"),
+                    JAVA_LONG.withName("windowSize"),
+                    JAVA_INT.withName("blockSizeMax"),
+                    JAVA_INT.withName("frameType"),
+                    JAVA_INT.withName("headerSize"),
+                    JAVA_INT.withName("dictID"),
+                    JAVA_INT.withName("checksumFlag"),
+                    JAVA_INT.withName("_reserved1"),
+                    JAVA_INT.withName("_reserved2"),
+                    MemoryLayout.paddingLayout(4));
 
     // size_t ZSTD_getFrameHeader(ZSTD_FrameHeader* zfh, const void* src, size_t srcSize)
     static final MethodHandle GET_FRAME_HEADER =
@@ -203,9 +220,15 @@ final class Bindings {
     static final MethodHandle DPARAM_GET_BOUNDS =
             NativeLibrary.lookup("ZSTD_dParam_getBounds", FunctionDescriptor.of(BOUNDS_LAYOUT, JAVA_INT));
 
-    // ZSTD_frameProgression layout: u64 ingested, consumed, produced, flushed, then u32 currentJobID, nbActiveWorkers.
-    private static final MemoryLayout FRAME_PROGRESSION_LAYOUT =
-            MemoryLayout.structLayout(JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_INT, JAVA_INT);
+    // ZSTD_frameProgression: { u64 ingested, consumed, produced, flushed; unsigned currentJobID, nbActiveWorkers; }
+    static final StructLayout FRAME_PROGRESSION_LAYOUT =
+            MemoryLayout.structLayout(
+                    JAVA_LONG.withName("ingested"),
+                    JAVA_LONG.withName("consumed"),
+                    JAVA_LONG.withName("produced"),
+                    JAVA_LONG.withName("flushed"),
+                    JAVA_INT.withName("currentJobID"),
+                    JAVA_INT.withName("nbActiveWorkers"));
     // ZSTD_frameProgression ZSTD_getFrameProgression(const ZSTD_CCtx*) — returned by value
     static final MethodHandle GET_FRAME_PROGRESSION =
             NativeLibrary.lookup("ZSTD_getFrameProgression",

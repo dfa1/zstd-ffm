@@ -3,6 +3,11 @@ package io.github.dfa1.zstd;
 import java.util.Objects;
 
 /// Outcome of one zero-copy streaming step.
+///
+/// The components are raw `long`s rather than [ZstdByteSize]: on this zero-copy
+/// path the byte counts feed straight into [java.lang.foreign.MemorySegment#asSlice(long, long)]
+/// on every step of a streaming loop, so they are left unboxed by design to keep
+/// the loop allocation-free. [#remaining()] is zstd's hint of work left, not a size.
 public final class ZstdStreamResult {
 
     private final long bytesConsumed;

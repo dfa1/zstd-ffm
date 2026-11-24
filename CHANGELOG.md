@@ -29,6 +29,8 @@ git tags, which trigger publication to Maven Central.
   throws `IllegalArgumentException`. ([#163](https://github.com/dfa1/zstd-ffm/issues/163))
 - The segment streams crashed the JVM on a `dst`/`src` from a closed arena or
   another thread; they now throw. ([#161](https://github.com/dfa1/zstd-ffm/issues/161))
+- A failed stream constructor could leak its native context or arena; all four
+  streams now allocate inside the cleanup path. ([#169](https://github.com/dfa1/zstd-ffm/issues/169))
 
 ## [0.16] - 2026-11-23
 
