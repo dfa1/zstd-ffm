@@ -64,7 +64,12 @@ public final class Rfc9842Frame {
     /// Skippable-frame header size: 4-byte magic + 4-byte little-endian content length.
     private static final int SKIPPABLE_HEADER_SIZE = 8;
 
-    /// Total size of a `dcz` header: the skippable-frame header plus the SHA-256 hash.
+    /// Total size of a `dcz` header in bytes (40): the 8-byte skippable-frame header
+    /// plus the 32-byte SHA-256 hash.
+    ///
+    /// A plain `int` rather than a `ZstdByteSize`: it is a fixed format constant
+    /// used in offset and capacity arithmetic (`HEADER_SIZE + frame.byteSize()`,
+    /// `asSlice(HEADER_SIZE)`), where a wrapper would only be unwrapped again.
     ///
     /// @see #wrap(MemorySegment, MemorySegment, ZstdDictionary)
     public static final int HEADER_SIZE = SKIPPABLE_HEADER_SIZE + HASH_LENGTH;
@@ -172,6 +177,10 @@ public final class Rfc9842Frame {
     /// Wraps `compressedFrame` into `dst`, the zero-copy counterpart of
     /// [#wrap(byte[], ZstdDictionary)].
     ///
+    /// Returns a raw `long` rather than a `ZstdByteSize`: on this zero-copy path
+    /// the byte count feeds straight into [MemorySegment#asSlice(long, long)], so
+    /// it is left unboxed by design to keep the fast path allocation-free.
+    ///
     /// @param dst             the destination segment, at least
     ///                        [#HEADER_SIZE]` + compressedFrame.byteSize()` bytes
     /// @param compressedFrame a zstd frame compressed against `dictionary`
@@ -207,6 +216,10 @@ public final class Rfc9842Frame {
     /// computed once up front instead of hashing the dictionary again on
     /// every call — the hot-path counterpart of
     /// [#wrap(MemorySegment, MemorySegment, ZstdDictionary)].
+    ///
+    /// Returns a raw `long` rather than a `ZstdByteSize`: on this zero-copy path
+    /// the byte count feeds straight into [MemorySegment#asSlice(long, long)], so
+    /// it is left unboxed by design to keep the fast path allocation-free.
     ///
     /// @param dst             the destination segment, at least
     ///                        [#HEADER_SIZE]` + compressedFrame.byteSize()` bytes
