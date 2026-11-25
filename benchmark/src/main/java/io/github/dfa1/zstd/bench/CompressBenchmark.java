@@ -92,14 +92,16 @@ public class CompressBenchmark {
     // ZSTD_createCCtx/ZSTD_freeCCtx cost that context reuse avoids.
     @Benchmark
     public byte[] zstdJavaBytesFreshContext() {
-        try (ZstdCompressContext ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(level))) {
+        try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
+            ctx.level(ZstdCompressionLevel.of(level));
             return ctx.compress(src);
         }
     }
 
     @Benchmark
     public long zstdJavaSegmentFreshContext() {
-        try (ZstdCompressContext ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(level))) {
+        try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
+            ctx.level(ZstdCompressionLevel.of(level));
             return ctx.compress(dstSeg, srcSeg);
         }
     }

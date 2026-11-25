@@ -16,7 +16,7 @@ import java.util.function.ToLongFunction;
 /// [#close()] releases the constructor's own reference and, unlike the
 /// retain/release pair — which is the caller's own discipline to balance —
 /// is safe to call more than once.
-public abstract class NativePointerWithRefCount implements AutoCloseable {
+abstract class NativePointerWithRefCount implements AutoCloseable {
 
     /// Reachable only through [#withRetained(ToLongFunction)] and
     /// [#swap(NativePointerWithRefCount, NativePointerWithRefCount, Consumer)],
@@ -138,7 +138,7 @@ public abstract class NativePointerWithRefCount implements AutoCloseable {
     /// outstanding reference — the constructor's own included — is released.
     ///
     /// @param ptr the native pointer to free
-    /// @throws Throwable if the native free call fails; the exception is swallowed by [#release()]
+    /// @throws Throwable if the native free call fails; the exception is swallowed by `release()`
     @SuppressWarnings("java:S112") // implementations wrap MethodHandle.invokeExact, declared to throw Throwable
     protected abstract void tryClose(MemorySegment ptr) throws Throwable;
 }

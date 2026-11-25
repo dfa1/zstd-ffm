@@ -17,7 +17,7 @@ import java.util.Objects;
 ///     }
 /// }
 /// }
-public final class ZstdDecompressContext extends NativeObject {
+public final class ZstdDecompressContext extends NativeObject implements ZstdDecompressSettings<ZstdDecompressContext> {
 
     private static final String COMPRESSED = "compressed";
 
@@ -36,67 +36,9 @@ public final class ZstdDecompressContext extends NativeObject {
         return NativeCall.createOrThrow("ZSTD_createDCtx", () -> (MemorySegment) Bindings.CREATE_DCTX.invokeExact());
     }
 
-    /// Sets an advanced decompression parameter, sticky across subsequent calls.
-    ///
-    /// @param parameter the parameter to set
-    /// @param value     the value, validated natively against the parameter's bounds
-    /// @return `this`, for chaining
-    /// @throws ZstdException if the value is out of range for the parameter
-    public ZstdDecompressContext parameter(ZstdDecompressParameter parameter, int value) {
-        NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_SET_PARAMETER.invokeExact(ptr(), parameter.value(), value));
-        return this;
-    }
-
-    /// Sets [ZstdDecompressParameter#WINDOW_LOG_MAX], zstd's memory limit for
-    /// streaming decompression.
-    ///
-    /// **It has no effect on this class's `decompress` methods.** They are all
-    /// one-shot: they decode straight into a buffer whose size the caller
-    /// bounds, so zstd allocates no window buffer and never checks the limit.
-    /// A frame with any window up to the format maximum decodes without raising
-    /// it. To cap the memory a hostile frame can demand while streaming, set the
-    /// limit on [ZstdInputStream#windowLogMax(ZstdWindowLog)] or
-    /// [ZstdDecompressStream#windowLogMax(ZstdWindowLog)] instead.
-    ///
-    /// @param windowLogMax the base-2 log of the maximum accepted window size
-    /// @return `this`, for chaining
-    public ZstdDecompressContext windowLogMax(ZstdWindowLog windowLogMax) {
-        Objects.requireNonNull(windowLogMax, "windowLogMax");
-        return parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, windowLogMax.value());
-    }
-
-    /// Skips validation of the frame's content checksum (written with
-    /// [ZstdCompressContext#checksum(boolean)]). Off by default, so a checksum
-    /// mismatch fails with [ZstdErrorCode#CHECKSUM_WRONG].
-    ///
-    /// Use it when something else already guarantees integrity (TLS, a
-    /// filesystem or object-store checksum, a content-addressed key), or to
-    /// recover data from a frame whose stored checksum no longer matches.
-    ///
-    /// **Experimental** in upstream zstd. While on, **corrupted payloads are
-    /// no longer detected** by the checksum; other malformed input still fails.
-    ///
-    /// @param enabled whether to skip checksum validation
-    /// @return `this`, for chaining
-    public ZstdDecompressContext ignoreChecksum(boolean enabled) {
-        return parameter(ZstdDecompressParameter.FORCE_IGNORE_CHECKSUM, enabled ? 1 : 0);
-    }
-
-    /// Accepts only magicless frames, which omit the 4-byte magic number, as
-    /// written by [ZstdCompressContext#magicless(boolean)]. Off by default; while
-    /// on, standard frames are rejected.
-    ///
-    /// **Experimental** in upstream zstd. The [ZstdFrame] inspection helpers
-    /// assume the standard format, so the overloads that read the decompressed
-    /// size from the frame header — [#decompress(byte[])] and
-    /// [#decompress(Arena, MemorySegment)] — reject magicless frames: supply the
-    /// size with [#decompress(byte[], ZstdByteSize)] or
-    /// [#decompress(MemorySegment, MemorySegment)].
-    ///
-    /// @param enabled whether to expect magicless frames
-    /// @return `this`, for chaining
-    public ZstdDecompressContext magicless(boolean enabled) {
-        return parameter(ZstdDecompressParameter.FORMAT, enabled ? 1 : 0);
+    void setParameter(ZstdDecompressParameter parameter, int value) {
+        NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_SET_PARAMETER.invokeExact(
+                ptr(), parameter.value(), value));
     }
 
     /// Resets this context so it can be reused for the next frame without the
@@ -361,7 +303,7 @@ public final class ZstdDecompressContext extends NativeObject {
     /// see `docs/explanation.md`.
     ///
     /// Size `dst` to the decompressed length (read it from the frame with
-    /// [Zstd#decompress(byte[])]'s header logic, or known out-of-band).
+    /// [ZstdFrame#decompressedSize(MemorySegment)], or known out-of-band).
     ///
     /// Returns a raw `long` rather than a [ZstdByteSize]: on this zero-copy path
     /// the byte count feeds straight into [MemorySegment#asSlice(long, long)], so

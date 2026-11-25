@@ -16,7 +16,8 @@ import java.lang.invoke.VarHandle;
 /// fills, and finish with [ZstdEndDirective#END] until [ZstdStreamResult#isComplete()].
 ///
 /// {@snippet :
-/// try (ZstdCompressStream cs = Zstd.newCompressStream(level)) {
+/// try (ZstdCompressStream cs = Zstd.newCompressStream()) {
+///     cs.level(level); // configure inside the try: a failing setter can't leak cs
 ///     ZstdStreamResult r;
 ///     do {
 ///         r = cs.compress(dst, src.asSlice(srcOff), ZstdEndDirective.END);
@@ -27,7 +28,7 @@ import java.lang.invoke.VarHandle;
 /// }
 ///
 /// Not thread-safe: confine an instance to a single thread.
-public final class ZstdCompressStream extends NativeObject {
+public final class ZstdCompressStream extends NativeObject implements ZstdCompressSettings<ZstdCompressStream> {
 
     // ZSTD_frameProgression fields, read through handles derived from the named layout.
     // Layout VarHandles have coordinates (MemorySegment, long base); we always pass base 0.
@@ -44,14 +45,10 @@ public final class ZstdCompressStream extends NativeObject {
     private final MemorySegment srcPos;
 
     ZstdCompressStream() {
-        this(ZstdCompressionLevel.DEFAULT);
+        this(null);
     }
 
-    ZstdCompressStream(ZstdCompressionLevel level) {
-        this(level, null);
-    }
-
-    ZstdCompressStream(ZstdCompressionLevel level, ZstdDictionary dictionary) {
+    ZstdCompressStream(ZstdDictionary dictionary) {
         // Own the context first, so any failure setting it up is cleaned up by
         // close() — one release path, no leak on a half-built stream.
         super(createCctx());
@@ -61,8 +58,6 @@ public final class ZstdCompressStream extends NativeObject {
             this.arena = Arena.ofConfined();
             this.dstPos = arena.allocate(Bindings.SIZE_T);
             this.srcPos = arena.allocate(Bindings.SIZE_T);
-            NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(
-                    ptr(), ZstdCompressParameter.COMPRESSION_LEVEL.value(), level.value()));
             if (dictionary != null) {
                 loadDictionary(dictionary);
             }
@@ -85,19 +80,9 @@ public final class ZstdCompressStream extends NativeObject {
         }
     }
 
-    /// Sets an advanced compression parameter — e.g.
-    /// [ZstdCompressParameter#NB_WORKERS] for multithreaded streaming
-    /// compression. Set it right after construction, before the first
-    /// [#compress] call; changing it mid-frame is not supported.
-    ///
-    /// @param parameter the parameter to set
-    /// @param value     the value, validated natively against the parameter's bounds
-    /// @return `this`, for chaining
-    /// @throws ZstdException if the value is out of range for the parameter
-    public ZstdCompressStream parameter(ZstdCompressParameter parameter, int value) {
+    void setParameter(ZstdCompressParameter parameter, int value) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(
                 ptr(), parameter.value(), value));
-        return this;
     }
 
     /// Compresses as much of `src` as fits into `dst` in one step.

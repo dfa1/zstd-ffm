@@ -7,7 +7,7 @@ import java.util.Optional;
 ///
 /// Backed by `long` uniformly: some sizes here are native-segment or streaming
 /// totals that can exceed [Integer#MAX_VALUE] (e.g.
-/// [Zstd#newPledgedOutputStream(java.io.OutputStream, ZstdCompressionLevel, ZstdByteSize)]),
+/// [Zstd#newPledgedOutputStream(java.io.OutputStream, ZstdByteSize)]),
 /// while others end up sizing a `byte[]` and so must additionally fit an `int`
 /// (e.g. [Zstd#decompress(byte[], ZstdByteSize)]). The latter narrow with
 /// [#toArraySize()] rather than silently truncating.

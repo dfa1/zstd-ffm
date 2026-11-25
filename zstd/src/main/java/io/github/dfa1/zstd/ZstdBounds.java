@@ -11,7 +11,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 /// The inclusive range of values a compression or decompression parameter
 /// accepts, from `ZSTD_cParam_getBounds` / `ZSTD_dParam_getBounds`.
-public final class ZstdBounds {
+final class ZstdBounds {
 
     // Offsets into the returned ZSTD_bounds struct, derived from the named layout
     // rather than hand-counted, so they track the struct definition.

@@ -23,7 +23,7 @@ Two rules cover every public type; no public type has a public constructor.
   `parse(...)` for header text), and need no cleanup.
 
 Result types — `ZstdFrameHeader`, `ZstdFrameProgression`, `ZstdStreamResult`,
-`ZstdBounds`, `ZstdSkippableContent`, `Rfc9842Negotiation` — are only ever
+`ZstdSkippableContent`, `Rfc9842Negotiation` — are only ever
 returned by the library.
 
 ## API surface
@@ -38,8 +38,8 @@ returned by the library.
 | Version | `Zstd.version()` → `ZstdVersion` |
 | Contexts | `Zstd.newCompressContext()`, `Zstd.newDecompressContext()` |
 | Digested dictionaries | `Zstd.newCompressDictionary(ZstdDictionary)`, `Zstd.newCompressDictionary(ZstdDictionary, ZstdCompressionLevel)`, `Zstd.newCompressDictionary(MemorySegment)`, `Zstd.newCompressDictionary(MemorySegment, ZstdCompressionLevel)`, `Zstd.newDecompressDictionary(ZstdDictionary)`, `Zstd.newDecompressDictionary(MemorySegment)` |
-| Segment streams | `Zstd.newCompressStream()`, `Zstd.newCompressStream(ZstdCompressionLevel)`, `Zstd.newCompressStream(ZstdCompressionLevel, ZstdDictionary)`, `Zstd.newDecompressStream()`, `Zstd.newDecompressStream(ZstdDictionary)` |
-| `java.io` streams | `Zstd.newOutputStream(OutputStream)`, `Zstd.newOutputStream(OutputStream, ZstdCompressionLevel)`, `Zstd.newOutputStream(OutputStream, ZstdDictionary)`, `Zstd.newOutputStream(OutputStream, ZstdCompressionLevel, ZstdDictionary)`, `Zstd.newPledgedOutputStream(OutputStream, ZstdCompressionLevel, ZstdByteSize)` (stamps the content size), `Zstd.newInputStream(InputStream)`, `Zstd.newInputStream(InputStream, ZstdDictionary)` |
+| Segment streams | `Zstd.newCompressStream()`, `Zstd.newCompressStream(ZstdDictionary)`, `Zstd.newDecompressStream()`, `Zstd.newDecompressStream(ZstdDictionary)` |
+| `java.io` streams | `Zstd.newOutputStream(OutputStream)`, `Zstd.newOutputStream(OutputStream, ZstdDictionary)`, `Zstd.newPledgedOutputStream(OutputStream, ZstdByteSize)` (stamps the content size), `Zstd.newInputStream(InputStream)`, `Zstd.newInputStream(InputStream, ZstdDictionary)`; set the level on the stream with `level(...)` |
 
 The `MemorySegment` overloads of the dictionary factories take native segments
 only (heap segments are rejected with `IllegalArgumentException`).
@@ -48,8 +48,8 @@ only (heap segments are rejected with `IllegalArgumentException`).
 
 | Type | Methods |
 |---|---|
-| `ZstdCompressContext` | configure: `ZstdCompressContext.level(ZstdCompressionLevel)`, `ZstdCompressContext.parameter(ZstdCompressParameter, int)`, `ZstdCompressContext.checksum(boolean)`, `ZstdCompressContext.longDistanceMatching(boolean)`, `ZstdCompressContext.windowLog(ZstdWindowLog)`, `ZstdCompressContext.reset(ZstdResetDirective)`; dictionaries: `ZstdCompressContext.loadDictionary(ZstdDictionary)` / `loadDictionary(MemorySegment)`, `ZstdCompressContext.refDictionary(ZstdCompressDictionary)`, `ZstdCompressContext.refPrefix(MemorySegment)`; compress: `compress(byte[])`, `compress(byte[], ZstdDictionary)`, `compress(byte[], ZstdCompressDictionary)`, `compress(MemorySegment dst, MemorySegment src)` (+ `ZstdCompressDictionary`), `compress(Arena, MemorySegment)` (+ `ZstdCompressDictionary`); `ZstdCompressContext.sizeOf()` |
-| `ZstdDecompressContext` | configure: `ZstdDecompressContext.parameter(ZstdDecompressParameter, int)`, `ZstdDecompressContext.windowLogMax(ZstdWindowLog)`, `ZstdDecompressContext.reset(ZstdResetDirective)`; dictionaries: `ZstdDecompressContext.loadDictionary(ZstdDictionary)` / `loadDictionary(MemorySegment)`, `ZstdDecompressContext.refDictionary(ZstdDecompressDictionary)`, `ZstdDecompressContext.refPrefix(MemorySegment)`; decompress: `decompress(byte[])`, `decompress(byte[], ZstdByteSize)`, `decompress(byte[], ZstdByteSize, ZstdDictionary)`, `decompress(byte[], ZstdByteSize, ZstdDecompressDictionary)`, `decompress(MemorySegment dst, MemorySegment src)` (+ `ZstdDecompressDictionary`), `decompress(Arena, MemorySegment)` (+ `ZstdDecompressDictionary`); `ZstdDecompressContext.sizeOf()` |
+| `ZstdCompressContext` | configure: every `ZstdCompressSettings` setter (`level`, `windowLog`, `workers`, `checksum`, `strategy`, …), `ZstdCompressContext.reset(ZstdResetDirective)`; dictionaries: `ZstdCompressContext.loadDictionary(ZstdDictionary)` / `loadDictionary(MemorySegment)`, `ZstdCompressContext.refDictionary(ZstdCompressDictionary)`, `ZstdCompressContext.refPrefix(MemorySegment)`; compress: `compress(byte[])`, `compress(byte[], ZstdDictionary)`, `compress(byte[], ZstdCompressDictionary)`, `compress(MemorySegment dst, MemorySegment src)` (+ `ZstdCompressDictionary`), `compress(Arena, MemorySegment)` (+ `ZstdCompressDictionary`); `ZstdCompressContext.sizeOf()` |
+| `ZstdDecompressContext` | configure: every `ZstdDecompressSettings` setter (`ZstdDecompressContext.windowLogMax(int)`, `ZstdDecompressContext.ignoreChecksum(boolean)`, `ZstdDecompressContext.magicless(boolean)`), `ZstdDecompressContext.reset(ZstdResetDirective)`; dictionaries: `ZstdDecompressContext.loadDictionary(ZstdDictionary)` / `loadDictionary(MemorySegment)`, `ZstdDecompressContext.refDictionary(ZstdDecompressDictionary)`, `ZstdDecompressContext.refPrefix(MemorySegment)`; decompress: `decompress(byte[])`, `decompress(byte[], ZstdByteSize)`, `decompress(byte[], ZstdByteSize, ZstdDictionary)`, `decompress(byte[], ZstdByteSize, ZstdDecompressDictionary)`, `decompress(MemorySegment dst, MemorySegment src)` (+ `ZstdDecompressDictionary`), `decompress(Arena, MemorySegment)` (+ `ZstdDecompressDictionary`); `ZstdDecompressContext.sizeOf()` |
 
 The configuring methods return the context, for chaining. The `byte[]`
 overloads copy through a native scratch buffer; the `MemorySegment` overloads
@@ -67,10 +67,10 @@ take native segments only and add no boundary copy.
 
 | Type | Methods |
 |---|---|
-| `ZstdOutputStream` | a `java.io.OutputStream` that compresses into the stream it wraps: `ZstdOutputStream.parameter(ZstdCompressParameter, int)`, `ZstdOutputStream.write(byte[], int, int)` / `write(int)`, `ZstdOutputStream.flush()`, `ZstdOutputStream.close()` (finishes the frame) |
-| `ZstdInputStream` | a `java.io.InputStream` that decompresses the stream it wraps: `ZstdInputStream.read(byte[], int, int)` / `read()`, `ZstdInputStream.close()` |
-| `ZstdCompressStream` | zero-copy segment streaming compressor: `ZstdCompressStream.compress(MemorySegment, MemorySegment, ZstdEndDirective)`, `ZstdCompressStream.parameter(ZstdCompressParameter, int)`, `ZstdCompressStream.progress()`, `ZstdCompressStream.sizeOf()` |
-| `ZstdDecompressStream` | zero-copy segment streaming decompressor: `ZstdDecompressStream.decompress(MemorySegment, MemorySegment)`, `ZstdDecompressStream.sizeOf()` |
+| `ZstdOutputStream` | a `java.io.OutputStream` that compresses into the stream it wraps: every `ZstdCompressSettings` setter, `ZstdOutputStream.write(byte[], int, int)` / `write(int)`, `ZstdOutputStream.flush()`, `ZstdOutputStream.close()` (finishes the frame) |
+| `ZstdInputStream` | a `java.io.InputStream` that decompresses the stream it wraps: `ZstdInputStream.windowLogMax(int)`, `ZstdInputStream.ignoreChecksum(boolean)`, `ZstdInputStream.magicless(boolean)`, `ZstdInputStream.read(byte[], int, int)` / `read()`, `ZstdInputStream.close()` |
+| `ZstdCompressStream` | zero-copy segment streaming compressor: `ZstdCompressStream.compress(MemorySegment, MemorySegment, ZstdEndDirective)`, every `ZstdCompressSettings` setter, `ZstdCompressStream.progress()`, `ZstdCompressStream.sizeOf()` |
+| `ZstdDecompressStream` | zero-copy segment streaming decompressor: `ZstdDecompressStream.windowLogMax(int)`, `ZstdDecompressStream.ignoreChecksum(boolean)`, `ZstdDecompressStream.magicless(boolean)`, `ZstdDecompressStream.decompress(MemorySegment, MemorySegment)`, `ZstdDecompressStream.sizeOf()` |
 | `ZstdEndDirective` | `CONTINUE`, `FLUSH`, `END` — what a `ZstdCompressStream.compress` step does with the input |
 | `ZstdStreamResult` | one streaming step: `ZstdStreamResult.bytesConsumed()`, `ZstdStreamResult.bytesProduced()`, `ZstdStreamResult.remaining()`, `ZstdStreamResult.isComplete()` |
 | `ZstdFrameProgression` | `ZstdCompressStream.progress()` snapshot: `ZstdFrameProgression.ingested()`, `ZstdFrameProgression.consumed()`, `ZstdFrameProgression.produced()`, `ZstdFrameProgression.flushed()`, `ZstdFrameProgression.currentJobId()`, `ZstdFrameProgression.activeWorkers()` |
@@ -88,9 +88,9 @@ take native segments only and add no boundary copy.
 
 | Type | Methods |
 |---|---|
-| `ZstdCompressParameter` | every `ZSTD_cParameter` (`COMPRESSION_LEVEL`, `WINDOW_LOG`, `CHECKSUM_FLAG`, `CONTENT_SIZE_FLAG`, `NB_WORKERS`, …); `ZstdCompressParameter.bounds()` |
-| `ZstdDecompressParameter` | `WINDOW_LOG_MAX`; `ZstdDecompressParameter.bounds()` |
-| `ZstdBounds` | inclusive range from `bounds()`: `ZstdBounds.lowerBound()`, `ZstdBounds.upperBound()` |
+| `ZstdCompressSettings` | the compression setters shared by `ZstdCompressContext`, `ZstdCompressStream` and `ZstdOutputStream`: one setter per parameter: `level`, `windowLog`, `hashLog`, `chainLog`, `searchLog`, `minMatch`, `targetLength`, `strategy`, `targetCBlockSize`, `longDistanceMatching`, `ldmHashLog`, `ldmMinMatch`, `ldmBucketSizeLog`, `ldmHashRateLog`, `contentSize`, `checksum`, `dictId`, `magicless`, `workers`, `jobSize`, `overlapLog` |
+| `ZstdDecompressSettings` | the decompression setters shared by `ZstdDecompressContext`, `ZstdDecompressStream` and `ZstdInputStream`: `windowLogMax`, `ignoreChecksum`, `magicless` |
+| `ZstdStrategy` | the match-finding strategies, `FAST` … `BTULTRA2` |
 | `ZstdResetDirective` | `SESSION_ONLY`, `PARAMETERS`, `SESSION_AND_PARAMETERS` — what `reset` clears |
 
 ### Value types
@@ -99,7 +99,6 @@ take native segments only and add no boundary copy.
 |---|---|---|
 | `ZstdCompressionLevel` | `ZstdCompressionLevel.of(int)`; `DEFAULT`, `FASTEST`, `MAX` | `ZstdCompressionLevel.value()` |
 | `ZstdByteSize` | `ZstdByteSize.of(long)`, `ZstdByteSize.ofKiB(long)`, `ZstdByteSize.ofMiB(long)` | `ZstdByteSize.value()`, `ZstdByteSize.toArraySize()` |
-| `ZstdWindowLog` | `ZstdWindowLog.of(int)`; `AUTO` | `ZstdWindowLog.value()` |
 | `ZstdMagicVariant` | `ZstdMagicVariant.of(int)` (`0..15`) | `ZstdMagicVariant.value()` |
 | `ZstdVersion` | `ZstdVersion.of(int, int, int)`; also `Zstd.version()` | `ZstdVersion.major()`, `ZstdVersion.minor()`, `ZstdVersion.patch()`, `ZstdVersion.number()`; `Comparable` |
 | `ZstdDictionaryId` | `ZstdDictionaryId.of(int)`; `NONE` | `ZstdDictionaryId.raw()`, `ZstdDictionaryId.value()` (unsigned), `ZstdDictionaryId.isPresent()` |
@@ -115,21 +114,19 @@ types compare by value (`equals`/`hashCode`) and print as `Name[field=value]`
 | `ZstdException` | unchecked; thrown for every zstd error: `ZstdException.code()` → `ZstdErrorCode` |
 | `ZstdErrorCode` | zstd's error enum: `ZstdErrorCode.value()`, `ZstdErrorCode.description()` |
 
-### Base classes
+### Closing resources
 
-`NativeObject` (contexts and segment streams) and `NativePointerWithRefCount`
-(digested dictionaries) are the `AutoCloseable` bases behind every resource.
-Their only public method is `NativeObject.close()` /
-`NativePointerWithRefCount.close()`; their constructors are package-private,
-so they cannot be subclassed outside the library.
+Every native-backed type (contexts, segment streams, digested dictionaries) is
+`AutoCloseable`; its only lifecycle method is `close()`. Their shared base
+classes are internal to the library.
 
 ## Lifecycle and thread safety
 
 - **Close is idempotent.** Calling `close()` again on any resource is a no-op.
 - **Use after close fails fast.** Contexts, segment streams, and digested
   dictionaries throw `IllegalStateException`. The `java.io` streams throw
-  `IOException` from `read`/`write`/`flush`, and `ZstdOutputStream.parameter`
-  throws `IllegalStateException`.
+  `IOException` from `read`/`write`/`flush`, and their setters throw
+  `IllegalStateException`.
 - **The `java.io` streams own what they wrap.** `ZstdOutputStream.close()`
   finishes the frame and then closes the wrapped `OutputStream`;
   `ZstdInputStream.close()` closes the wrapped `InputStream`.
@@ -146,7 +143,7 @@ so they cannot be subclassed outside the library.
   |---|---|
   | the static methods of `Zstd` and `ZstdFrame`; `ZstdDictionary`; `ZstdCompressDictionary` / `ZstdDecompressDictionary` (read-only once built, share freely); all value and result types (immutable) | `ZstdCompressContext`, `ZstdDecompressContext`, `ZstdCompressStream`, `ZstdDecompressStream`, `ZstdOutputStream`, `ZstdInputStream` |
 
-- A compress context used with `ZstdCompressParameter.NB_WORKERS` above zero
+- A compress context or stream with `workers(n)` above zero
   keeps worker threads that only `close()` releases (not `reset`), so give it a
   dedicated owner rather than a long-lived pool.
 

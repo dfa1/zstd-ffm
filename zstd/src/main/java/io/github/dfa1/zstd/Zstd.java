@@ -401,30 +401,19 @@ public final class Zstd {
         return new ZstdCompressStream();
     }
 
-    /// Allocates a zero-copy [MemorySegment] streaming compressor at `level`.
+    /// Allocates a zero-copy [MemorySegment] streaming compressor, compressing
+    /// against `dictionary`.
     ///
     /// The stream owns native memory: the caller must [ZstdCompressStream#close()]
     /// it. Not thread-safe.
     ///
-    /// @param level the compression level to use
+    /// @param dictionary the dictionary to compress against
     /// @return a new, open streaming compressor
-    /// @throws ZstdException if the native allocation or configuration fails
-    public static ZstdCompressStream newCompressStream(ZstdCompressionLevel level) {
-        return new ZstdCompressStream(level);
-    }
-
-    /// Allocates a zero-copy [MemorySegment] streaming compressor at `level`,
-    /// compressing against `dictionary`.
-    ///
-    /// The stream owns native memory: the caller must [ZstdCompressStream#close()]
-    /// it. Not thread-safe.
-    ///
-    /// @param level      the compression level to use
-    /// @param dictionary the dictionary to compress against, or `null` for none
-    /// @return a new, open streaming compressor
-    /// @throws ZstdException if the native allocation, configuration, or dictionary load fails
-    public static ZstdCompressStream newCompressStream(ZstdCompressionLevel level, ZstdDictionary dictionary) {
-        return new ZstdCompressStream(level, dictionary);
+    /// @throws NullPointerException if `dictionary` is `null`
+    /// @throws ZstdException        if the native allocation or dictionary load fails
+    public static ZstdCompressStream newCompressStream(ZstdDictionary dictionary) {
+        Objects.requireNonNull(dictionary, "dictionary");
+        return new ZstdCompressStream(dictionary);
     }
 
     /// Allocates a zero-copy [MemorySegment] streaming decompressor.
@@ -464,20 +453,6 @@ public final class Zstd {
         return new ZstdOutputStream(out);
     }
 
-    /// Wraps `out` in a `java.io` compressing stream at `level`.
-    ///
-    /// The stream owns native memory: the caller must [ZstdOutputStream#close()] it,
-    /// which finishes the frame and closes `out`.
-    ///
-    /// @param out   the stream to write the compressed frame to
-    /// @param level the compression level to use
-    /// @return a new compressing stream
-    /// @throws NullPointerException if `out` is `null`
-    /// @throws ZstdException        if the native allocation or configuration fails
-    public static ZstdOutputStream newOutputStream(OutputStream out, ZstdCompressionLevel level) {
-        return new ZstdOutputStream(out, level);
-    }
-
     /// Wraps `out` in a `java.io` compressing stream at the default level,
     /// compressing against `dictionary`.
     ///
@@ -493,24 +468,7 @@ public final class Zstd {
         return new ZstdOutputStream(out, dictionary);
     }
 
-    /// Wraps `out` in a `java.io` compressing stream at `level`, compressing
-    /// against `dictionary`.
-    ///
-    /// The stream owns native memory: the caller must [ZstdOutputStream#close()] it,
-    /// which finishes the frame and closes `out`.
-    ///
-    /// @param out        the stream to write the compressed frame to
-    /// @param level      the compression level to use
-    /// @param dictionary the dictionary to compress against, or `null` for none
-    /// @return a new compressing stream
-    /// @throws NullPointerException if `out` is `null`
-    /// @throws ZstdException        if the native allocation, configuration, or dictionary load fails
-    public static ZstdOutputStream newOutputStream(OutputStream out, ZstdCompressionLevel level,
-                                                   ZstdDictionary dictionary) {
-        return new ZstdOutputStream(out, level, dictionary);
-    }
-
-    /// Wraps `out` in a `java.io` compressing stream at `level` that declares the
+    /// Wraps `out` in a `java.io` compressing stream that declares the
     /// exact total number of bytes that will be written, so the frame header
     /// records the decompressed size — letting a reader use [#decompress(byte[])]
     /// instead of supplying a bound. Writing a different total raises an error
@@ -522,14 +480,12 @@ public final class Zstd {
     /// the frame and closes `out`.
     ///
     /// @param out            the stream to write the compressed frame to
-    /// @param level          the compression level to use
     /// @param pledgedSrcSize the exact number of uncompressed bytes that will be written
     /// @return a new compressing stream that stamps the content size into the frame
     /// @throws NullPointerException if any argument is `null`
     /// @throws ZstdException        if the native allocation or configuration fails
-    public static ZstdOutputStream newPledgedOutputStream(OutputStream out, ZstdCompressionLevel level,
-                                                          ZstdByteSize pledgedSrcSize) {
-        return ZstdOutputStream.withPledgedSize(out, level, pledgedSrcSize);
+    public static ZstdOutputStream newPledgedOutputStream(OutputStream out, ZstdByteSize pledgedSrcSize) {
+        return ZstdOutputStream.withPledgedSize(out, pledgedSrcSize);
     }
 
     /// Wraps `in` in a `java.io` stream that decompresses the zstd frames it carries.

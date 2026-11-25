@@ -10,7 +10,7 @@ import java.util.Objects;
 /// state allocation, making it cheaper than the stateless [Zstd#compress]
 /// on hot paths. Not thread-safe: confine an instance to one thread or pool it.
 ///
-/// A context that has compressed with [ZstdCompressParameter#NB_WORKERS]
+/// A context that has compressed with [#workers(int)]
 /// set above zero owns live native worker threads and job buffers that
 /// [#reset(ZstdResetDirective)] does **not** release — only [#close()]
 /// frees them. Give such a context a dedicated owner and close it when
@@ -24,12 +24,7 @@ import java.util.Objects;
 ///     }
 /// }
 /// }
-public final class ZstdCompressContext extends NativeObject {
-
-    /// `ZSTD_ps_enable`, a `ZSTD_ParamSwitch_e` value.
-    private static final int PARAM_SWITCH_ENABLE = 1;
-    /// `ZSTD_ps_disable`, a `ZSTD_ParamSwitch_e` value.
-    private static final int PARAM_SWITCH_DISABLE = 2;
+public final class ZstdCompressContext extends NativeObject implements ZstdCompressSettings<ZstdCompressContext> {
 
     private ZstdCompressionLevel level;
     private ZstdCompressDictionary refDict;
@@ -46,86 +41,6 @@ public final class ZstdCompressContext extends NativeObject {
 
     private static MemorySegment createNative() {
         return NativeCall.createOrThrow("ZSTD_createCCtx", () -> (MemorySegment) Bindings.CREATE_CCTX.invokeExact());
-    }
-
-    /// Sets the compression level for subsequent [#compress] calls.
-    ///
-    /// @param level the compression level to use
-    /// @return `this`, for chaining
-    public ZstdCompressContext level(ZstdCompressionLevel level) {
-        this.level = level;
-        setParam(ZstdCompressParameter.COMPRESSION_LEVEL, level.value());
-        return this;
-    }
-
-    /// Sets an advanced compression parameter for subsequent
-    /// [#compress(byte[])] / [#compress(MemorySegment, MemorySegment)]
-    /// calls. The setting is sticky across calls until changed.
-    ///
-    /// Advanced parameters do not apply to the dictionary `compress` overloads.
-    ///
-    /// @param parameter the parameter to set
-    /// @param value     the value, validated natively against the parameter's bounds
-    /// @return `this`, for chaining
-    /// @throws ZstdException if the value is out of range for the parameter
-    public ZstdCompressContext parameter(ZstdCompressParameter parameter, int value) {
-        setParam(parameter, value);
-        return this;
-    }
-
-    /// Appends a 32-bit content checksum to each frame, which decompression
-    /// verifies and rejects on mismatch. Off by default.
-    ///
-    /// @param enabled whether to write a checksum
-    /// @return `this`, for chaining
-    public ZstdCompressContext checksum(boolean enabled) {
-        return parameter(ZstdCompressParameter.CHECKSUM_FLAG, enabled ? 1 : 0);
-    }
-
-    /// Writes magicless frames, which omit the 4-byte magic number `28 B5 2F FD`,
-    /// saving 4 bytes per frame when storing many tiny frames. Off by default.
-    ///
-    /// **Experimental** in upstream zstd. The frames decode only with a
-    /// [ZstdDecompressContext] set to [ZstdDecompressContext#magicless(boolean)],
-    /// and are not recognized by [Zstd#decompress(byte[])] or the [ZstdFrame]
-    /// inspection helpers, which assume the standard format.
-    ///
-    /// @param enabled whether to omit the magic number
-    /// @return `this`, for chaining
-    public ZstdCompressContext magicless(boolean enabled) {
-        return parameter(ZstdCompressParameter.FORMAT, enabled ? 1 : 0);
-    }
-
-    /// Forces long-distance matching on (`true`) or off (`false`). On, it gives a
-    /// better ratio on large, repetitive inputs at the cost of memory.
-    ///
-    /// Without this call zstd decides on its own, from the *effective*
-    /// parameters (after it shrinks the window to fit an input of known size):
-    /// it enables long-distance matching when the strategy is btopt or stronger
-    /// (level 16+ on large inputs) and the window log is at least 27. Out of the
-    /// box that means level 22, or an explicit `windowLog` of 27+, and only for
-    /// inputs over 64 MiB or of unknown size.
-    ///
-    /// @param enabled `true` to force long-distance matching on, `false` to force it off
-    /// @return `this`, for chaining
-    public ZstdCompressContext longDistanceMatching(boolean enabled) {
-        // ZSTD_c_enableLongDistanceMatching is a ZSTD_ParamSwitch_e, not a boolean:
-        // 0 = auto, 1 = enable, 2 = disable. Sending 0 for `false` would select auto.
-        return parameter(ZstdCompressParameter.ENABLE_LONG_DISTANCE_MATCHING,
-                enabled ? PARAM_SWITCH_ENABLE : PARAM_SWITCH_DISABLE);
-    }
-
-    /// Sets the maximum back-reference distance as a power of two (larger window =
-    /// better ratio, more memory). A frame whose window exceeds `27` (128 MiB)
-    /// is rejected by streaming decoders until their limit is raised with
-    /// [ZstdInputStream#windowLogMax(ZstdWindowLog)]; one-shot decompression
-    /// accepts it as is.
-    ///
-    /// @param windowLog the base-2 log of the window size
-    /// @return `this`, for chaining
-    public ZstdCompressContext windowLog(ZstdWindowLog windowLog) {
-        Objects.requireNonNull(windowLog, "windowLog");
-        return parameter(ZstdCompressParameter.WINDOW_LOG, windowLog.value());
     }
 
     /// Resets this context so it can be reused for the next frame without the
@@ -331,8 +246,13 @@ public final class ZstdCompressContext extends NativeObject {
         }
     }
 
-    private void setParam(ZstdCompressParameter parameter, int value) {
+    void setParameter(ZstdCompressParameter parameter, int value) {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(ptr(), parameter.value(), value));
+        if (parameter == ZstdCompressParameter.COMPRESSION_LEVEL) {
+            // The per-call dictionary overloads read the level from this cache, so
+            // level(...) must land here.
+            this.level = value == 0 ? ZstdCompressionLevel.DEFAULT : ZstdCompressionLevel.of(value);
+        }
     }
 
     /// Compresses `src` against `dict` at this context's level.

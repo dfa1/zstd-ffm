@@ -150,7 +150,8 @@ Path packed   = Path.of("data.bin.zst");
 Path restored = Path.of("data.restored.bin");
 
 // compress a file as you write it
-try (var out = Zstd.newOutputStream(Files.newOutputStream(packed), ZstdCompressionLevel.of(9))) {
+try (var out = Zstd.newOutputStream(Files.newOutputStream(packed))) {
+    out.level(ZstdCompressionLevel.of(9));
     Files.copy(source, out);
 }
 

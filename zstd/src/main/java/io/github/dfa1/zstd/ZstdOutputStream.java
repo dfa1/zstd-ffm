@@ -20,13 +20,14 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// Closing finishes the frame and closes the underlying stream.
 ///
 /// {@snippet :
-/// try (ZstdOutputStream zout = Zstd.newOutputStream(Files.newOutputStream(path), ZstdCompressionLevel.of(19))) {
+/// try (ZstdOutputStream zout = Zstd.newOutputStream(Files.newOutputStream(path))) {
+///     zout.level(ZstdCompressionLevel.of(19)); // configure inside the try: a failing setter can't leak zout
 ///     source.transferTo(zout);
 /// }
 /// }
 ///
 /// Not thread-safe: confine an instance to a single thread.
-public final class ZstdOutputStream extends OutputStream {
+public final class ZstdOutputStream extends OutputStream implements ZstdCompressSettings<ZstdOutputStream> {
 
     // ZSTD_EndDirective values from zstd.h — see
     // https://facebook.github.io/zstd/doc/api_manual_latest.html
@@ -48,34 +49,24 @@ public final class ZstdOutputStream extends OutputStream {
     private boolean closed;
 
     ZstdOutputStream(OutputStream out) {
-        this(out, ZstdCompressionLevel.DEFAULT);
-    }
-
-    ZstdOutputStream(OutputStream out, ZstdCompressionLevel level) {
-        this(out, level, null);
-    }
-
-    ZstdOutputStream(OutputStream out, ZstdDictionary dictionary) {
-        this(out, ZstdCompressionLevel.DEFAULT, dictionary);
+        this(out, null);
     }
 
     /// Builds a compressing stream that declares `pledgedSrcSize` up front; the
-    /// public entry point is [Zstd#newPledgedOutputStream(OutputStream, ZstdCompressionLevel, ZstdByteSize)].
+    /// public entry point is [Zstd#newPledgedOutputStream(OutputStream, ZstdByteSize)].
     ///
     /// Arguments are validated before any native allocation, and a failure while
     /// setting the pledged size releases the native context and arena without
     /// touching `out`.
     ///
     /// @param out            the stream to write the compressed frame to
-    /// @param level          the compression level to use
     /// @param pledgedSrcSize the exact number of uncompressed bytes that will be written
     /// @return a stream that will stamp the content size into the frame
-    static ZstdOutputStream withPledgedSize(OutputStream out, ZstdCompressionLevel level, ZstdByteSize pledgedSrcSize) {
+    static ZstdOutputStream withPledgedSize(OutputStream out, ZstdByteSize pledgedSrcSize) {
         Objects.requireNonNull(out, "out");
-        Objects.requireNonNull(level, "level");
         Objects.requireNonNull(pledgedSrcSize, "pledgedSrcSize");
         long size = pledgedSrcSize.value();
-        return initOrRelease(new ZstdOutputStream(out, level), stream -> stream.setPledgedSrcSize(size));
+        return initOrRelease(new ZstdOutputStream(out), stream -> stream.setPledgedSrcSize(size));
     }
 
     /// Runs `init` on a freshly built `stream`; if it throws, frees the stream's
@@ -110,7 +101,7 @@ public final class ZstdOutputStream extends OutputStream {
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PLEDGED_SRC_SIZE.invokeExact(cctx, pledgedSrcSize));
     }
 
-    ZstdOutputStream(OutputStream out, ZstdCompressionLevel level, ZstdDictionary dictionary) {
+    ZstdOutputStream(OutputStream out, ZstdDictionary dictionary) {
         this.out = Objects.requireNonNull(out, "out");
         this.arena = Arena.ofConfined();
         this.single = new byte[1];
@@ -120,8 +111,6 @@ public final class ZstdOutputStream extends OutputStream {
             this.outBuf = new ZstdStreamBuffer(arena);
             c = NativeCall.createOrThrow("ZSTD_createCCtx", () -> (MemorySegment) Bindings.CREATE_CCTX.invokeExact());
             this.cctx = c;
-            NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(
-                    cctx, ZstdCompressParameter.COMPRESSION_LEVEL.value(), level.value()));
             if (dictionary != null) {
                 loadDictionary(dictionary);
             }
@@ -158,24 +147,13 @@ public final class ZstdOutputStream extends OutputStream {
         }
     }
 
-    /// Sets an advanced compression parameter — e.g.
-    /// [ZstdCompressParameter#NB_WORKERS] for multithreaded compression of a
-    /// large or unbounded [#write] stream. Set it right after construction,
-    /// before the first `write`; changing it mid-frame is not supported.
-    ///
-    /// @param parameter the parameter to set
-    /// @param value     the value, validated natively against the parameter's bounds
-    /// @return `this`, for chaining
-    /// @throws ZstdException if the value is out of range for the parameter
-    /// @throws IllegalStateException if this stream is closed
-    public ZstdOutputStream parameter(ZstdCompressParameter parameter, int value) {
+    void setParameter(ZstdCompressParameter parameter, int value) {
         if (closed) {
             // close() frees the cctx: setting a parameter on it would be a use-after-free
             throw new IllegalStateException("stream closed");
         }
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(
                 cctx, parameter.value(), value));
-        return this;
     }
 
     @Override

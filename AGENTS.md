@@ -58,17 +58,18 @@ Never mutate `~/.m2/repository` by hand either.
 - Run with `--enable-native-access=ALL-UNNAMED`.
 - **Wrap naked `int`/`long`/`String` at public boundaries** when the value has a
   validity constraint, unit, or semantic identity — sizes (`ZstdByteSize`),
-  levels (`ZstdCompressionLevel`), versions (`ZstdVersion`), window logs
-  (`ZstdWindowLog`), magic variants (`ZstdMagicVariant`), dictionary ids
+  levels (`ZstdCompressionLevel`), versions (`ZstdVersion`), magic variants (`ZstdMagicVariant`), dictionary ids
   (`ZstdDictionaryId`). Validate once at construction so illegal states are
   unrepresentable rather than guarded by scattered runtime checks; for
   hostile/unrepresentable input return `Optional<VO>` instead of throwing. This
-  sweep is considered done — see CHANGELOG.md's Unreleased section. Exception:
-  heterogeneous native passthroughs like
-  `ZstdCompressContext#parameter(ZstdCompressParameter, int)` stay raw `int`,
-  since the value's meaning depends on which enum constant is passed and native
-  bounds-checking already validates it; the common cases have typed convenience
-  methods (`level()`, `windowLog(ZstdWindowLog)`, `checksum(boolean)`).
+  sweep is considered done — see CHANGELOG.md's Unreleased section. **One named
+  setter per native parameter** (`hashLog(int)`, `workers(int)`,
+  `checksum(boolean)`, `strategy(ZstdStrategy)`, `level(ZstdCompressionLevel)`, …),
+  never a generic `parameter(id, int)`. Numeric setters validate `0` or the
+  parameter's native bounds before reaching native code. Setters live once, as
+  default methods of the sealed `ZstdCompressSettings` / `ZstdDecompressSettings`,
+  shared by each side's context and both streams; the `ZstdCompressParameter` /
+  `ZstdDecompressParameter` enums are package-private tables of native ids.
 - **`Optional` is a return type only** — never a constructor or method
   parameter, never a field. Take a nullable `T` (javadoc: "or `null` if …"),
   store it as is, and expose it through an `Optional<T>` accessor returning

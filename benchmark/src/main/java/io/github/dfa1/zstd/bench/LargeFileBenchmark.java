@@ -115,7 +115,8 @@ public class LargeFileBenchmark {
     @Benchmark
     public long zstdJavaStream() throws IOException {
         try (InputStream in = new BufferedInputStream(Files.newInputStream(sourceFile), CHUNK);
-             ZstdOutputStream out = Zstd.newOutputStream(Files.newOutputStream(destFile), ZstdCompressionLevel.of(level))) {
+             ZstdOutputStream out = Zstd.newOutputStream(Files.newOutputStream(destFile))) {
+            out.level(ZstdCompressionLevel.of(level));
             byte[] buffer = new byte[CHUNK];
             long total = 0;
             int n;
@@ -151,7 +152,8 @@ public class LargeFileBenchmark {
              FileChannel out = FileChannel.open(destFile, StandardOpenOption.WRITE,
                      StandardOpenOption.TRUNCATE_EXISTING);
              Arena arena = Arena.ofConfined();
-             ZstdCompressStream cs = Zstd.newCompressStream(ZstdCompressionLevel.of(level))) {
+             ZstdCompressStream cs = Zstd.newCompressStream()) {
+            cs.level(ZstdCompressionLevel.of(level));
             MemorySegment source = in.map(FileChannel.MapMode.READ_ONLY, 0, size, arena);
             if (advise) {
                 adviseWillNeed(source);

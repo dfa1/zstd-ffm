@@ -269,7 +269,8 @@ class ZstdInteropExtrasTest {
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
 
             // When
-            try (ZstdOutputStream zout = Zstd.newOutputStream(sink, ZstdCompressionLevel.of(7))) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink)) {
+                zout.level(ZstdCompressionLevel.of(7));
                 writeInChunks(zout, data);
             }
 
