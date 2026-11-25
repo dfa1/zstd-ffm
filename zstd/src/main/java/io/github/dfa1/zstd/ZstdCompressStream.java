@@ -6,8 +6,6 @@ import java.lang.foreign.MemoryLayout.PathElement;
 import java.lang.foreign.SegmentAllocator;
 import java.lang.invoke.VarHandle;
 
-import static java.lang.foreign.ValueLayout.JAVA_LONG;
-
 /// A low-level, zero-copy streaming compressor driven with native
 /// [MemorySegment] buffers — no heap `byte[]` bounce.
 ///
@@ -61,8 +59,8 @@ public final class ZstdCompressStream extends NativeObject {
             // Inside the try: a failed arena or allocation must still free the
             // context (and the arena, once it exists) through close().
             this.arena = Arena.ofConfined();
-            this.dstPos = arena.allocate(JAVA_LONG);
-            this.srcPos = arena.allocate(JAVA_LONG);
+            this.dstPos = arena.allocate(Bindings.SIZE_T);
+            this.srcPos = arena.allocate(Bindings.SIZE_T);
             NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_SET_PARAMETER.invokeExact(
                     ptr(), ZstdCompressParameter.COMPRESSION_LEVEL.value(), level.value()));
             if (dictionary != null) {
@@ -116,11 +114,11 @@ public final class ZstdCompressStream extends NativeObject {
     public ZstdStreamResult compress(MemorySegment dst, MemorySegment src, ZstdEndDirective directive) {
         NativeCall.requireWritable(dst, "dst");
         NativeCall.requireReadable(src, "src");
-        dstPos.set(JAVA_LONG, 0, 0L);
-        srcPos.set(JAVA_LONG, 0, 0L);
+        dstPos.set(Bindings.SIZE_T, 0, 0L);
+        srcPos.set(Bindings.SIZE_T, 0, 0L);
         long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS_STREAM2_SIMPLE_ARGS.invokeExact(
                 ptr(), dst, dst.byteSize(), dstPos, src, src.byteSize(), srcPos, directive.value()));
-        return ZstdStreamResult.of(srcPos.get(JAVA_LONG, 0), dstPos.get(JAVA_LONG, 0), remaining);
+        return ZstdStreamResult.of(srcPos.get(Bindings.SIZE_T, 0), dstPos.get(Bindings.SIZE_T, 0), remaining);
     }
 
     /// A live snapshot of how much this stream has ingested, compressed, produced,

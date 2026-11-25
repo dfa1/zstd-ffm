@@ -4,8 +4,6 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
-import static java.lang.foreign.ValueLayout.JAVA_LONG;
-
 /// A low-level, zero-copy streaming decompressor driven with native
 /// [MemorySegment] buffers — no heap `byte[]` bounce.
 ///
@@ -35,8 +33,8 @@ public final class ZstdDecompressStream extends NativeObject {
             // Inside the try: a failed arena or allocation must still free the
             // context (and the arena, once it exists) through close().
             this.arena = Arena.ofConfined();
-            this.dstPos = arena.allocate(JAVA_LONG);
-            this.srcPos = arena.allocate(JAVA_LONG);
+            this.dstPos = arena.allocate(Bindings.SIZE_T);
+            this.srcPos = arena.allocate(Bindings.SIZE_T);
             if (dictionary != null) {
                 loadDictionary(dictionary);
             }
@@ -115,11 +113,11 @@ public final class ZstdDecompressStream extends NativeObject {
     public ZstdStreamResult decompress(MemorySegment dst, MemorySegment src) {
         NativeCall.requireWritable(dst, "dst");
         NativeCall.requireReadable(src, "src");
-        dstPos.set(JAVA_LONG, 0, 0L);
-        srcPos.set(JAVA_LONG, 0, 0L);
+        dstPos.set(Bindings.SIZE_T, 0, 0L);
+        srcPos.set(Bindings.SIZE_T, 0, 0L);
         long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_STREAM_SIMPLE_ARGS.invokeExact(
                 ptr(), dst, dst.byteSize(), dstPos, src, src.byteSize(), srcPos));
-        return ZstdStreamResult.of(srcPos.get(JAVA_LONG, 0), dstPos.get(JAVA_LONG, 0), remaining);
+        return ZstdStreamResult.of(srcPos.get(Bindings.SIZE_T, 0), dstPos.get(Bindings.SIZE_T, 0), remaining);
     }
 
     /// Current native memory used by this stream's context, in bytes.

@@ -8,7 +8,6 @@ import java.lang.invoke.MethodHandle;
 import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_INT;
-import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 /// The inclusive range of values a compression or decompression parameter
 /// accepts, from `ZSTD_cParam_getBounds` / `ZSTD_dParam_getBounds`.
@@ -48,7 +47,7 @@ public final class ZstdBounds {
             // viewing it. Passing the arena makes the struct arena-owned (freed on
             // close); the cast satisfies invokeExact's exact-type requirement.
             MemorySegment bounds = (MemorySegment) getBounds.invokeExact((SegmentAllocator) arena, parameter);
-            long error = bounds.get(JAVA_LONG, ERROR_OFFSET);
+            long error = bounds.get(Bindings.SIZE_T, ERROR_OFFSET);
             if (NativeCall.isError(error)) {
                 throw new ZstdException("parameter has no queryable bounds");
             }
