@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /// The pointer lives in an [AtomicReference] that is swapped to
 /// [MemorySegment#NULL] on [#close()], so [#tryClose] runs
 /// exactly once even under concurrent or repeated close calls.
-public abstract class NativeObject implements AutoCloseable {
+abstract class NativeObject implements AutoCloseable {
 
     private final AtomicReference<MemorySegment> ptr;
 

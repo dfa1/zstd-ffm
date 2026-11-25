@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -14,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 import static io.github.dfa1.zstd.ZstdTestSupport.bytesOf;
 import static io.github.dfa1.zstd.ZstdTestSupport.segmentOf;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /// Multithreaded compression via `NB_WORKERS`. zstd engages workers only when
 /// the pledged source size exceeds its internal job-size minimum (512 KiB), so
@@ -39,7 +42,7 @@ class ZstdMultithreadTest {
             // Given a context configured with worker threads
             byte[] frame;
             try (ZstdCompressContext sut = Zstd.newCompressContext()) {
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
+                sut.workers(nbWorkers);
 
                 // When compressing a payload large enough to engage the workers
                 frame = sut.compress(LARGE_PAYLOAD);
@@ -55,7 +58,7 @@ class ZstdMultithreadTest {
             // MT minimum, where multithreading silently disengages
             byte[] frame;
             try (ZstdCompressContext sut = Zstd.newCompressContext()) {
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, 2);
+                sut.workers(2);
 
                 // When compressing the small payload
                 frame = sut.compress(SMALL_PAYLOAD);
@@ -70,9 +73,9 @@ class ZstdMultithreadTest {
             // Given workers combined with an explicit job size and overlap
             byte[] frame;
             try (ZstdCompressContext sut = Zstd.newCompressContext()) {
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, 2)
-                        .parameter(ZstdCompressParameter.JOB_SIZE, 1024 * 1024)
-                        .parameter(ZstdCompressParameter.OVERLAP_LOG, 5);
+                sut.workers(2)
+                        .jobSize(ZstdByteSize.ofMiB(1))
+                        .overlapLog(5);
 
                 // When compressing across multiple jobs
                 frame = sut.compress(LARGE_PAYLOAD);
@@ -93,7 +96,7 @@ class ZstdMultithreadTest {
             byte[] frame;
             try (Arena arena = Arena.ofConfined();
                  ZstdCompressStream sut = Zstd.newCompressStream()) {
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
+                sut.workers(nbWorkers);
 
                 // When compressing a payload large enough to engage the workers
                 MemorySegment src = segmentOf(arena, LARGE_PAYLOAD);
@@ -116,7 +119,7 @@ class ZstdMultithreadTest {
             // Given an output stream configured with worker threads
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
             try (ZstdOutputStream sut = Zstd.newOutputStream(sink)) {
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
+                sut.workers(nbWorkers);
 
                 // When writing a payload large enough to engage the workers
                 sut.write(LARGE_PAYLOAD);
@@ -138,7 +141,7 @@ class ZstdMultithreadTest {
                 long baseline = sut.sizeOf().value();
 
                 // When compressing with workers, then resetting session and parameters
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, 2);
+                sut.workers(2);
                 sut.compress(LARGE_PAYLOAD);
                 long afterMultithread = sut.sizeOf().value();
                 sut.reset(ZstdResetDirective.SESSION_AND_PARAMETERS);
@@ -167,35 +170,31 @@ class ZstdMultithreadTest {
             assertThat(bounds.upperBound()).isGreaterThanOrEqualTo(1);
         }
 
-        @Test
-        void clampsWorkerCountAboveBoundsInsteadOfRejecting() {
-            // Given a worker count above the native maximum — zstd clamps
-            // NB_WORKERS into bounds (like COMPRESSION_LEVEL) instead of
-            // erroring, unlike most other advanced parameters
-            int aboveMax = ZstdCompressParameter.NB_WORKERS.bounds().upperBound() + 1;
-            byte[] frame;
+        @ParameterizedTest
+        @ValueSource(ints = {-1, Integer.MAX_VALUE})
+        void workerCountOutsideTheBoundsIsRejectedBeforeReachingZstd(int count) {
+            // Given a context and a worker count zstd would silently clamp (below 0, above the maximum)
             try (ZstdCompressContext sut = Zstd.newCompressContext()) {
-                // When setting it and compressing
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, aboveMax);
-                frame = sut.compress(LARGE_PAYLOAD);
-            }
+                // When setting it
+                ThrowingCallable result = () -> sut.workers(count);
 
-            // Then the value was clamped to the maximum and the frame round-trips
-            assertThat(Zstd.decompress(frame)).isEqualTo(LARGE_PAYLOAD);
+                // Then it is rejected up front instead
+                assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("workers(" + count + ")");
+            }
         }
 
         @Test
-        void clampsNegativeWorkerCountToSingleThreaded() {
-            // Given a negative worker count, which zstd clamps to 0
-            byte[] frame;
+        void workerCountAtTheMaximumIsAccepted() {
+            // Given a context and the largest worker count the library accepts
+            int max = ZstdCompressParameter.NB_WORKERS.bounds().upperBound();
             try (ZstdCompressContext sut = Zstd.newCompressContext()) {
-                // When setting it and compressing
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, -1);
-                frame = sut.compress(SMALL_PAYLOAD);
-            }
+                // When setting it
+                ThrowingCallable result = () -> sut.workers(max);
 
-            // Then compression proceeds single-threaded and round-trips
-            assertThat(Zstd.decompress(frame)).isEqualTo(SMALL_PAYLOAD);
+                // Then it is accepted
+                assertThatCode(result).doesNotThrowAnyException();
+            }
         }
     }
 }

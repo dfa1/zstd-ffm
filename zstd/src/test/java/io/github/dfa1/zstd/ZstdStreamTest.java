@@ -191,7 +191,8 @@ class ZstdStreamTest {
             // Given a stream told the exact total up front
             byte[] original = "pledged payload ".repeat(300).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdCompressionLevel.of(6), ZstdByteSize.of(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(original.length))) {
+                zout.level(ZstdCompressionLevel.of(6));
                 zout.write(original);
             }
             byte[] frame = sink.toByteArray();
@@ -224,7 +225,8 @@ class ZstdStreamTest {
             // Given a frame that records its decompressed size
             byte[] original = "sized frame ".repeat(300).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdCompressionLevel.of(6), ZstdByteSize.of(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(original.length))) {
+                zout.level(ZstdCompressionLevel.of(6));
                 zout.write(original);
             }
             byte[] frame = sink.toByteArray();
@@ -263,7 +265,8 @@ class ZstdStreamTest {
             // Given a streamed frame that pledged its total up front
             byte[] original = "pledge enables zero-copy ".repeat(500).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdCompressionLevel.of(6), ZstdByteSize.of(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(original.length))) {
+                zout.level(ZstdCompressionLevel.of(6));
                 zout.write(original);
             }
             byte[] frame = sink.toByteArray();
@@ -296,7 +299,7 @@ class ZstdStreamTest {
             // Given a fresh output stream
             try (ZstdOutputStream zout = Zstd.newOutputStream(new ByteArrayOutputStream())) {
                 // When setting an advanced parameter
-                ZstdOutputStream result = zout.parameter(ZstdCompressParameter.CHECKSUM_FLAG, 1);
+                ZstdOutputStream result = zout.checksum(true);
 
                 // Then it returns the same instance, for chaining
                 assertThat(result).isSameAs(zout);
@@ -308,10 +311,10 @@ class ZstdStreamTest {
             // Given a fresh output stream
             try (ZstdOutputStream zout = Zstd.newOutputStream(new ByteArrayOutputStream())) {
                 // When setting an absurd window log
-                ThrowingCallable result = () -> zout.parameter(ZstdCompressParameter.WINDOW_LOG, 99);
+                ThrowingCallable result = () -> zout.windowLog(99);
 
-                // Then it is rejected natively
-                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+                // Then it is rejected before reaching native code
+                assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
             }
         }
     }
@@ -326,7 +329,7 @@ class ZstdStreamTest {
             // Given a fresh input stream
             try (ZstdInputStream zin = Zstd.newInputStream(new ByteArrayInputStream(Zstd.compress(PAYLOAD)))) {
                 // When setting an advanced parameter
-                ZstdInputStream result = zin.windowLogMax(ZstdWindowLog.of(27));
+                ZstdInputStream result = zin.windowLogMax(27);
 
                 // Then it returns the same instance, for chaining
                 assertThat(result).isSameAs(zin);
@@ -340,7 +343,7 @@ class ZstdStreamTest {
             // that accepts at most a 1 KiB window
             byte[] frame = Zstd.compress(randomBytes(0x4F, 1024 * 1024));
             try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(frame))
-                    .windowLogMax(ZstdWindowLog.of(10))) {
+                    .windowLogMax(10)) {
                 // When reading it
                 ThrowingCallable result = sut::readAllBytes;
 
@@ -364,6 +367,58 @@ class ZstdStreamTest {
                         .isInstanceOfSatisfying(ZstdException.class,
                                 e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.FRAME_PARAMETER_WINDOW_TOO_LARGE));
             }
+        }
+
+        @Test
+        void magiclessStreamReadsAMagiclessFrame() throws IOException {
+            // Given a magicless frame
+            byte[] frame;
+            try (ZstdCompressContext cctx = Zstd.newCompressContext().magicless(true)) {
+                frame = cctx.compress(PAYLOAD);
+            }
+
+            // When reading it through a magicless stream
+            byte[] restored;
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(frame)).magicless(true)) {
+                restored = sut.readAllBytes();
+            }
+
+            // Then the payload comes back
+            assertThat(restored).isEqualTo(PAYLOAD);
+        }
+
+        @Test
+        void defaultStreamRejectsAMagiclessFrame() throws IOException {
+            // Given a magicless frame and a standard-format stream
+            byte[] frame;
+            try (ZstdCompressContext cctx = Zstd.newCompressContext().magicless(true)) {
+                frame = cctx.compress(PAYLOAD);
+            }
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(frame))) {
+                // When reading it
+                ThrowingCallable result = sut::readAllBytes;
+
+                // Then the missing magic number is rejected
+                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+            }
+        }
+
+        @Test
+        void magiclessOutputStreamRoundTripsThroughAMagiclessInputStream() throws IOException {
+            // Given a payload written through a magicless output stream
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink).magicless(true)) {
+                zout.write(PAYLOAD);
+            }
+
+            // When reading it back through a magicless input stream
+            byte[] restored;
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(sink.toByteArray())).magicless(true)) {
+                restored = sut.readAllBytes();
+            }
+
+            // Then the payload comes back
+            assertThat(restored).isEqualTo(PAYLOAD);
         }
 
         @Test
@@ -438,7 +493,8 @@ class ZstdStreamTest {
             // Given a payload written but not yet closed
             byte[] original = "flushed payload ".repeat(2000).getBytes(StandardCharsets.UTF_8);
             CountingOutputStream sink = new CountingOutputStream();
-            try (ZstdOutputStream zout = Zstd.newOutputStream(sink, ZstdCompressionLevel.of(3))) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink)) {
+                zout.level(ZstdCompressionLevel.of(3));
                 zout.write(original);
 
                 // When flushed mid-stream
@@ -462,7 +518,7 @@ class ZstdStreamTest {
             // Given a payload written to a stream that tracks flush/close on its sink
             byte[] original = "epilogue payload ".repeat(1000).getBytes(StandardCharsets.UTF_8);
             CountingOutputStream sink = new CountingOutputStream();
-            ZstdOutputStream zout = Zstd.newOutputStream(sink, ZstdCompressionLevel.of(3));
+            ZstdOutputStream zout = Zstd.newOutputStream(sink).level(ZstdCompressionLevel.of(3));
             zout.write(original);
 
             // When closed twice
@@ -499,7 +555,22 @@ class ZstdStreamTest {
             sut.close();
 
             // When a parameter is set on it
-            ThrowingCallable result = () -> sut.parameter(ZstdCompressParameter.NB_WORKERS, 2);
+            ThrowingCallable result = () -> sut.workers(2);
+
+            // Then it refuses before reaching native code
+            assertThatThrownBy(result)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("stream closed");
+        }
+
+        @Test
+        void inputStreamSetterAfterCloseThrowsInsteadOfTouchingTheFreedContext() throws IOException {
+            // Given a closed input stream, whose native dctx has been freed
+            ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(new byte[0]));
+            sut.close();
+
+            // When a setting is applied to it
+            ThrowingCallable result = () -> sut.magicless(true);
 
             // Then it refuses before reaching native code
             assertThatThrownBy(result)
@@ -510,20 +581,6 @@ class ZstdStreamTest {
 
     @Nested
     class ConstructionFailure {
-
-        @Test
-        void outputStreamWithoutLevelFailsAfterCreatingItsContext() {
-            // Given a sink and a dictionary, but no compression level
-            ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            ZstdDictionary dict = trainDictionary(3000);
-
-            // When constructing the stream, which fails once the native context exists
-            ThrowingCallable result = () -> Zstd.newOutputStream(sink, null, dict);
-
-            // Then the failure propagates (after the half-built stream released its context)
-            assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
-            assertThat(sink.size()).isZero();
-        }
 
         @Test
         void inputStreamWithCorruptDictionaryFailsAfterCreatingItsContext() {
@@ -715,7 +772,8 @@ class ZstdStreamTest {
 
     private static byte[] streamCompress(byte[] data, ZstdCompressionLevel level) throws IOException {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
-        try (ZstdOutputStream zout = Zstd.newOutputStream(sink, level)) {
+        try (ZstdOutputStream zout = Zstd.newOutputStream(sink)) {
+            zout.level(level);
             zout.write(data);
         }
         return sink.toByteArray();

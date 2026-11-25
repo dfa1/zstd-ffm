@@ -165,7 +165,7 @@ MemorySegment decoded = dctx.decompress(arena, frame); // header-sized, exact le
 
 The arena form of `decompress` needs the frame to store its decompressed size.
 One-shot compression stamps it — `Zstd.compress` always, a context's `compress`
-unless you set `ZstdCompressParameter.CONTENT_SIZE_FLAG` to `0`; a *streamed*
+unless you turn it off with `contentSize(false)`; a *streamed*
 frame only does if you pledge the size up front (see below). For size-less
 frames, size `dst` yourself.
 
@@ -211,7 +211,8 @@ source, drain `dst`, and for compression finish with `ZstdEndDirective.END` unti
 `isComplete()`:
 
 ```java
-try (ZstdCompressStream cs = Zstd.newCompressStream(level)) {
+try (ZstdCompressStream cs = Zstd.newCompressStream()) {
+    cs.level(level);
     long off = 0;
     ZstdStreamResult r;
     do {
@@ -232,7 +233,8 @@ compression driven directly on `DirectByteBuffer`s the caller already owns,
 with no allocation per message.
 
 ```java
-try (ZstdCompressStream cs = Zstd.newCompressStream(level)) {
+try (ZstdCompressStream cs = Zstd.newCompressStream()) {
+    cs.level(level);
     MemorySegment in  = MemorySegment.ofBuffer(pooledSrc); // e.g. Netty ByteBuf.nioBuffer()
     MemorySegment out = MemorySegment.ofBuffer(pooledDst);
     long off = 0;
@@ -265,7 +267,8 @@ can't size the arena (see [the explanation](explanation.md#why-a-streamed-frame-
 total up front and it stamps the content size into the header:
 
 ```java
-try (var zout = Zstd.newPledgedOutputStream(sink, ZstdCompressionLevel.of(6), ZstdByteSize.of(data.length))) {
+try (var zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(data.length))) {
+    zout.level(ZstdCompressionLevel.of(6));
     zout.write(data);                                 // pledge must equal bytes written
 }
 // downstream, in a mapped reader: mmap is a mapped ByteBuffer of the frame, dctx an

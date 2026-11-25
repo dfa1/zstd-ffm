@@ -6,12 +6,10 @@ import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
-import io.github.dfa1.zstd.ZstdCompressionLevel;
-import io.github.dfa1.zstd.ZstdCompressParameter;
 import io.github.dfa1.zstd.ZstdCompressStream;
+import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressDictionary;
-import io.github.dfa1.zstd.ZstdDecompressParameter;
 import io.github.dfa1.zstd.ZstdDecompressStream;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdEndDirective;
@@ -26,8 +24,8 @@ import io.github.dfa1.zstd.ZstdMagicVariant;
 import io.github.dfa1.zstd.ZstdOutputStream;
 import io.github.dfa1.zstd.ZstdResetDirective;
 import io.github.dfa1.zstd.ZstdSkippableContent;
+import io.github.dfa1.zstd.ZstdStrategy;
 import io.github.dfa1.zstd.ZstdStreamResult;
-import io.github.dfa1.zstd.ZstdWindowLog;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -208,8 +206,8 @@ class SmokeTest {
             cctx.level(ZstdCompressionLevel.of(5))
                     .checksum(true)
                     .longDistanceMatching(true)
-                    .windowLog(ZstdWindowLog.of(20))
-                    .parameter(ZstdCompressParameter.STRATEGY, 3);
+                    .windowLog(20)
+                    .strategy(ZstdStrategy.GREEDY);
 
             byte[] compressed = cctx.compress(original);
             checkArrayEquals(original, Zstd.decompress(compressed, ZstdByteSize.of(original.length)),
@@ -226,17 +224,18 @@ class SmokeTest {
     @Test
     void decompressContextAdvanced() {
         byte[] original = sampleText();
-        try (ZstdCompressContext cctx = Zstd.newCompressContext().windowLog(ZstdWindowLog.of(23));
+        try (ZstdCompressContext cctx = Zstd.newCompressContext();
              ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
-            dctx.windowLogMax(ZstdWindowLog.of(24));
+            cctx.windowLog(23);
+            dctx.windowLogMax(24);
             byte[] restored = dctx.decompress(cctx.compress(original), ZstdByteSize.of(original.length));
-            checkArrayEquals(original, restored, "windowLogMax() decompress round-trip mismatch");
+            checkArrayEquals(original, restored, "WINDOW_LOG_MAX decompress round-trip mismatch");
             check(dctx.sizeOf().value() > 0, "dctx.sizeOf() not positive");
 
             dctx.reset(ZstdResetDirective.PARAMETERS);
-            dctx.parameter(ZstdDecompressParameter.WINDOW_LOG_MAX, 24);
+            dctx.windowLogMax(24);
             byte[] restoredAfterReset = dctx.decompress(cctx.compress(original), ZstdByteSize.of(original.length));
-            checkArrayEquals(original, restoredAfterReset, "decompress after PARAMETERS reset + parameter() mismatch");
+            checkArrayEquals(original, restoredAfterReset, "decompress after PARAMETERS reset + set() mismatch");
         }
     }
 
@@ -270,7 +269,7 @@ class SmokeTest {
         byte[] original = new String(sampleText(), StandardCharsets.UTF_8).repeat(60)
                 .getBytes(StandardCharsets.UTF_8);
         try (ZstdCompressContext cctx = Zstd.newCompressContext()) {
-            cctx.parameter(ZstdCompressParameter.NB_WORKERS, 2);
+            cctx.workers(2);
             byte[] compressed = cctx.compress(original);
             checkArrayEquals(original, Zstd.decompress(compressed, ZstdByteSize.of(original.length)),
                     "multithreaded (NB_WORKERS=2) round-trip mismatch");
@@ -326,7 +325,7 @@ class SmokeTest {
 
         byte[] original = sampleText();
         try (Arena arena = Arena.ofConfined();
-             ZstdCompressStream cs = Zstd.newCompressStream(ZstdCompressionLevel.DEFAULT)) {
+             ZstdCompressStream cs = Zstd.newCompressStream()) {
             MemorySegment src = toNative(arena, original);
             MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(src.byteSize())).value());
             ZstdStreamResult result = cs.compress(dst, src, ZstdEndDirective.END);
@@ -368,7 +367,8 @@ class SmokeTest {
 
         ByteArrayOutputStream sinkPledged = new ByteArrayOutputStream();
         try (ZstdOutputStream zout =
-                     Zstd.newPledgedOutputStream(sinkPledged, ZstdCompressionLevel.of(5), ZstdByteSize.of(original.length))) {
+                     Zstd.newPledgedOutputStream(sinkPledged, ZstdByteSize.of(original.length))) {
+            zout.level(ZstdCompressionLevel.of(5));
             zout.write(original);
         }
         byte[] pledgedFrame = sinkPledged.toByteArray();

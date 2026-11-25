@@ -6,7 +6,6 @@ import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressionLevel;
-import io.github.dfa1.zstd.ZstdCompressParameter;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +64,7 @@ public class MultiThreadCompressBenchmark {
 
         ctx = Zstd.newCompressContext().level(ZstdCompressionLevel.of(level));
         if (nbWorkers > 0) {
-            ctx.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
+            ctx.workers(nbWorkers);
         }
 
         arena = Arena.ofConfined();

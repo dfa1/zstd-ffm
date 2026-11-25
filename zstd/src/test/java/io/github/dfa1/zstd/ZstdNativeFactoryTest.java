@@ -171,7 +171,8 @@ class ZstdNativeFactoryTest {
             ZstdCompressionLevel level = LEVEL;
 
             // When
-            try (ZstdCompressStream sut = Zstd.newCompressStream(level)) {
+            try (ZstdCompressStream sut = Zstd.newCompressStream()) {
+                sut.level(level);
                 byte[] frame = compressAll(sut);
 
                 // Then
@@ -183,7 +184,8 @@ class ZstdNativeFactoryTest {
         void compressStreamWithDictionaryAndDecompressStreamWithDictionary() {
             // Given
             byte[] frame;
-            try (ZstdCompressStream cs = Zstd.newCompressStream(LEVEL, dict)) {
+            try (ZstdCompressStream cs = Zstd.newCompressStream(dict)) {
+                cs.level(LEVEL);
                 frame = compressAll(cs);
             }
 
@@ -255,7 +257,8 @@ class ZstdNativeFactoryTest {
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
 
             // When
-            try (OutputStream sut = Zstd.newOutputStream(sink, LEVEL)) {
+            try (ZstdOutputStream sut = Zstd.newOutputStream(sink)) {
+                sut.level(LEVEL);
                 sut.write(payload);
             }
 
@@ -288,7 +291,8 @@ class ZstdNativeFactoryTest {
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
 
             // When
-            try (OutputStream sut = Zstd.newOutputStream(sink, LEVEL, dict)) {
+            try (ZstdOutputStream sut = Zstd.newOutputStream(sink, dict)) {
+                sut.level(LEVEL);
                 sut.write(payload);
             }
 
@@ -338,7 +342,8 @@ class ZstdNativeFactoryTest {
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
 
             // When
-            try (OutputStream sut = Zstd.newPledgedOutputStream(sink, LEVEL, ZstdByteSize.of(payload.length))) {
+            try (ZstdOutputStream sut = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(payload.length))) {
+                sut.level(LEVEL);
                 sut.write(payload);
             }
 
@@ -352,7 +357,8 @@ class ZstdNativeFactoryTest {
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
 
             // When
-            try (OutputStream sut = Zstd.newPledgedOutputStream(sink, LEVEL, ZstdByteSize.of(0))) {
+            try (ZstdOutputStream sut = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(0))) {
+                sut.level(LEVEL);
                 sut.flush();
             }
 
@@ -366,7 +372,7 @@ class ZstdNativeFactoryTest {
             RecordingOutputStream sink = new RecordingOutputStream();
 
             // When
-            ThrowingCallable result = () -> Zstd.newPledgedOutputStream(sink, LEVEL, null);
+            ThrowingCallable result = () -> Zstd.newPledgedOutputStream(sink, null);
 
             // Then
             assertThatThrownBy(result)
@@ -376,25 +382,10 @@ class ZstdNativeFactoryTest {
         }
 
         @Test
-        void nullLevelFailsBeforeTouchingTheSink() {
-            // Given
-            RecordingOutputStream sink = new RecordingOutputStream();
-
-            // When
-            ThrowingCallable result = () -> Zstd.newPledgedOutputStream(sink, null, ZstdByteSize.of(1));
-
-            // Then
-            assertThatThrownBy(result)
-                    .isInstanceOf(NullPointerException.class)
-                    .hasMessage("level");
-            assertThat(sink.untouched()).isTrue();
-        }
-
-        @Test
         void failedConfigurationReleasesStreamWithoutTouchingTheSink() {
             // Given
             RecordingOutputStream sink = new RecordingOutputStream();
-            ZstdOutputStream stream = Zstd.newOutputStream(sink, LEVEL);
+            ZstdOutputStream stream = Zstd.newOutputStream(sink).level(LEVEL);
             ZstdException failure = new ZstdException("pledge rejected");
 
             // When
@@ -416,7 +407,7 @@ class ZstdNativeFactoryTest {
         void successfulConfigurationReturnsTheSameOpenStream() throws IOException {
             // Given
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            ZstdOutputStream stream = Zstd.newOutputStream(sink, LEVEL);
+            ZstdOutputStream stream = Zstd.newOutputStream(sink).level(LEVEL);
 
             // When
             ZstdOutputStream sut = ZstdOutputStream.initOrRelease(stream, s -> { });

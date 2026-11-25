@@ -85,7 +85,7 @@ class ZstdValueClassContractTest {
             ZstdCompressDictionary.class, ZstdDecompressDictionary.class,
             ZstdCompressStream.class, ZstdDecompressStream.class,
             ZstdOutputStream.class, ZstdInputStream.class,
-            ZstdCompressionLevel.class, ZstdByteSize.class, ZstdWindowLog.class, ZstdMagicVariant.class,
+            ZstdCompressionLevel.class, ZstdByteSize.class, ZstdMagicVariant.class,
             ZstdVersion.class, ZstdDictionaryId.class, ZstdBounds.class, ZstdFrameHeader.class,
             ZstdFrameProgression.class, ZstdStreamResult.class})
     void hasNoPublicConstructorAndIsNotARecord(Class<?> type) {
@@ -111,8 +111,6 @@ class ZstdValueClassContractTest {
                         "ZstdByteSize[value=0]"),
                 valueCase("ZstdByteSize max", () -> ZstdByteSize.of(Long.MAX_VALUE), ZstdByteSize.of(0),
                         "ZstdByteSize[value=" + Long.MAX_VALUE + "]"),
-                valueCase("ZstdWindowLog", () -> ZstdWindowLog.of(20), ZstdWindowLog.AUTO,
-                        "ZstdWindowLog[value=20]"),
                 valueCase("ZstdMagicVariant", () -> ZstdMagicVariant.of(15), ZstdMagicVariant.of(0),
                         "ZstdMagicVariant[value=15]"),
                 valueCase("ZstdVersion", () -> ZstdVersion.of(1, 5, 7), ZstdVersion.of(1, 5, 6), "1.5.7"),

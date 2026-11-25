@@ -6,9 +6,8 @@ import io.github.dfa1.zstd.Zstd;
 import io.github.dfa1.zstd.ZstdByteSize;
 import io.github.dfa1.zstd.ZstdCompressContext;
 import io.github.dfa1.zstd.ZstdCompressDictionary;
-import io.github.dfa1.zstd.ZstdCompressionLevel;
-import io.github.dfa1.zstd.ZstdCompressParameter;
 import io.github.dfa1.zstd.ZstdCompressStream;
+import io.github.dfa1.zstd.ZstdCompressionLevel;
 import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressStream;
 import io.github.dfa1.zstd.ZstdDictionary;
@@ -89,7 +88,8 @@ class ZstdJniInteropTest {
             byte[] data = "interop streaming ".repeat(50_000).getBytes(StandardCharsets.UTF_8);
 
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = Zstd.newOutputStream(sink, ZstdCompressionLevel.of(7))) {
+            try (ZstdOutputStream zout = Zstd.newOutputStream(sink)) {
+                zout.level(ZstdCompressionLevel.of(7));
                 zout.write(data);
             }
             byte[] restored;
@@ -143,7 +143,8 @@ class ZstdJniInteropTest {
             // Given a payload fed to ZstdCompressStream in chunk-sized segments
             byte[] frame;
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream sut = Zstd.newCompressStream(ZstdCompressionLevel.of(5))) {
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
+                sut.level(ZstdCompressionLevel.of(5));
                 // When it is compressed chunk by chunk and then ended
                 frame = compressInChunks(arena, sut, data, chunk);
             }
@@ -174,7 +175,7 @@ class ZstdJniInteropTest {
             byte[] data = records(200);
             byte[] frame;
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream sut = Zstd.newCompressStream(ZstdCompressionLevel.DEFAULT, DICT)) {
+                 ZstdCompressStream sut = Zstd.newCompressStream(DICT)) {
                 // When they are compressed chunk by chunk and then ended
                 frame = compressInChunks(arena, sut, data, chunk);
             }
@@ -213,8 +214,8 @@ class ZstdJniInteropTest {
             int jobs;
             try (Arena arena = Arena.ofConfined();
                  ZstdCompressStream sut = Zstd.newCompressStream()) {
-                sut.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers)
-                        .parameter(ZstdCompressParameter.JOB_SIZE, MIN_JOB_SIZE);
+                sut.workers(nbWorkers)
+                        .jobSize(ZstdByteSize.of(MIN_JOB_SIZE));
 
                 // When it is compressed through 64 KiB segments by the worker pool
                 frame = compressInChunks(arena, sut, data, 64 * 1024);
@@ -280,7 +281,7 @@ class ZstdJniInteropTest {
 
             byte[] frame;
             try (ZstdCompressContext ctx = Zstd.newCompressContext()) {
-                ctx.parameter(ZstdCompressParameter.NB_WORKERS, nbWorkers);
+                ctx.workers(nbWorkers);
                 frame = ctx.compress(data);
             }
             assertThat(com.github.luben.zstd.Zstd.decompress(frame, data.length)).isEqualTo(data);
@@ -304,7 +305,7 @@ class ZstdJniInteropTest {
 
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
             try (ZstdOutputStream zout = Zstd.newOutputStream(sink)) {
-                zout.parameter(ZstdCompressParameter.NB_WORKERS, 2);
+                zout.workers(2);
                 zout.write(data);
             }
             assertThat(com.github.luben.zstd.Zstd.decompress(sink.toByteArray(), data.length)).isEqualTo(data);
@@ -484,6 +485,44 @@ class ZstdJniInteropTest {
             byte[] restored;
             try (var jni = new com.github.luben.zstd.ZstdDecompressCtx()) {
                 restored = jni.setMagicless(true).decompress(frame, data.length);
+            }
+
+            // Then the input comes back
+            assertThat(restored).isEqualTo(data);
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void jniMagiclessFrameReadsThroughJavaMagiclessInputStream(byte[] data) throws Exception {
+            // Given a magicless frame from zstd-jni (its streams have no magicless setter)
+            byte[] frame;
+            try (var jni = new com.github.luben.zstd.ZstdCompressCtx()) {
+                frame = jni.setMagicless(true).compress(data);
+            }
+
+            // When reading it through a magicless zstd-ffm input stream
+            byte[] restored;
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(frame)).magicless(true)) {
+                restored = sut.readAllBytes();
+            }
+
+            // Then the input comes back
+            assertThat(restored).isEqualTo(data);
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void javaMagiclessOutputStreamDecodesWithJniMagiclessContext(byte[] data) throws Exception {
+            // Given a magicless frame written through a zstd-ffm output stream
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            try (ZstdOutputStream sut = Zstd.newOutputStream(sink).magicless(true)) {
+                sut.write(data);
+            }
+
+            // When decoding it with a magicless zstd-jni context
+            byte[] restored;
+            try (var jni = new com.github.luben.zstd.ZstdDecompressCtx()) {
+                restored = jni.setMagicless(true).decompress(sink.toByteArray(), data.length);
             }
 
             // Then the input comes back

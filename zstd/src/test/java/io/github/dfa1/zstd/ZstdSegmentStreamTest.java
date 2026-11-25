@@ -128,7 +128,7 @@ class ZstdSegmentStreamTest {
             // Given a fresh compress stream
             try (ZstdCompressStream cs = Zstd.newCompressStream()) {
                 // When setting an advanced parameter
-                ZstdCompressStream result = cs.parameter(ZstdCompressParameter.CHECKSUM_FLAG, 1);
+                ZstdCompressStream result = cs.checksum(true);
 
                 // Then it returns the same instance, for chaining
                 assertThat(result).isSameAs(cs);
@@ -140,10 +140,10 @@ class ZstdSegmentStreamTest {
             // Given a fresh compress stream
             try (ZstdCompressStream cs = Zstd.newCompressStream()) {
                 // When setting an absurd window log
-                ThrowingCallable result = () -> cs.parameter(ZstdCompressParameter.WINDOW_LOG, 99);
+                ThrowingCallable result = () -> cs.windowLog(99);
 
-                // Then it is rejected natively
-                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+                // Then it is rejected before reaching native code
+                assertThatThrownBy(result).isInstanceOf(IllegalArgumentException.class);
             }
         }
     }
@@ -158,7 +158,7 @@ class ZstdSegmentStreamTest {
             // Given a fresh decompress stream
             try (ZstdDecompressStream ds = Zstd.newDecompressStream()) {
                 // When setting an advanced parameter
-                ZstdDecompressStream result = ds.windowLogMax(ZstdWindowLog.of(27));
+                ZstdDecompressStream result = ds.windowLogMax(27);
 
                 // Then it returns the same instance, for chaining
                 assertThat(result).isSameAs(ds);
@@ -177,6 +177,26 @@ class ZstdSegmentStreamTest {
                 ZstdStreamResult result = sut.decompress(out, segmentOf(arena, frame));
 
                 // Then the whole payload comes back untouched
+                assertThat(result.isComplete()).isTrue();
+                assertThat(bytesOf(out, result.bytesProduced())).isEqualTo(PAYLOAD);
+            }
+        }
+
+        @Test
+        void magiclessStreamDecodesAMagiclessFrame() {
+            // Given a magicless frame
+            byte[] frame;
+            try (ZstdCompressContext cctx = Zstd.newCompressContext().magicless(true)) {
+                frame = cctx.compress(PAYLOAD);
+            }
+            try (Arena arena = Arena.ofConfined();
+                 ZstdDecompressStream sut = Zstd.newDecompressStream().magicless(true)) {
+                MemorySegment out = arena.allocate(PAYLOAD.length);
+
+                // When decoding it in one step
+                ZstdStreamResult result = sut.decompress(out, segmentOf(arena, frame));
+
+                // Then the whole payload comes back
                 assertThat(result.isComplete()).isTrue();
                 assertThat(bytesOf(out, result.bytesProduced())).isEqualTo(PAYLOAD);
             }
@@ -223,8 +243,9 @@ class ZstdSegmentStreamTest {
             byte[] sample = "{\"id\":1,\"user\":\"u\",\"event\":\"x\"}".getBytes(StandardCharsets.UTF_8);
 
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream cs = Zstd.newCompressStream(ZstdCompressionLevel.of(3), dict);
+                 ZstdCompressStream cs = Zstd.newCompressStream(dict);
                  ZstdDecompressStream ds = Zstd.newDecompressStream(dict)) {
+                cs.level(ZstdCompressionLevel.of(3));
 
                 MemorySegment src = segmentOf(arena, sample);
                 MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(sample.length)).value());
@@ -242,7 +263,7 @@ class ZstdSegmentStreamTest {
             ZstdDictionary dict = trainDictionary(3000);
             byte[] sample = "{\"id\":2,\"user\":\"u\",\"event\":\"y\"}".getBytes(StandardCharsets.UTF_8);
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream sut = Zstd.newCompressStream(ZstdCompressionLevel.DEFAULT, dict)) {
+                 ZstdCompressStream sut = Zstd.newCompressStream(dict)) {
                 MemorySegment src = segmentOf(arena, sample);
                 MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(sample.length)).value());
 
@@ -259,15 +280,15 @@ class ZstdSegmentStreamTest {
     class ConstructionFailure {
 
         @Test
-        void compressStreamWithoutLevelFailsAfterCreatingItsContext() {
-            // Given a dictionary but no compression level
-            ZstdDictionary dict = trainDictionary(3000);
+        void compressStreamRejectsANullDictionary() {
+            // Given no dictionary
+            ZstdDictionary dict = null;
 
-            // When constructing the stream, which fails once the native context exists
-            ThrowingCallable result = () -> Zstd.newCompressStream(null, dict);
+            // When constructing a dictionary stream from it
+            ThrowingCallable result = () -> Zstd.newCompressStream(dict);
 
-            // Then the failure propagates (after the half-built stream closed itself)
-            assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
+            // Then it is rejected before any native allocation
+            assertThatThrownBy(result).isInstanceOf(NullPointerException.class).hasMessage("dictionary");
         }
 
         @Test

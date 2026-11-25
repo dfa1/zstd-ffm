@@ -200,7 +200,8 @@ class LargeMemoryMappedFileTest {
         ByteArrayOutputStream frame = new ByteArrayOutputStream();
         MemorySegment dst = arena.allocate(CHUNK);
         byte[] scratch = new byte[CHUNK];
-        try (ZstdCompressStream cs = Zstd.newCompressStream(ZstdCompressionLevel.of(1))) {
+        try (ZstdCompressStream cs = Zstd.newCompressStream()) {
+            cs.level(ZstdCompressionLevel.of(1));
             long srcOff = 0;
             long total = source.byteSize();
             ZstdStreamResult r;

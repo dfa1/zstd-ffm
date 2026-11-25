@@ -7,13 +7,31 @@ git tags, which trigger publication to Maven Central.
 ## [Unreleased]
 
 ### Added
+- One set of setters per side, shared by the context and both streams:
+  `ZstdCompressSettings` and `ZstdDecompressSettings` (adding `magicless` to the decompress streams). ([#166](https://github.com/dfa1/zstd-ffm/issues/166))
 - `ZstdDecompressContext#ignoreChecksum(boolean)` skips content-checksum
   validation (experimental upstream). ([#148](https://github.com/dfa1/zstd-ffm/issues/148))
-- `windowLogMax(ZstdWindowLog)` and `ignoreChecksum(boolean)` on `ZstdInputStream`
+- `ignoreChecksum(boolean)` and the window-log limit on `ZstdInputStream`
   and `ZstdDecompressStream`. ([#154](https://github.com/dfa1/zstd-ffm/pull/154))
 - Magicless frames (experimental upstream): `magicless(boolean)` on both
   contexts, compatible with zstd-jni's `setMagicless`; `ZstdFrame` helpers don't
   recognize them. ([#147](https://github.com/dfa1/zstd-ffm/issues/147))
+
+### Changed
+- **Breaking:** `parameter(…, int)` is gone from `ZstdCompressContext`, `ZstdCompressStream`,
+  `ZstdOutputStream` and `ZstdDecompressContext`; every parameter has a named setter instead.
+  ([#166](https://github.com/dfa1/zstd-ffm/issues/166))
+  - `parameter(HASH_LOG, n)` → `hashLog(n)`, `parameter(NB_WORKERS, n)` → `workers(n)`, and so on;
+    `jobSize` and `targetCBlockSize` take a `ZstdByteSize`.
+  - `parameter(STRATEGY, n)` → `strategy(ZstdStrategy)`; the flags → `contentSize(boolean)`, `dictId(boolean)`.
+  - `level(ZstdCompressionLevel)` now works on the compress streams, replacing the factory overloads
+    that took a level: `newCompressStream(level)` → `newCompressStream().level(level)`, likewise for
+    `newOutputStream`; `newPledgedOutputStream(out, level, size)` → `newPledgedOutputStream(out, size)`.
+  - `ZstdWindowLog` is gone: `windowLog(ZstdWindowLog.of(n))` → `windowLog(n)`, same for `windowLogMax`.
+  - Out-of-range values now throw `IllegalArgumentException` naming the valid range, instead of a
+    native `ZstdException` (or silent clamping, for the multithreading parameters).
+  - `ZstdCompressParameter`, `ZstdDecompressParameter`, `ZstdBounds`, `NativeObject` and
+    `NativePointerWithRefCount` are no longer public.
 
 ### Fixed
 - Closing a shared `ZstdCompressDictionary` / `ZstdDecompressDictionary` while another
