@@ -11,13 +11,26 @@ import java.util.concurrent.atomic.AtomicReference;
 abstract class NativeObject implements AutoCloseable {
 
     private final AtomicReference<MemorySegment> ptr;
+    // the only thread allowed to close, or null when any thread may
+    private final Thread owner;
 
-    /// Takes ownership of a freshly created native pointer. Package-private:
-    /// only this library's contexts and segment streams extend it.
+    /// Takes ownership of a freshly created native pointer, closable from any
+    /// thread. Package-private: only this library's contexts and segment streams
+    /// extend it.
     ///
     /// @param owningPointer the non-NULL native pointer this object now owns
     NativeObject(MemorySegment owningPointer) {
+        this(owningPointer, null);
+    }
+
+    /// Takes ownership of a freshly created native pointer, closable only from
+    /// `owner`.
+    ///
+    /// @param owningPointer the non-NULL native pointer this object now owns
+    /// @param owner         the only thread allowed to close, or `null` if any thread may
+    NativeObject(MemorySegment owningPointer, Thread owner) {
         this.ptr = new AtomicReference<>(owningPointer);
+        this.owner = owner;
     }
 
     /// Returns the live native pointer, failing if this object is already closed.
@@ -34,6 +47,9 @@ abstract class NativeObject implements AutoCloseable {
 
     @Override
     public final void close() {
+        if (owner != null) {
+            NativeCall.requireOwnerThread(owner);
+        }
         MemorySegment p = ptr.getAndSet(MemorySegment.NULL);
         if (!MemorySegment.NULL.equals(p)) {
             try {

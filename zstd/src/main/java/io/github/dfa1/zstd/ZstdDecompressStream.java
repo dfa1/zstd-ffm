@@ -11,7 +11,8 @@ import java.lang.foreign.MemorySegment;
 /// destination when it fills; a result is [ZstdStreamResult#isComplete()] when
 /// the current frame is fully decoded.
 ///
-/// Not thread-safe: confine an instance to a single thread.
+/// Not thread-safe: confine an instance to the thread that created it.
+/// [#close()] from another thread throws [WrongThreadException] and frees nothing.
 public final class ZstdDecompressStream extends NativeObject implements ZstdDecompressSettings<ZstdDecompressStream> {
 
     private final Arena arena;
@@ -27,7 +28,8 @@ public final class ZstdDecompressStream extends NativeObject implements ZstdDeco
     ZstdDecompressStream(ZstdDictionary dictionary) {
         // Own the context first, so any failure setting it up is cleaned up by
         // close() — one release path, no leak on a half-built stream.
-        super(createDctx());
+        // The position cells live in a confined arena only this thread can close.
+        super(createDctx(), Thread.currentThread());
         try {
             // Inside the try: a failed arena or allocation must still free the
             // context (and the arena, once it exists) through close().

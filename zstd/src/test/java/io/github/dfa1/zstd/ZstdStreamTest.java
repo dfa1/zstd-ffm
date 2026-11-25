@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 
+import static io.github.dfa1.zstd.ZstdTestSupport.closeOnAnotherThread;
 import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.rawFrameWithWindowLog;
@@ -682,6 +683,47 @@ class ZstdStreamTest {
     }
 
     @SuppressWarnings("java:S1144") // referenced via @MethodSource's qualified name from the nested OutputStreamLifecycle class
+    @Nested
+    class CloseFromAnotherThread {
+
+        @Test
+        void outputStreamRefusesAndItsOwnerStillFinishesTheFrame() throws Exception {
+            // Given an output stream created on this thread, with data written
+            byte[] original = "owner thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
+            CountingOutputStream sink = new CountingOutputStream();
+            ZstdOutputStream sut = Zstd.newOutputStream(sink);
+            sut.write(original);
+
+            // When another thread closes it
+            Throwable thrown = closeOnAnotherThread(sut);
+
+            // Then it is refused without touching the sink, and the owner's close finishes the frame
+            assertThat(thrown).isInstanceOf(WrongThreadException.class);
+            assertThat(sink.closes).isZero();
+            sut.close();
+            assertThat(sink.closes).isEqualTo(1);
+            assertThat(streamDecompress(sink.toByteArray())).isEqualTo(original);
+        }
+
+        @Test
+        void inputStreamRefusesAndStaysUsableByItsOwner() throws Exception {
+            // Given an input stream created on this thread
+            byte[] original = "owner thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
+            CountingInputStream source = new CountingInputStream(Zstd.compress(original));
+            ZstdInputStream sut = Zstd.newInputStream(source);
+
+            // When another thread closes it
+            Throwable thrown = closeOnAnotherThread(sut);
+
+            // Then it is refused without touching the source, and the owner can still read and close it
+            assertThat(thrown).isInstanceOf(WrongThreadException.class);
+            assertThat(source.closes).isZero();
+            assertThat(sut.readAllBytes()).isEqualTo(original);
+            sut.close();
+            assertThat(source.closes).isEqualTo(1);
+        }
+    }
+
     private static Stream<Arguments> closedStreamOperations() {
         return Stream.of(
                 Arguments.of("write after close", (ClosedStreamOperation) () -> {

@@ -156,6 +156,20 @@ final class ZstdTestSupport {
         return b;
     }
 
+    /// Closes `resource` on a fresh platform thread and returns what that close
+    /// threw, or `null` if it returned normally.
+    static Throwable closeOnAnotherThread(AutoCloseable resource) throws InterruptedException {
+        Throwable[] thrown = new Throwable[1];
+        Thread.ofPlatform().start(() -> {
+            try {
+                resource.close();
+            } catch (Exception e) {
+                thrown[0] = e;
+            }
+        }).join();
+        return thrown[0];
+    }
+
     private ZstdTestSupport() {
         // no instances
     }

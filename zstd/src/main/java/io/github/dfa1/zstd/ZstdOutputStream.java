@@ -26,7 +26,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// }
 /// }
 ///
-/// Not thread-safe: confine an instance to a single thread.
+/// Not thread-safe: confine an instance to the thread that created it.
+/// [#close()] from another thread throws [WrongThreadException] and frees nothing.
 public final class ZstdOutputStream extends OutputStream implements ZstdCompressSettings<ZstdOutputStream> {
 
     // ZSTD_EndDirective values from zstd.h — see
@@ -46,6 +47,7 @@ public final class ZstdOutputStream extends OutputStream implements ZstdCompress
     private final ZstdStreamBuffer outBuf;
     private final byte[] drain;
     private final byte[] single;
+    private final Thread owner;
     private boolean closed;
 
     ZstdOutputStream(OutputStream out) {
@@ -103,6 +105,7 @@ public final class ZstdOutputStream extends OutputStream implements ZstdCompress
 
     ZstdOutputStream(OutputStream out, ZstdDictionary dictionary) {
         this.out = Objects.requireNonNull(out, "out");
+        this.owner = Thread.currentThread();
         this.arena = Arena.ofConfined();
         this.single = new byte[1];
         MemorySegment c = null;
@@ -193,6 +196,7 @@ public final class ZstdOutputStream extends OutputStream implements ZstdCompress
 
     @Override
     public void close() throws IOException {
+        NativeCall.requireOwnerThread(owner);
         if (closed) {
             return;
         }

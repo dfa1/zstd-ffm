@@ -151,6 +151,17 @@ final class NativeCall {
         }
     }
 
+    /// Guards closing a stream whose buffers live in a confined arena: only the
+    /// thread that created it may close it. Fails before anything is freed, so the
+    /// stream stays whole and its owner can still use and close it; otherwise the
+    /// native context would be freed and the arena leaked, since only its owner
+    /// can close it.
+    static void requireOwnerThread(Thread owner) {
+        if (owner != Thread.currentThread()) {
+            throw new WrongThreadException("stream is confined to " + owner + "; close it from that thread");
+        }
+    }
+
     /// Rethrows any `Throwable` as if unchecked, laundering the checked
     /// `Throwable` that [java.lang.invoke.MethodHandle#invokeExact] declares.
     /// The shared sink for every binding class's native-call catch blocks.

@@ -49,6 +49,9 @@ git tags, which trigger publication to Maven Central.
   another thread; they now throw. ([#161](https://github.com/dfa1/zstd-ffm/issues/161))
 - A failed stream constructor could leak its native context or arena; all four
   streams now allocate inside the cleanup path. ([#169](https://github.com/dfa1/zstd-ffm/issues/169))
+- Closing any of the four streams from a thread other than the one that created it leaked
+  native memory; it now throws `WrongThreadException` and leaves the stream usable by its owner.
+  ([#186](https://github.com/dfa1/zstd-ffm/issues/186))
 
 ## [0.16] - 2026-11-23
 

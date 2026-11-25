@@ -12,6 +12,7 @@ import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 
 import static io.github.dfa1.zstd.ZstdTestSupport.bytesOf;
+import static io.github.dfa1.zstd.ZstdTestSupport.closeOnAnotherThread;
 import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.segmentOf;
@@ -301,6 +302,50 @@ class ZstdSegmentStreamTest {
 
             // Then the native rejection propagates as a ZstdException
             assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+        }
+    }
+
+    @Nested
+    class CloseFromAnotherThread {
+
+        @Test
+        void compressStreamRefusesAndStaysUsableByItsOwner() throws InterruptedException {
+            byte[] original = "owner thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
+            try (Arena arena = Arena.ofConfined()) {
+                // Given a compress stream created on this thread
+                ZstdCompressStream sut = Zstd.newCompressStream();
+
+                // When another thread closes it
+                Throwable thrown = closeOnAnotherThread(sut);
+
+                // Then it is refused, and the owner can still compress and close it
+                assertThat(thrown).isInstanceOf(WrongThreadException.class);
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
+                ZstdStreamResult r = sut.compress(dst, segmentOf(arena, original), ZstdEndDirective.END);
+                sut.close();
+                assertThat(Zstd.decompress(bytesOf(dst, r.bytesProduced()))).isEqualTo(original);
+                assertThatThrownBy(sut::sizeOf).isInstanceOf(IllegalStateException.class);
+            }
+        }
+
+        @Test
+        void decompressStreamRefusesAndStaysUsableByItsOwner() throws InterruptedException {
+            byte[] original = "owner thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
+            try (Arena arena = Arena.ofConfined()) {
+                // Given a decompress stream created on this thread
+                ZstdDecompressStream sut = Zstd.newDecompressStream();
+
+                // When another thread closes it
+                Throwable thrown = closeOnAnotherThread(sut);
+
+                // Then it is refused, and the owner can still decompress and close it
+                assertThat(thrown).isInstanceOf(WrongThreadException.class);
+                MemorySegment out = arena.allocate(original.length);
+                ZstdStreamResult r = sut.decompress(out, segmentOf(arena, Zstd.compress(original)));
+                sut.close();
+                assertThat(bytesOf(out, r.bytesProduced())).isEqualTo(original);
+                assertThatThrownBy(sut::sizeOf).isInstanceOf(IllegalStateException.class);
+            }
         }
     }
 
