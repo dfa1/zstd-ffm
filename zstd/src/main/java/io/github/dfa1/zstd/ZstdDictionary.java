@@ -12,7 +12,6 @@ import java.util.Objects;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
-import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 /// An immutable zstd dictionary — the feature that makes compressing many small,
 /// similar payloads (log lines, JSON records, protobufs) dramatically smaller
@@ -255,12 +254,12 @@ public final class ZstdDictionary {
             total += s.length;
         }
         MemorySegment data = arena.allocate(Math.max(total, 1));
-        MemorySegment sizes = arena.allocate(JAVA_LONG, samples.size());
+        MemorySegment sizes = arena.allocate(Bindings.SIZE_T, samples.size());
         long offset = 0;
         for (int i = 0; i < samples.size(); i++) {
             byte[] s = samples.get(i);
             MemorySegment.copy(s, 0, data, JAVA_BYTE, offset, s.length);
-            sizes.setAtIndex(JAVA_LONG, i, s.length);
+            sizes.setAtIndex(Bindings.SIZE_T, i, s.length);
             offset += s.length;
         }
         return new FlatSamples(data, sizes, samples.size());

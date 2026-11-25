@@ -6,7 +6,6 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.VarHandle;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
-import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 // Backing for ZSTD_inBuffer / ZSTD_outBuffer, which share a layout of a
 // void pointer then two size_t values: { void* ptr; size_t size; size_t pos; }.
@@ -20,8 +19,8 @@ final class ZstdStreamBuffer {
 
     private static final java.lang.foreign.StructLayout LAYOUT = MemoryLayout.structLayout(
             ADDRESS.withName("ptr"),
-            JAVA_LONG.withName("size"),
-            JAVA_LONG.withName("pos"));
+            Bindings.SIZE_T.withName("size"),
+            Bindings.SIZE_T.withName("pos"));
 
     // Layout VarHandles have coordinates (MemorySegment, long base); we always pass base 0.
     private static final VarHandle PTR_HANDLE = LAYOUT.varHandle(PTR);
