@@ -309,17 +309,19 @@ class ZstdSegmentStreamTest {
     class CloseFromAnotherThread {
 
         @Test
-        void compressStreamRefusesAndStaysUsableByItsOwner() throws InterruptedException {
+        void compressStreamRefusesAndStaysUsableByItsOwner() {
             byte[] original = "owner thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
             try (Arena arena = Arena.ofConfined()) {
                 // Given a compress stream created on this thread
                 ZstdCompressStream sut = Zstd.newCompressStream();
 
                 // When another thread closes it
-                Throwable thrown = closeOnAnotherThread(sut);
+                ThrowingCallable result = () -> closeOnAnotherThread(sut);
 
-                // Then it is refused, and the owner can still compress and close it
-                assertThat(thrown).isInstanceOf(WrongThreadException.class);
+                // Then it is refused
+                assertThatThrownBy(result).isInstanceOf(WrongThreadException.class);
+
+                // And the owner can still compress and close it
                 MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
                 ZstdStreamResult r = sut.compress(dst, segmentOf(arena, original), ZstdEndDirective.END);
                 sut.close();
@@ -329,17 +331,19 @@ class ZstdSegmentStreamTest {
         }
 
         @Test
-        void decompressStreamRefusesAndStaysUsableByItsOwner() throws InterruptedException {
+        void decompressStreamRefusesAndStaysUsableByItsOwner() {
             byte[] original = "owner thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
             try (Arena arena = Arena.ofConfined()) {
                 // Given a decompress stream created on this thread
                 ZstdDecompressStream sut = Zstd.newDecompressStream();
 
                 // When another thread closes it
-                Throwable thrown = closeOnAnotherThread(sut);
+                ThrowingCallable result = () -> closeOnAnotherThread(sut);
 
-                // Then it is refused, and the owner can still decompress and close it
-                assertThat(thrown).isInstanceOf(WrongThreadException.class);
+                // Then it is refused
+                assertThatThrownBy(result).isInstanceOf(WrongThreadException.class);
+
+                // And the owner can still decompress and close it
                 MemorySegment out = arena.allocate(original.length);
                 ZstdStreamResult r = sut.decompress(out, segmentOf(arena, Zstd.compress(original)));
                 sut.close();

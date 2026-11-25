@@ -47,7 +47,8 @@ abstract class NativeObject implements AutoCloseable {
 
     @Override
     public final void close() {
-        if (owner != null) {
+        // An already-closed object stays a no-op on any thread.
+        if (owner != null && !MemorySegment.NULL.equals(ptr.get())) {
             NativeCall.requireOwnerThread(owner);
         }
         MemorySegment p = ptr.getAndSet(MemorySegment.NULL);

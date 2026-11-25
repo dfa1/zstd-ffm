@@ -10,6 +10,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.foreign.Arena;
@@ -26,6 +27,7 @@ import static io.github.dfa1.zstd.ZstdTestSupport.sample;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.withWrongChecksum;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ZstdStreamTest {
@@ -682,7 +684,6 @@ class ZstdStreamTest {
         }
     }
 
-    @SuppressWarnings("java:S1144") // referenced via @MethodSource's qualified name from the nested OutputStreamLifecycle class
     @Nested
     class CloseFromAnotherThread {
 
@@ -695,11 +696,13 @@ class ZstdStreamTest {
             sut.write(original);
 
             // When another thread closes it
-            Throwable thrown = closeOnAnotherThread(sut);
+            ThrowingCallable result = () -> closeOnAnotherThread(sut);
 
-            // Then it is refused without touching the sink, and the owner's close finishes the frame
-            assertThat(thrown).isInstanceOf(WrongThreadException.class);
+            // Then it is refused without touching the sink
+            assertThatThrownBy(result).isInstanceOf(WrongThreadException.class);
             assertThat(sink.closes).isZero();
+
+            // And the owner's close still finishes the frame
             sut.close();
             assertThat(sink.closes).isEqualTo(1);
             assertThat(streamDecompress(sink.toByteArray())).isEqualTo(original);
@@ -713,17 +716,36 @@ class ZstdStreamTest {
             ZstdInputStream sut = Zstd.newInputStream(source);
 
             // When another thread closes it
-            Throwable thrown = closeOnAnotherThread(sut);
+            ThrowingCallable result = () -> closeOnAnotherThread(sut);
 
-            // Then it is refused without touching the source, and the owner can still read and close it
-            assertThat(thrown).isInstanceOf(WrongThreadException.class);
+            // Then it is refused without touching the source
+            assertThatThrownBy(result).isInstanceOf(WrongThreadException.class);
             assertThat(source.closes).isZero();
+
+            // And the owner can still read and close it
             assertThat(sut.readAllBytes()).isEqualTo(original);
             sut.close();
             assertThat(source.closes).isEqualTo(1);
         }
+
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(strings = {"input", "output"})
+        void closingAClosedStreamFromAnotherThreadIsANoOp(String kind) throws IOException {
+            // Given a stream its owner has already closed
+            Closeable sut = "input".equals(kind)
+                    ? Zstd.newInputStream(new ByteArrayInputStream(Zstd.compress(new byte[0])))
+                    : Zstd.newOutputStream(new ByteArrayOutputStream());
+            sut.close();
+
+            // When another thread closes it again
+            ThrowingCallable result = () -> closeOnAnotherThread(sut);
+
+            // Then nothing happens, as for any repeated close
+            assertThatCode(result).doesNotThrowAnyException();
+        }
     }
 
+    @SuppressWarnings("java:S1144") // referenced via @MethodSource's qualified name from the nested OutputStreamLifecycle class
     private static Stream<Arguments> closedStreamOperations() {
         return Stream.of(
                 Arguments.of("write after close", (ClosedStreamOperation) () -> {

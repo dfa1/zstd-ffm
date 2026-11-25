@@ -196,10 +196,10 @@ public final class ZstdOutputStream extends OutputStream implements ZstdCompress
 
     @Override
     public void close() throws IOException {
-        NativeCall.requireOwnerThread(owner);
         if (closed) {
             return;
         }
+        NativeCall.requireOwnerThread(owner);
         try {
             in.set(inSeg, 0);
             long remainingHint;

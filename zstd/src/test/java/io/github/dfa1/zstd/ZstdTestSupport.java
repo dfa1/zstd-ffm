@@ -156,10 +156,10 @@ final class ZstdTestSupport {
         return b;
     }
 
-    /// Closes `resource` on a fresh platform thread and returns what that close
-    /// threw, or `null` if it returned normally.
-    static Throwable closeOnAnotherThread(AutoCloseable resource) throws InterruptedException {
-        Throwable[] thrown = new Throwable[1];
+    /// Closes `resource` on a fresh platform thread and rethrows here whatever
+    /// that close threw.
+    static void closeOnAnotherThread(AutoCloseable resource) throws Exception {
+        Exception[] thrown = new Exception[1];
         Thread.ofPlatform().start(() -> {
             try {
                 resource.close();
@@ -167,7 +167,9 @@ final class ZstdTestSupport {
                 thrown[0] = e;
             }
         }).join();
-        return thrown[0];
+        if (thrown[0] != null) {
+            throw thrown[0];
+        }
     }
 
     private ZstdTestSupport() {

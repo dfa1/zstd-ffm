@@ -179,10 +179,10 @@ public final class ZstdInputStream extends InputStream implements ZstdDecompress
 
     @Override
     public void close() throws IOException {
-        NativeCall.requireOwnerThread(owner);
         if (closed) {
             return;
         }
+        NativeCall.requireOwnerThread(owner);
         closed = true;
         freeDctx(dctx);
         arena.close();
