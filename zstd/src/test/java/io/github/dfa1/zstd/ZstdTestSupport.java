@@ -156,22 +156,6 @@ final class ZstdTestSupport {
         return b;
     }
 
-    /// Closes `resource` on a fresh platform thread and rethrows here whatever
-    /// that close threw.
-    static void closeOnAnotherThread(AutoCloseable resource) throws Exception {
-        Exception[] thrown = new Exception[1];
-        Thread.ofPlatform().start(() -> {
-            try {
-                resource.close();
-            } catch (Exception e) {
-                thrown[0] = e;
-            }
-        }).join();
-        if (thrown[0] != null) {
-            throw thrown[0];
-        }
-    }
-
     private ZstdTestSupport() {
         // no instances
     }

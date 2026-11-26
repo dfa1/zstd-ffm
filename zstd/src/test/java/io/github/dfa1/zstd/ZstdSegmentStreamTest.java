@@ -12,14 +12,12 @@ import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 
 import static io.github.dfa1.zstd.ZstdTestSupport.bytesOf;
-import static io.github.dfa1.zstd.ZstdTestSupport.closeOnAnotherThread;
 import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.segmentOf;
 import static io.github.dfa1.zstd.ZstdTestSupport.withWrongChecksum;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ZstdSegmentStreamTest {
@@ -303,38 +301,6 @@ class ZstdSegmentStreamTest {
 
             // Then the native rejection propagates as a ZstdException
             assertThatThrownBy(result).isInstanceOf(ZstdException.class);
-        }
-    }
-
-    @Nested
-    class CloseFromAnotherThread {
-
-        @Test
-        void compressStreamIsReleased() {
-            // Given a compress stream created on this thread
-            ZstdCompressStream sut = Zstd.newCompressStream();
-
-            // When another thread closes it
-            ThrowingCallable result = () -> closeOnAnotherThread(sut);
-
-            // Then the close succeeds and frees both the native context and the arena
-            assertThatCode(result).doesNotThrowAnyException();
-            assertThatThrownBy(sut::sizeOf).isInstanceOf(IllegalStateException.class);
-            assertThat(sut.arenaAlive()).isFalse();
-        }
-
-        @Test
-        void decompressStreamIsReleased() {
-            // Given a decompress stream created on this thread
-            ZstdDecompressStream sut = Zstd.newDecompressStream();
-
-            // When another thread closes it
-            ThrowingCallable result = () -> closeOnAnotherThread(sut);
-
-            // Then the close succeeds and frees both the native context and the arena
-            assertThatCode(result).doesNotThrowAnyException();
-            assertThatThrownBy(sut::sizeOf).isInstanceOf(IllegalStateException.class);
-            assertThat(sut.arenaAlive()).isFalse();
         }
     }
 

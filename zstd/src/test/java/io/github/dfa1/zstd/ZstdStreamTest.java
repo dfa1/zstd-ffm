@@ -18,7 +18,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 
-import static io.github.dfa1.zstd.ZstdTestSupport.closeOnAnotherThread;
 import static io.github.dfa1.zstd.ZstdTestSupport.corruptDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.randomBytes;
 import static io.github.dfa1.zstd.ZstdTestSupport.rawFrameWithWindowLog;
@@ -805,6 +804,22 @@ class ZstdStreamTest {
             }
             b[off] = data[pos++];
             return 1;
+        }
+    }
+
+    /// Closes `resource` on a fresh platform thread and rethrows here whatever
+    /// that close threw.
+    private static void closeOnAnotherThread(AutoCloseable resource) throws Exception {
+        Exception[] thrown = new Exception[1];
+        Thread.ofPlatform().start(() -> {
+            try {
+                resource.close();
+            } catch (Exception e) {
+                thrown[0] = e;
+            }
+        }).join();
+        if (thrown[0] != null) {
+            throw thrown[0];
         }
     }
 

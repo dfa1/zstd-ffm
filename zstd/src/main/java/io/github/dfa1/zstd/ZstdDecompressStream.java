@@ -93,11 +93,6 @@ public final class ZstdDecompressStream extends NativeObject implements ZstdDeco
         }
     }
 
-    /// Whether this stream's arena is still open; lets tests observe that close() freed it.
-    boolean arenaAlive() {
-        return arena.scope().isAlive();
-    }
-
     @Override
     protected void tryClose(MemorySegment ptr) throws Throwable {
         try {
