@@ -6,6 +6,8 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+## [0.17] - 2026-11-26
+
 ### Added
 - One set of setters per side, shared by the context and both streams:
   `ZstdCompressSettings` and `ZstdDecompressSettings` (adding `magicless` to the decompress streams). ([#166](https://github.com/dfa1/zstd-ffm/issues/166))
@@ -47,8 +49,8 @@ git tags, which trigger publication to Maven Central.
   throws `IllegalArgumentException`. ([#163](https://github.com/dfa1/zstd-ffm/issues/163))
 - The segment streams crashed the JVM on a `dst`/`src` from a closed arena or
   another thread; they now throw. ([#161](https://github.com/dfa1/zstd-ffm/issues/161))
-- A failed stream constructor could leak its native context or arena; all four
-  streams now allocate inside the cleanup path. ([#169](https://github.com/dfa1/zstd-ffm/issues/169))
+- A failed stream constructor could leak its native context or arena; it now
+  releases both. ([#169](https://github.com/dfa1/zstd-ffm/issues/169))
 - Closing any of the four streams from a thread other than the one that created it leaked
   native memory; streams can now be closed from any thread. ([#186](https://github.com/dfa1/zstd-ffm/issues/186))
 - Dictionary training and `finalizeFrom` crashed the JVM when the samples list changed size
@@ -491,4 +493,4 @@ zstd-jni for a smaller decompress-side gain.
 
 - [First release: JDK 25 FFM bindings for Zstandard 1.5.7, built with `zig cc`](https://github.com/dfa1/zstd-ffm/releases/tag/v0.1)
 
-[Unreleased]: https://github.com/dfa1/zstd-ffm/compare/v0.15...HEAD
+[Unreleased]: https://github.com/dfa1/zstd-ffm/compare/v0.17...HEAD
