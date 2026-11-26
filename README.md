@@ -89,7 +89,7 @@ bindings plus every platform's native library:
 <dependency>
   <groupId>io.github.dfa1.zstd</groupId>
   <artifactId>zstd-platform</artifactId>
-  <version>0.16</version>
+  <version>0.17</version>
 </dependency>
 ```
 

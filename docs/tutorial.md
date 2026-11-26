@@ -14,12 +14,12 @@ runs on any OS/arch:
 <dependency>
   <groupId>io.github.dfa1.zstd</groupId>
   <artifactId>zstd-platform</artifactId>
-  <version>0.16</version>
+  <version>0.17</version>
 </dependency>
 ```
 
 ```groovy
-implementation("io.github.dfa1.zstd:zstd-platform:0.16")
+implementation("io.github.dfa1.zstd:zstd-platform:0.17")
 ```
 
 That pulls all six natives (~3.8 MB, five unused per platform). When you target a
@@ -32,7 +32,7 @@ the matching classifier:
     <dependency>
       <groupId>io.github.dfa1.zstd</groupId>
       <artifactId>zstd-bom</artifactId>
-      <version>0.16</version>
+      <version>0.17</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -53,7 +53,7 @@ the matching classifier:
 ```
 
 ```groovy
-implementation(platform("io.github.dfa1.zstd:zstd-bom:0.16"))
+implementation(platform("io.github.dfa1.zstd:zstd-bom:0.17"))
 implementation("io.github.dfa1.zstd:zstd")
 runtimeOnly("io.github.dfa1.zstd:zstd-native-osx-aarch64")
 ```
@@ -71,11 +71,11 @@ module on top (its version is managed by the BOM too):
 <dependency>
   <groupId>io.github.dfa1.zstd</groupId>
   <artifactId>zstd-rfc9842</artifactId>
-  <version>0.16</version>
+  <version>0.17</version>
 </dependency>
 ```
 
-The snippets on this page pin `0.16`; use the latest release shown on
+The snippets on this page pin `0.17`; use the latest release shown on
 [Maven Central](https://central.sonatype.com/artifact/io.github.dfa1.zstd/zstd).
 
 Every artifact has **zero transitive dependencies** — the bindings are the JDK's
