@@ -55,6 +55,8 @@ git tags, which trigger publication to Maven Central.
   during the call; they now use one consistent copy of it. ([#184](https://github.com/dfa1/zstd-ffm/issues/184))
 - `ZstdOutputStream.close()` crashed the JVM when the wrapped stream closed it again from its
   `write` or `flush`; the nested close now returns at once. ([#183](https://github.com/dfa1/zstd-ffm/issues/183))
+- A `refPrefix` prefix in a shared arena closed by another thread mid-frame could be read after
+  it was freed; both contexts now hand zstd a copy of it. ([#185](https://github.com/dfa1/zstd-ffm/issues/185))
 
 ## [0.16] - 2026-11-23
 

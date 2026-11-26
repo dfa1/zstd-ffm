@@ -151,14 +151,16 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
     /// compress a new version against a similar previous one as the prefix,
     /// storing little more than the difference.
     ///
-    /// Unlike [#loadDictionary(ZstdDictionary)], a prefix is referenced (no
-    /// digest, no heap copy), writes no dictionary ID into the frame, and is
-    /// consumed by the next [#compress(MemorySegment, MemorySegment)] /
-    /// [#compress(byte[])] — it does not stick across frames. The decompressor
+    /// Unlike [#loadDictionary(ZstdDictionary)], a prefix is not digested: zstd
+    /// gets a native copy when the next frame starts (no heap copy), so another
+    /// thread closing `prefix`'s arena mid-frame cannot make it read freed memory.
+    /// It writes no dictionary ID into the frame, and is consumed by the next
+    /// [#compress(MemorySegment, MemorySegment)] / [#compress(byte[])] — it does
+    /// not stick across frames. The decompressor
     /// must reference the **same** prefix with
     /// [ZstdDecompressContext#refPrefix(MemorySegment)] to decode the frame.
     ///
-    /// Because the prefix is referenced, `prefix` must stay valid until the next
+    /// Because the copy is taken then, `prefix` must stay valid until the next
     /// [#compress(MemorySegment, MemorySegment)] / [#compress(byte[])] uses it.
     /// The per-call dictionary overloads (`compress(src, dict)`) do **not** use
     /// it: the prefix stays pending for the next frame without one. If
@@ -194,36 +196,52 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
         NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_PREFIX.invokeExact(ptr(), MemorySegment.NULL, 0L));
     }
 
-    /// Runs `ZSTD_compress2`, first handing zstd the pending prefix, if any.
+    /// Runs `ZSTD_compress2`, first handing zstd a copy of the pending prefix, if any.
     ///
     /// The prefix is single use: it is taken from [#pendingPrefix] up front and
     /// zstd consumes it at stream init whether or not compression then succeeds.
-    /// Passing it as a direct downcall argument lets the FFM linker reject a
-    /// closed or other-thread segment before zstd sees it. If the linker then
-    /// refuses `dst`/`src` (C never ran, so zstd still holds the prefix), the
-    /// native prefix is cleared before the error propagates.
+    /// zstd reads it during `ZSTD_compress2`, which does not take it as an
+    /// argument, so the linker cannot keep the caller's arena open: another thread
+    /// could close a shared one mid-frame (#185). zstd therefore gets a copy in a
+    /// confined arena that lives exactly as long as the call. If the call fails
+    /// before C ran (the linker refusing `dst`/`src`), zstd still holds the
+    /// prefix, so it is cleared before the error propagates.
     private long compress2(MemorySegment dst, long dstCapacity, MemorySegment src, long srcSize) {
         MemorySegment prefix = pendingPrefix;
         pendingPrefix = null;
-        if (prefix != null) {
-            if (!prefix.scope().isAlive()) {
-                throw new IllegalStateException("the prefix passed to refPrefix was closed before a frame used it");
-            }
+        if (prefix == null) {
+            return NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS2.invokeExact(
+                    ptr(), dst, dstCapacity, src, srcSize));
+        }
+        if (!prefix.scope().isAlive()) {
+            throw new IllegalStateException("the prefix passed to refPrefix was closed before a frame used it");
+        }
+        try (Arena frame = Arena.ofConfined()) {
+            MemorySegment copy = frame.allocate(prefix.byteSize()).copyFrom(prefix);
             // A failed earlier frame can leave the stream mid-stage; ZSTD_compress2 resets the
             // session itself, but refPrefix must see an idle stream. Session reset keeps
             // parameters and dictionaries.
             NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_RESET.invokeExact(
                     ptr(), ZstdResetDirective.SESSION_ONLY.value()));
             NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_PREFIX.invokeExact(
-                    ptr(), prefix, prefix.byteSize()));
-        }
-        try {
-            return NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS2.invokeExact(
-                    ptr(), dst, dstCapacity, src, srcSize));
+                    ptr(), copy, copy.byteSize()));
+            // With workers, a too-small dst makes ZSTD_compress2 return while jobs still read
+            // the copy. A worst-case buffer lets zstd always finish the frame first.
+            long bound = Zstd.compressBound(ZstdByteSize.of(srcSize)).value();
+            MemorySegment out = dstCapacity >= bound ? dst : frame.allocate(bound);
+            long outCapacity = out == dst ? dstCapacity : bound;
+            long written = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS2.invokeExact(
+                    ptr(), out, outCapacity, src, srcSize));
+            if (out != dst) {
+                if (written > dstCapacity) {
+                    throw new ZstdException("Destination buffer is too small", ZstdErrorCode.DST_SIZE_TOO_SMALL);
+                }
+                MemorySegment.copy(out, 0, dst, 0, written);
+            }
+            return written;
         } catch (RuntimeException e) {
-            // A ZstdException means zstd ran and consumed the prefix. Anything else is the
-            // linker refusing dst/src before C ran, so zstd still holds the prefix.
-            if (prefix != null && !(e instanceof ZstdException)) {
+            // A ZstdException means zstd ran and consumed (or never took) the prefix.
+            if (!(e instanceof ZstdException)) {
                 clearNativePrefix();
             }
             throw e;
