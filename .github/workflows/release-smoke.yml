@@ -73,7 +73,7 @@ jobs:
         include:
           - { os: ubuntu-latest,    classifier: linux-x86_64,    distribution: zulu }
           - { os: ubuntu-24.04-arm, classifier: linux-aarch64,   distribution: zulu }
-          - { os: macos-14,         classifier: osx-aarch64,     distribution: zulu }
+          - { os: macos-15,         classifier: osx-aarch64,     distribution: zulu }
           - { os: windows-latest,   classifier: windows-x86_64,  distribution: zulu }
           - { os: windows-11-arm,   classifier: windows-aarch64, distribution: zulu }
           # musl (Alpine) — glibc natives on a musl libc
