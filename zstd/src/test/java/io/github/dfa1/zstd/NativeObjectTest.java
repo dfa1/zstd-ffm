@@ -135,47 +135,6 @@ class   NativeObjectTest {
         }
     }
 
-    @Test
-    void closeFromAnotherThreadReleasesWhenThereIsNoOwner() {
-        // Given an object any thread may close, as a context is
-        TestObject sut = new TestObject(POINTER);
-
-        // When another thread closes it
-        ThrowingCallable result = () -> ZstdTestSupport.closeOnAnotherThread(sut);
-
-        // Then it is released
-        assertThatCode(result).doesNotThrowAnyException();
-        assertThat(sut.closeCount.get()).isEqualTo(1);
-    }
-
-    @Test
-    void closeFromANonOwnerThreadThrowsAndReleasesNothing() {
-        // Given an object owned by this thread
-        TestObject sut = new TestObject(POINTER, Thread.currentThread());
-
-        // When another thread closes it
-        ThrowingCallable result = () -> ZstdTestSupport.closeOnAnotherThread(sut);
-
-        // Then it is refused, and the pointer is still live
-        assertThatThrownBy(result).isInstanceOf(WrongThreadException.class);
-        assertThat(sut.closeCount.get()).isZero();
-        assertThat(sut.pointer()).isEqualTo(POINTER);
-    }
-
-    @Test
-    void closeOfAClosedObjectFromANonOwnerThreadIsANoOp() {
-        // Given an object its owner has already closed
-        TestObject sut = new TestObject(POINTER, Thread.currentThread());
-        sut.close();
-
-        // When another thread closes it again
-        ThrowingCallable result = () -> ZstdTestSupport.closeOnAnotherThread(sut);
-
-        // Then nothing happens, as for any repeated close
-        assertThatCode(result).doesNotThrowAnyException();
-        assertThat(sut.closeCount.get()).isEqualTo(1);
-    }
-
     private static void awaitUninterruptibly(CountDownLatch latch) {
         try {
             latch.await();
@@ -193,11 +152,7 @@ class   NativeObjectTest {
         private volatile boolean failOnClose;
 
         private TestObject(MemorySegment owningPointer) {
-            this(owningPointer, null);
-        }
-
-        private TestObject(MemorySegment owningPointer, Thread owner) {
-            super(owningPointer, owner);
+            super(owningPointer);
             this.closeCount = new AtomicInteger();
         }
 

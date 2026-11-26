@@ -27,8 +27,8 @@ import java.lang.invoke.VarHandle;
 /// }
 /// }
 ///
-/// Not thread-safe: confine an instance to the thread that created it.
-/// [#close()] from another thread throws [WrongThreadException] and frees nothing.
+/// Not thread-safe: confine an instance to a single thread. It may be closed
+/// from any thread.
 public final class ZstdCompressStream extends NativeObject implements ZstdCompressSettings<ZstdCompressStream> {
 
     // ZSTD_frameProgression fields, read through handles derived from the named layout.
@@ -52,12 +52,11 @@ public final class ZstdCompressStream extends NativeObject implements ZstdCompre
     ZstdCompressStream(ZstdDictionary dictionary) {
         // Own the context first, so any failure setting it up is cleaned up by
         // close() — one release path, no leak on a half-built stream.
-        // The position cells live in a confined arena only this thread can close.
-        super(createCctx(), Thread.currentThread());
+        super(createCctx());
         try {
             // Inside the try: a failed arena or allocation must still free the
             // context (and the arena, once it exists) through close().
-            this.arena = Arena.ofConfined();
+            this.arena = Arena.ofShared(); // shared: close() may run on any thread
             this.dstPos = arena.allocate(Bindings.SIZE_T);
             this.srcPos = arena.allocate(Bindings.SIZE_T);
             if (dictionary != null) {
@@ -141,6 +140,11 @@ public final class ZstdCompressStream extends NativeObject implements ZstdCompre
 
     private static VarHandle progressionField(String name) {
         return Bindings.FRAME_PROGRESSION_LAYOUT.varHandle(PathElement.groupElement(name));
+    }
+
+    /// Whether this stream's arena is still open; lets tests observe that close() freed it.
+    boolean arenaAlive() {
+        return arena.scope().isAlive();
     }
 
     @Override

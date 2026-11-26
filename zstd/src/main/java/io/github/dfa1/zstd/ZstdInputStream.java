@@ -24,8 +24,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// }
 /// }
 ///
-/// Not thread-safe: confine an instance to the thread that created it.
-/// [#close()] from another thread throws [WrongThreadException] and frees nothing.
+/// Not thread-safe: confine an instance to a single thread. It may be closed
+/// from any thread.
 public final class ZstdInputStream extends InputStream implements ZstdDecompressSettings<ZstdInputStream> {
 
     private final InputStream in;
@@ -39,7 +39,6 @@ public final class ZstdInputStream extends InputStream implements ZstdDecompress
     private final byte[] feed;
     private final byte[] hold;
     private final byte[] single;
-    private final Thread owner;
     private int holdStart;
     private int holdEnd;
     private boolean inputEof;
@@ -54,8 +53,7 @@ public final class ZstdInputStream extends InputStream implements ZstdDecompress
 
     ZstdInputStream(InputStream in, ZstdDictionary dictionary) {
         this.in = Objects.requireNonNull(in, "in");
-        this.owner = Thread.currentThread();
-        this.arena = Arena.ofConfined();
+        this.arena = Arena.ofShared(); // shared: close() may run on any thread
         this.single = new byte[1];
         MemorySegment d = null;
         try {
@@ -182,7 +180,6 @@ public final class ZstdInputStream extends InputStream implements ZstdDecompress
         if (closed) {
             return;
         }
-        NativeCall.requireOwnerThread(owner);
         closed = true;
         freeDctx(dctx);
         arena.close();

@@ -10,7 +10,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.foreign.Arena;
@@ -688,9 +687,9 @@ class ZstdStreamTest {
     class CloseFromAnotherThread {
 
         @Test
-        void outputStreamRefusesAndItsOwnerStillFinishesTheFrame() throws Exception {
+        void outputStreamFinishesTheFrameAndClosesTheSink() throws IOException {
             // Given an output stream created on this thread, with data written
-            byte[] original = "owner thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
+            byte[] original = "any thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
             CountingOutputStream sink = new CountingOutputStream();
             ZstdOutputStream sut = Zstd.newOutputStream(sink);
             sut.write(original);
@@ -698,50 +697,25 @@ class ZstdStreamTest {
             // When another thread closes it
             ThrowingCallable result = () -> closeOnAnotherThread(sut);
 
-            // Then it is refused without touching the sink
-            assertThatThrownBy(result).isInstanceOf(WrongThreadException.class);
-            assertThat(sink.closes).isZero();
-
-            // And the owner's close still finishes the frame
-            sut.close();
+            // Then the frame is finished and the sink closed
+            assertThatCode(result).doesNotThrowAnyException();
             assertThat(sink.closes).isEqualTo(1);
             assertThat(streamDecompress(sink.toByteArray())).isEqualTo(original);
         }
 
         @Test
-        void inputStreamRefusesAndStaysUsableByItsOwner() throws Exception {
+        void inputStreamClosesTheSource() {
             // Given an input stream created on this thread
-            byte[] original = "owner thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
-            CountingInputStream source = new CountingInputStream(Zstd.compress(original));
+            CountingInputStream source = new CountingInputStream(Zstd.compress(new byte[16]));
             ZstdInputStream sut = Zstd.newInputStream(source);
 
             // When another thread closes it
             ThrowingCallable result = () -> closeOnAnotherThread(sut);
 
-            // Then it is refused without touching the source
-            assertThatThrownBy(result).isInstanceOf(WrongThreadException.class);
-            assertThat(source.closes).isZero();
-
-            // And the owner can still read and close it
-            assertThat(sut.readAllBytes()).isEqualTo(original);
-            sut.close();
-            assertThat(source.closes).isEqualTo(1);
-        }
-
-        @ParameterizedTest(name = "{0}")
-        @ValueSource(strings = {"input", "output"})
-        void closingAClosedStreamFromAnotherThreadIsANoOp(String kind) throws IOException {
-            // Given a stream its owner has already closed
-            Closeable sut = "input".equals(kind)
-                    ? Zstd.newInputStream(new ByteArrayInputStream(Zstd.compress(new byte[0])))
-                    : Zstd.newOutputStream(new ByteArrayOutputStream());
-            sut.close();
-
-            // When another thread closes it again
-            ThrowingCallable result = () -> closeOnAnotherThread(sut);
-
-            // Then nothing happens, as for any repeated close
+            // Then the source is closed and the stream refuses further reads
             assertThatCode(result).doesNotThrowAnyException();
+            assertThat(source.closes).isEqualTo(1);
+            assertThatThrownBy(sut::read).isInstanceOf(IOException.class);
         }
     }
 
