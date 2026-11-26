@@ -53,6 +53,8 @@ git tags, which trigger publication to Maven Central.
   native memory; streams can now be closed from any thread. ([#186](https://github.com/dfa1/zstd-ffm/issues/186))
 - Dictionary training and `finalizeFrom` crashed the JVM when the samples list changed size
   during the call; they now use one consistent copy of it. ([#184](https://github.com/dfa1/zstd-ffm/issues/184))
+- `ZstdOutputStream.close()` crashed the JVM when the wrapped stream closed it again from its
+  `write` or `flush`; the nested close now returns at once. ([#183](https://github.com/dfa1/zstd-ffm/issues/183))
 
 ## [0.16] - 2026-11-23
 

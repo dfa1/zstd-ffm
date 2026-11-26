@@ -534,6 +534,23 @@ class ZstdStreamTest {
             assertThat(streamDecompress(sink.toByteArray())).isEqualTo(original);
         }
 
+        @Test
+        void closeReenteredFromTheSinkFreesOnceAndFinishesTheFrame() throws IOException {
+            // Given a sink that closes the stream again from its flush (#183)
+            byte[] original = "re-entrant close ".repeat(200).getBytes(StandardCharsets.UTF_8);
+            ReenteringOutputStream sink = new ReenteringOutputStream();
+            ZstdOutputStream sut = Zstd.newOutputStream(sink);
+            sink.target = sut;
+            sut.write(original);
+
+            // When closed
+            sut.close();
+
+            // Then the inner close returned at once, and the outer one finished the frame
+            assertThat(sink.reentered).isTrue();
+            assertThat(streamDecompress(sink.toByteArray())).isEqualTo(original);
+        }
+
         @ParameterizedTest(name = "{0}")
         @MethodSource("io.github.dfa1.zstd.ZstdStreamTest#closedStreamOperations")
         void operationAfterCloseThrows(String name, ClosedStreamOperation operation) throws IOException {
@@ -761,6 +778,20 @@ class ZstdStreamTest {
         public void close() throws IOException {
             closes++;
             super.close();
+        }
+    }
+
+    /// A sink whose `flush` closes `target` once, as a careless wrapper might.
+    private static final class ReenteringOutputStream extends ByteArrayOutputStream {
+        private ZstdOutputStream target;
+        private boolean reentered;
+
+        @Override
+        public void flush() throws IOException {
+            if (!reentered) {
+                reentered = true;
+                target.close();
+            }
         }
     }
 
