@@ -26,7 +26,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// }
 /// }
 ///
-/// Not thread-safe: confine an instance to a single thread.
+/// Not thread-safe: confine an instance to a single thread. It may be closed
+/// from any thread.
 public final class ZstdOutputStream extends OutputStream implements ZstdCompressSettings<ZstdOutputStream> {
 
     // ZSTD_EndDirective values from zstd.h — see
@@ -103,7 +104,7 @@ public final class ZstdOutputStream extends OutputStream implements ZstdCompress
 
     ZstdOutputStream(OutputStream out, ZstdDictionary dictionary) {
         this.out = Objects.requireNonNull(out, "out");
-        this.arena = Arena.ofConfined();
+        this.arena = Arena.ofShared(); // shared: close() may run on any thread
         this.single = new byte[1];
         MemorySegment c = null;
         try {

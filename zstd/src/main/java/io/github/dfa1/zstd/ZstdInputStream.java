@@ -24,7 +24,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /// }
 /// }
 ///
-/// Not thread-safe: confine an instance to a single thread.
+/// Not thread-safe: confine an instance to a single thread. It may be closed
+/// from any thread.
 public final class ZstdInputStream extends InputStream implements ZstdDecompressSettings<ZstdInputStream> {
 
     private final InputStream in;
@@ -52,7 +53,7 @@ public final class ZstdInputStream extends InputStream implements ZstdDecompress
 
     ZstdInputStream(InputStream in, ZstdDictionary dictionary) {
         this.in = Objects.requireNonNull(in, "in");
-        this.arena = Arena.ofConfined();
+        this.arena = Arena.ofShared(); // shared: close() may run on any thread
         this.single = new byte[1];
         MemorySegment d = null;
         try {

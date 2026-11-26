@@ -27,7 +27,8 @@ import java.lang.invoke.VarHandle;
 /// }
 /// }
 ///
-/// Not thread-safe: confine an instance to a single thread.
+/// Not thread-safe: confine an instance to a single thread. It may be closed
+/// from any thread.
 public final class ZstdCompressStream extends NativeObject implements ZstdCompressSettings<ZstdCompressStream> {
 
     // ZSTD_frameProgression fields, read through handles derived from the named layout.
@@ -55,7 +56,7 @@ public final class ZstdCompressStream extends NativeObject implements ZstdCompre
         try {
             // Inside the try: a failed arena or allocation must still free the
             // context (and the arena, once it exists) through close().
-            this.arena = Arena.ofConfined();
+            this.arena = Arena.ofShared(); // shared: close() may run on any thread
             this.dstPos = arena.allocate(Bindings.SIZE_T);
             this.srcPos = arena.allocate(Bindings.SIZE_T);
             if (dictionary != null) {

@@ -25,6 +25,7 @@ import static io.github.dfa1.zstd.ZstdTestSupport.sample;
 import static io.github.dfa1.zstd.ZstdTestSupport.trainDictionary;
 import static io.github.dfa1.zstd.ZstdTestSupport.withWrongChecksum;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ZstdStreamTest {
@@ -681,6 +682,42 @@ class ZstdStreamTest {
         }
     }
 
+    @Nested
+    class CloseFromAnotherThread {
+
+        @Test
+        void outputStreamFinishesTheFrameAndClosesTheSink() throws IOException {
+            // Given an output stream created on this thread, with data written
+            byte[] original = "any thread ".repeat(200).getBytes(StandardCharsets.UTF_8);
+            CountingOutputStream sink = new CountingOutputStream();
+            ZstdOutputStream sut = Zstd.newOutputStream(sink);
+            sut.write(original);
+
+            // When another thread closes it
+            ThrowingCallable result = () -> closeOnAnotherThread(sut);
+
+            // Then the frame is finished and the sink closed
+            assertThatCode(result).doesNotThrowAnyException();
+            assertThat(sink.closes).isEqualTo(1);
+            assertThat(streamDecompress(sink.toByteArray())).isEqualTo(original);
+        }
+
+        @Test
+        void inputStreamClosesTheSource() {
+            // Given an input stream created on this thread
+            CountingInputStream source = new CountingInputStream(Zstd.compress(new byte[16]));
+            ZstdInputStream sut = Zstd.newInputStream(source);
+
+            // When another thread closes it
+            ThrowingCallable result = () -> closeOnAnotherThread(sut);
+
+            // Then the source is closed and the stream refuses further reads
+            assertThatCode(result).doesNotThrowAnyException();
+            assertThat(source.closes).isEqualTo(1);
+            assertThatThrownBy(sut::read).isInstanceOf(IOException.class);
+        }
+    }
+
     @SuppressWarnings("java:S1144") // referenced via @MethodSource's qualified name from the nested OutputStreamLifecycle class
     private static Stream<Arguments> closedStreamOperations() {
         return Stream.of(
@@ -767,6 +804,22 @@ class ZstdStreamTest {
             }
             b[off] = data[pos++];
             return 1;
+        }
+    }
+
+    /// Closes `resource` on a fresh platform thread and rethrows here whatever
+    /// that close threw.
+    private static void closeOnAnotherThread(AutoCloseable resource) throws Exception {
+        Exception[] thrown = new Exception[1];
+        Thread.ofPlatform().start(() -> {
+            try {
+                resource.close();
+            } catch (Exception e) {
+                thrown[0] = e;
+            }
+        }).join();
+        if (thrown[0] != null) {
+            throw thrown[0];
         }
     }
 
