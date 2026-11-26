@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -236,6 +237,32 @@ class ZstdDictionaryTest {
             assertThatThrownBy(result)
                     .isInstanceOf(ZstdException.class)
                     .hasMessageMatching("dictionary training failed: .+");
+        }
+
+        @Test
+        void snapshotsASamplesListThatChangesSizeMidCall() {
+            // Given a list of one sample whose size() grows once it has been read (#184)
+            byte[] sample = new byte[16];
+            List<byte[]> resizing = new AbstractList<>() {
+                private int gets;
+
+                @Override
+                public byte[] get(int index) {
+                    gets++;
+                    return sample;
+                }
+
+                @Override
+                public int size() {
+                    return gets < 2 ? 1 : 2;
+                }
+            };
+
+            // When training on it
+            ThrowingCallable result = () -> ZstdDictionary.train(resizing, ZstdByteSize.ofKiB(4));
+
+            // Then ZDICT sees the one consistent sample and rejects it as too little data
+            assertThatThrownBy(result).isInstanceOf(ZstdException.class);
         }
     }
 

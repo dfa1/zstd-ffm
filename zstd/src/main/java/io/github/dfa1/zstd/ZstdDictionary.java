@@ -248,7 +248,10 @@ public final class ZstdDictionary {
     private record FlatSamples(MemorySegment data, MemorySegment sizes, int count) {
     }
 
-    private static FlatSamples flatten(Arena arena, List<byte[]> samples) {
+    private static FlatSamples flatten(Arena arena, List<byte[]> caller) {
+        // One snapshot: the total, the sizes array and the count ZDICT trusts must
+        // agree, even if the caller's list changes size mid-call.
+        List<byte[]> samples = List.copyOf(caller);
         long total = 0;
         for (byte[] s : samples) {
             total += s.length;
