@@ -142,8 +142,10 @@ public final class ZstdDecompressContext extends NativeObject implements ZstdDec
     /// [ZstdCompressContext#refPrefix(MemorySegment)]. It must be the **same** content
     /// the frame was compressed against, or decoding fails.
     ///
-    /// The prefix is referenced, not copied (no digest, no heap copy): `prefix`
-    /// must stay valid until the next [#decompress(byte[], ZstdByteSize)] /
+    /// zstd gets a native copy of `prefix` when the next frame starts (no digest,
+    /// no heap copy), so another thread closing `prefix`'s arena mid-frame cannot
+    /// make it read freed memory. `prefix` must stay valid until the next
+    /// [#decompress(byte[], ZstdByteSize)] /
     /// [#decompress(MemorySegment, MemorySegment)], which consumes it — it does not
     /// stick across frames. The per-call dictionary overloads
     /// (`decompress(src, maxSize, dict)`) do **not** use it: the prefix stays
@@ -183,32 +185,36 @@ public final class ZstdDecompressContext extends NativeObject implements ZstdDec
         NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(ptr(), MemorySegment.NULL, 0L));
     }
 
-    /// Runs `ZSTD_decompressDCtx`, first handing zstd the pending prefix, if any.
+    /// Runs `ZSTD_decompressDCtx`, first handing zstd a copy of the pending prefix, if any.
     ///
     /// The prefix is single use: it is taken from [#pendingPrefix] up front and
     /// zstd consumes it before decoding (`ZSTD_getDDict` drops a single-use
     /// dictionary as it returns it) whether or not decompression then succeeds.
-    /// Passing it as a direct downcall argument lets the FFM linker reject a
-    /// closed or other-thread segment before zstd sees it. If the linker then
-    /// refuses `dst`/`src` (C never ran, so zstd still holds the prefix), the
-    /// native prefix is cleared before the error propagates.
+    /// zstd reads it during `ZSTD_decompressDCtx`, which does not take it as an
+    /// argument, so the linker cannot keep the caller's arena open: another thread
+    /// could close a shared one mid-frame (#185). zstd therefore gets a copy in a
+    /// confined arena that lives exactly as long as the call. If the call fails
+    /// before C ran (the linker refusing `dst`/`src`), zstd still holds the
+    /// prefix, so it is cleared before the error propagates.
     private long decompressDCtx(MemorySegment dst, long dstCapacity, MemorySegment src, long srcSize) {
         MemorySegment prefix = pendingPrefix;
         pendingPrefix = null;
-        if (prefix != null) {
-            if (!prefix.scope().isAlive()) {
-                throw new IllegalStateException("the prefix passed to refPrefix was closed before a frame used it");
-            }
-            NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(
-                    ptr(), prefix, prefix.byteSize()));
+        if (prefix == null) {
+            return NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_DCTX.invokeExact(
+                    ptr(), dst, dstCapacity, src, srcSize));
         }
-        try {
+        if (!prefix.scope().isAlive()) {
+            throw new IllegalStateException("the prefix passed to refPrefix was closed before a frame used it");
+        }
+        try (Arena frame = Arena.ofConfined()) {
+            MemorySegment copy = frame.allocate(prefix.byteSize()).copyFrom(prefix);
+            NativeCall.checkReturnValue(() -> (long) Bindings.DCTX_REF_PREFIX.invokeExact(
+                    ptr(), copy, copy.byteSize()));
             return NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_DCTX.invokeExact(
                     ptr(), dst, dstCapacity, src, srcSize));
         } catch (RuntimeException e) {
-            // A ZstdException means zstd ran and consumed the prefix. Anything else is the
-            // linker refusing dst/src before C ran, so zstd still holds the prefix.
-            if (prefix != null && !(e instanceof ZstdException)) {
+            // A ZstdException means zstd ran and consumed (or never took) the prefix.
+            if (!(e instanceof ZstdException)) {
                 clearNativePrefix();
             }
             throw e;
