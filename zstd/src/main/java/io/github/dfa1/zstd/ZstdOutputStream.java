@@ -197,6 +197,8 @@ public final class ZstdOutputStream extends OutputStream implements ZstdCompress
         if (closed) {
             return;
         }
+        // Before draining: a close() re-entered from out.write/flush must return, not free twice.
+        closed = true;
         try {
             in.set(inSeg, 0);
             long remainingHint;
@@ -205,7 +207,6 @@ public final class ZstdOutputStream extends OutputStream implements ZstdCompress
             } while (remainingHint != 0);
             out.flush();
         } finally {
-            closed = true;
             freeCctx(cctx);
             arena.close();
             out.close();
