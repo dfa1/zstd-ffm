@@ -12,3 +12,6 @@ dependency-reduced-pom.xml
 
 private-key.asc
 *.asc
+
+# JVM crash logs
+hs_err_pid*.log
