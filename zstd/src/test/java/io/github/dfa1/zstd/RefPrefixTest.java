@@ -336,6 +336,52 @@ class RefPrefixTest {
         }
     }
 
+    @ParameterizedTest(name = "workers={0}")
+    @ValueSource(ints = {0, 2})
+    void prefixedFrameIntoATightDstFitsWhenTheFrameDoes(int workers) {
+        // Given a dst smaller than compressBound but exactly the frame's size
+        byte[] data = "the quick brown fox ".repeat(500).getBytes();
+        try (Arena arena = Arena.ofConfined();
+             ZstdCompressContext sut = Zstd.newCompressContext()) {
+            MemorySegment prefix = segmentOf(arena, data);
+            long frameSize = sut.refPrefix(prefix).compress(arena, segmentOf(arena, data)).byteSize();
+            sut.workers(workers).refPrefix(prefix);
+            MemorySegment dst = arena.allocate(frameSize);
+
+            // When compressing into it
+            long written = sut.compress(dst, segmentOf(arena, data));
+
+            // Then the frame is written whole and decodes against the prefix
+            assertThat(written).isEqualTo(frameSize);
+            try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
+                assertThat(dctx.refPrefix(prefix).decompress(bytesOf(dst, written), ZstdByteSize.of(data.length)))
+                        .isEqualTo(data);
+            }
+        }
+    }
+
+    @ParameterizedTest(name = "workers={0}")
+    @ValueSource(ints = {0, 2})
+    void prefixedFrameIntoATooSmallDstThrowsDstSizeTooSmall(int workers) {
+        // Given a pending prefix and a 1-byte dst
+        byte[] data = randomBytes(0x185, 4096);
+        try (Arena arena = Arena.ofConfined();
+             ZstdCompressContext sut = Zstd.newCompressContext()) {
+            MemorySegment prefix = segmentOf(arena, data);
+            sut.workers(workers).refPrefix(prefix);
+            MemorySegment dst = arena.allocate(1);
+            MemorySegment src = segmentOf(arena, data);
+
+            // When compressing into it
+            ThrowingCallable result = () -> sut.compress(dst, src);
+
+            // Then it fails as zstd would, after finishing the frame in its own buffer
+            assertThatThrownBy(result)
+                    .isInstanceOfSatisfying(ZstdException.class,
+                            e -> assertThat(e.code()).isEqualTo(ZstdErrorCode.DST_SIZE_TOO_SMALL));
+        }
+    }
+
     @Test
     void roundTripsWithMatchingPrefix() {
         // Given

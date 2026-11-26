@@ -154,9 +154,9 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
     /// Unlike [#loadDictionary(ZstdDictionary)], a prefix is not digested: zstd
     /// gets a native copy when the next frame starts (no heap copy), so another
     /// thread closing `prefix`'s arena mid-frame cannot make it read freed memory.
-    /// It writes no dictionary ID into the frame, and is
-    /// consumed by the next [#compress(MemorySegment, MemorySegment)] /
-    /// [#compress(byte[])] — it does not stick across frames. The decompressor
+    /// It writes no dictionary ID into the frame, and is consumed by the next
+    /// [#compress(MemorySegment, MemorySegment)] / [#compress(byte[])] — it does
+    /// not stick across frames. The decompressor
     /// must reference the **same** prefix with
     /// [ZstdDecompressContext#refPrefix(MemorySegment)] to decode the frame.
     ///
@@ -225,8 +225,20 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
                     ptr(), ZstdResetDirective.SESSION_ONLY.value()));
             NativeCall.checkReturnValue(() -> (long) Bindings.CCTX_REF_PREFIX.invokeExact(
                     ptr(), copy, copy.byteSize()));
-            return NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS2.invokeExact(
-                    ptr(), dst, dstCapacity, src, srcSize));
+            // With workers, a too-small dst makes ZSTD_compress2 return while jobs still read
+            // the copy. A worst-case buffer lets zstd always finish the frame first.
+            long bound = Zstd.compressBound(ZstdByteSize.of(srcSize)).value();
+            MemorySegment out = dstCapacity >= bound ? dst : frame.allocate(bound);
+            long outCapacity = out == dst ? dstCapacity : bound;
+            long written = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS2.invokeExact(
+                    ptr(), out, outCapacity, src, srcSize));
+            if (out != dst) {
+                if (written > dstCapacity) {
+                    throw new ZstdException("Destination buffer is too small", ZstdErrorCode.DST_SIZE_TOO_SMALL);
+                }
+                MemorySegment.copy(out, 0, dst, 0, written);
+            }
+            return written;
         } catch (RuntimeException e) {
             // A ZstdException means zstd ran and consumed (or never took) the prefix.
             if (!(e instanceof ZstdException)) {
