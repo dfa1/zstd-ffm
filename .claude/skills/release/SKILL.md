@@ -65,11 +65,15 @@ Set the version in every reactor pom (`FROM`/`TO` = `0.17-SNAPSHOT`/`0.17` here,
 
 ```bash
 FROM=0.17-SNAPSHOT TO=0.17
-n=$(git ls-files '*pom.xml' | wc -l)
-for f in $(git ls-files '*pom.xml'); do sed -i '' "s|<version>$FROM</version>|<version>$TO</version>|" "$f"; done
-git grep -l "<version>$TO</version>" -- '*pom.xml' | wc -l   # must equal $n
-git diff --stat | tail -1                                     # one line per pom, nothing else
+# inline $(...) on purpose: zsh does not word-split an unquoted $VAR
+for f in $(git ls-files '*pom.xml' ':!.github/smoke/pom.xml'); do sed -i '' "s|<version>$FROM</version>|<version>$TO</version>|" "$f"; done
+git ls-files '*pom.xml' ':!.github/smoke/pom.xml' | wc -l                                    # these two
+git grep -l -F "<version>$TO</version>" -- '*pom.xml' ':!.github/smoke/pom.xml' | wc -l      # must match
+git diff --stat | tail -1                                                                    # one line per pom
 ```
+
+`.github/smoke/pom.xml` is standalone (version `0`, takes the release as `-Dzstd.version`):
+leave it alone.
 
 Re-run `./mvnw verify` on the release version, then:
 
