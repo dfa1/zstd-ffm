@@ -34,7 +34,8 @@ zero-copy path additionally eliminates per-op heap allocation.
 
 - Apple M5, 32 GB. P-core L2 16 MiB (Apple Silicon: shared SLC, no classic L3).
   The 64 MiB payload is the cache-busting case.
-- JDK 25 (Azul). zstd-jni 1.5.7-11 (bundles zstd 1.5.7, matching our build),
+- JDK 25 (Azul). zstd-jni 1.5.7-11 (bundles zstd 1.5.7, matching our build at the time;
+  not re-run since the zstd 1.6.0 upgrade),
   aircompressor-v3 3.6, JMH 1.37.
 - Level 3 (zstd default).
 - **Golden corpus** run: 3 forks × 3 warmup × 5 measurement, `-prof gc`, error

@@ -256,7 +256,7 @@ public final class Zstd {
         }
     }
 
-    /// Runtime version of the linked zstd library, e.g. `1.5.7` for the bundled build.
+    /// Runtime version of the linked zstd library, e.g. `1.6.0` for the bundled build.
     ///
     /// Read [ZstdVersion#toString()] for the `x.y.z` string, [ZstdVersion#number()]
     /// for the packed number, or compare it (it is [Comparable]) to feature-gate

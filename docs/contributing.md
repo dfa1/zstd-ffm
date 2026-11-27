@@ -44,7 +44,7 @@ git submodule update --init --recursive
 
 `./mvnw verify` compiles every module, runs `scripts/build-zstd.sh` to build
 `libzstd.{dylib,so,dll}` from the `third_party/zstd` submodule (pinned to tag
-`v1.5.7`) with `zig cc` — cross-compiling any of the six target classifiers
+`v1.6.0`) with `zig cc` — cross-compiling any of the six target classifiers
 from any host, no system toolchain or sysroot needed — then runs the full
 test suite, checkstyle, and javadoc generation. The native build is
 idempotent: it skips recompiling a classifier whose library file already
