@@ -79,6 +79,8 @@ path is **up to ~23% faster on small payloads** (FFM's lower per-call overhead,
 golden-corpus fixtures, JMH) and ties once codec work dominates; both allocate
 ~0 B/op. Methodology, every table, and the honest ties:
 [docs/benchmarks.md](docs/benchmarks.md).
+These numbers are against zstd-jni 1.5.7-11 (JNI); newer zstd-jni runs on FFM on
+JDK 22+, and a re-run is pending.
 
 ## Install
 

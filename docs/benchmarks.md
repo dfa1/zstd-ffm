@@ -5,6 +5,13 @@ in both heap (`byte[]`) and zero-copy (`MemorySegment`) modes. Source lives in
 the [`benchmark/`](../benchmark) module; see its
 [README](../benchmark/README.md) to reproduce.
 
+> **Out of date.** These results predate zstd 1.6.0 and were measured against
+> zstd-jni 1.5.7-11, which was JNI-only. Since 1.5.7-22, zstd-jni runs on FFM on
+> JDK 22+ (multi-release jar), so on JDK 25 the "zstd-jni" column no longer
+> describes what its users get. A re-run of [Reproduce](#reproduce) on an idle
+> machine is pending: both sides on zstd 1.6.0, with zstd-jni on FFM (the default)
+> and on JNI (forced) as a baseline.
+
 | Contestant | Binding | Modes |
 |------------|---------|-------|
 | **zstd-ffm** (this project) | FFM (no JNI) | `byte[]` and zero-copy `MemorySegment` |
@@ -377,6 +384,12 @@ Linux and Windows are open follow-up (same caveat as the `madvise` hint).
 java --enable-native-access=ALL-UNNAMED -jar benchmark/target/benchmarks.jar \
   "GoldenCorpusBenchmark.*(Segment|JniByteBuffer)" \
   -p file=http,large-literal-and-match-lengths -f 3 -wi 3 -i 5 -prof gc
+
+# same, with zstd-jni forced to its JNI implementation (FFM is its default on JDK 22+)
+java --enable-native-access=ALL-UNNAMED -jar benchmark/target/benchmarks.jar \
+  "GoldenCorpusBenchmark.*JniByteBuffer" \
+  -p file=http,large-literal-and-match-lengths -f 3 -wi 3 -i 5 -prof gc \
+  -jvmArgsAppend "-Djdk.util.jar.enableMultiRelease=false"
 
 # synthetic throughput + allocation, all sizes
 java -jar benchmark/target/benchmarks.jar CompressBenchmark DecompressBenchmark -prof gc
