@@ -10,10 +10,12 @@ import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdException;
 import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.ZstdInputStream;
+import io.github.dfa1.zstd.ZstdVersion;
 import com.github.luben.zstd.ZstdDictCompress;
 import com.github.luben.zstd.ZstdDictDecompress;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -21,9 +23,12 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,6 +101,34 @@ class GoldenCorpusTest {
             return in.readAllBytes();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /// The corpus is only version-matched if the linked natives were built from
+    /// this submodule. The native build skips an existing library, so a stale one
+    /// can survive a submodule bump in an old checkout.
+    @Nested
+    class VendoredVersion {
+
+        @Test
+        void linkedLibraryIsTheVendoredZstd() {
+            // Given the version declared in the vendored zstd.h
+            String header = new String(read(TESTS.resolveSibling("lib").resolve("zstd.h")), StandardCharsets.US_ASCII);
+            ZstdVersion vendored = ZstdVersion.of(macro(header, "MAJOR"), macro(header, "MINOR"), macro(header, "RELEASE"));
+
+            // When
+            ZstdVersion linked = Zstd.version();
+
+            // Then
+            assertThat(linked)
+                    .as("natives are stale: delete native/*/src/main/resources/native and rebuild")
+                    .isEqualTo(vendored);
+        }
+
+        private static int macro(String header, String part) {
+            Matcher m = Pattern.compile("#define ZSTD_VERSION_" + part + "\\s+(\\d+)").matcher(header);
+            assertThat(m.find()).as("ZSTD_VERSION_" + part + " in zstd.h").isTrue();
+            return Integer.parseInt(m.group(1));
         }
     }
 

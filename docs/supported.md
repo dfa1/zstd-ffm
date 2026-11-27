@@ -32,8 +32,8 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 | Reusable contexts | 5 / 8 | CCtx/DCtx create/free + `decompressDCtx`; context compression goes through `compress2`, so `compressCCtx` is not bound |
 | Dictionary — simple | 12 / 23 | raw + digested (CDict/DDict) + dict-id queries; `_advanced`/`_byReference`/`Begin` variants not bound |
 | Dictionary training (ZDICT) | 8 / 12 | trainFromBuffer, cover/fastCover optimizers, finalizeDictionary, getDictHeaderSize |
-| Streaming — compress | 3 / 22 | `ZstdOutputStream` (`byte[]`/`java.io`) and `ZstdCompressStream` (zero-copy `MemorySegment`) — both drive `compressStream2` + buffer sizes |
-| Streaming — decompress | 3 / 15 | `ZstdInputStream` (`byte[]`/`java.io`) and `ZstdDecompressStream` (zero-copy `MemorySegment`) — both drive `decompressStream` + buffer sizes |
+| Streaming — compress | 4 / 22 | `ZstdOutputStream` (`byte[]`/`java.io`) and `ZstdCompressStream` (zero-copy `MemorySegment`) — both drive `compressStream2` + buffer sizes |
+| Streaming — decompress | 4 / 15 | `ZstdInputStream` (`byte[]`/`java.io`) and `ZstdDecompressStream` (zero-copy `MemorySegment`) — both drive `decompressStream` + buffer sizes |
 | Advanced parameters | 14 / 38 | all `ZSTD_cParameter` + `ZSTD_dParameter` via typed setters (`ZstdCompressSettings`, the decompress contexts and streams); `compress2`, `C/DCtx_setParameter`, `C/DCtx_reset`, `C/DCtx_loadDictionary`, `CCtx_refCDict`/`DCtx_refDDict`, `C/DCtx_refPrefix`, `c/dParam_getBounds`; multithreaded compression (ADR 0015) is set with `workers(n)` on the context and both compress streams. The `ZSTD_CCtx_params` bundle (the 10 unbound rows in this section's table below) is experimental (`ZSTDLIB_STATIC_API`, no stability guarantee — exported, but intentionally not surfaced) — see [ADR 0013](../adr/0013-binding-coverage-scope.md) |
 | Frame inspection | 11 / 13 | `ZstdFrame` + `ZstdCompressStream.progress()` (getFrameProgression); `_advanced` and the deprecated `getDecompressedSize` not bound |
 | Memory sizing | 9 / 14 | sizeof_C/DCtx, sizeof_C/DDict, estimate C/DCtx + C/DDict size, in-place decompression margin |
@@ -249,7 +249,7 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_CCtxParams_registerSequenceProducer` | — | — |
 | `ZSTD_CCtxParams_reset` | — | — |
 | `ZSTD_CCtxParams_setParameter` | — | — |
-| `ZSTD_CCtx_getParameter` | — | — |
+| `ZSTD_CCtx_getParameter` | — (test-only readback) | — |
 | `ZSTD_CCtx_loadDictionary` | ✅ | ✅ |
 | `ZSTD_CCtx_loadDictionary_advanced` | — | ✅ |
 | `ZSTD_CCtx_loadDictionary_byReference` | — | — |

@@ -9,6 +9,14 @@ git tags, which trigger publication to Maven Central.
 ### Changed
 - Bundled zstd upgraded to 1.6.0, a security release (CVE-2026-124851) fixing malformed-input bugs in
   streaming decompression, dictionary training and multithreaded compression. ([#191](https://github.com/dfa1/zstd-ffm/issues/191))
+- Loading a corrupted dictionary into a decompress context or stream now fails with
+  `ZstdErrorCode.DICTIONARY_CORRUPTED` instead of `MEMORY_ALLOCATION`. ([#191](https://github.com/dfa1/zstd-ffm/issues/191))
+- `ZstdDictionary.train*` may produce a different (equally valid) dictionary from the same samples
+  than 0.17 did. ([#191](https://github.com/dfa1/zstd-ffm/issues/191))
+
+### Removed
+- **Breaking:** pre-1.0 zstd frames (formats v0.4–v0.7, from 2015–2016) no longer decode, as in zstd 1.6.0
+  and zstd-jni since 1.5.7-12; re-compress such data with 0.17 or earlier. ([#191](https://github.com/dfa1/zstd-ffm/issues/191))
 
 ## [0.17] - 2026-11-26
 
