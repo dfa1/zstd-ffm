@@ -300,7 +300,9 @@ class ZstdSegmentStreamTest {
             ThrowingCallable result = () -> Zstd.newDecompressStream(corrupt);
 
             // Then the native rejection propagates as a ZstdException
-            assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+            assertThatThrownBy(result).isInstanceOf(ZstdException.class)
+                    .extracting(e -> ((ZstdException) e).code())
+                    .isEqualTo(ZstdErrorCode.DICTIONARY_CORRUPTED);
         }
     }
 

@@ -4,7 +4,7 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dfa1_zstd-java&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dfa1_zstd-java)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dfa1_zstd-java&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dfa1_zstd-java)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.dfa1.zstd/zstd.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.dfa1.zstd/zstd)
-![zstd](https://img.shields.io/badge/zstd-1.5.7-green.svg)
+![zstd](https://img.shields.io/badge/zstd-1.6.0-green.svg)
 ![Java](https://img.shields.io/badge/Java-25%2B-orange.svg)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 

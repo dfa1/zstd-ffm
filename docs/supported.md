@@ -3,8 +3,8 @@
 Coverage of the zstd C API by the `io.github.dfa1.zstd` bindings. Signatures
 and semantics follow the [official manual](https://facebook.github.io/zstd/doc/api_manual_latest.html).
 
-- zstd version: **1.5.7** (vendored `third_party/zstd`, pinned to tag `v1.5.7`)
-- Public symbols exported by `libzstd`: **185**
+- zstd version: **1.6.0** (vendored `third_party/zstd`, pinned to tag `v1.6.0`)
+- Public symbols exported by `libzstd`: **186**
 - Bound so far: **80** (~43%), counted from the lookups in `Bindings.java`;
   two of them, `ZSTD_CCtx_getParameter` and `ZSTD_DCtx_getParameter`, are used only by tests
 
@@ -13,7 +13,7 @@ through the public Java API. The rest are reachable from native code but not yet
 surfaced. Many unbound symbols are deprecated, experimental, or static-buffer /
 low-level variants that an idiomatic Java API does not need.
 
-**27** of the unbound symbols are deprecated upstream (carry `ZSTD_DEPRECATED` in
+**25** of the unbound symbols are deprecated upstream (carry `ZSTD_DEPRECATED` in
 `zstd.h`) and will never be bound — each is superseded by API already listed here.
 In the per-area tables below they are flagged **ᵈ** in the Bound column; the same
 list is recorded in `Bindings.java`. Notably this binds `ZSTD_getFrameContentSize`
@@ -32,14 +32,14 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 | Reusable contexts | 5 / 8 | CCtx/DCtx create/free + `decompressDCtx`; context compression goes through `compress2`, so `compressCCtx` is not bound |
 | Dictionary — simple | 12 / 23 | raw + digested (CDict/DDict) + dict-id queries; `_advanced`/`_byReference`/`Begin` variants not bound |
 | Dictionary training (ZDICT) | 8 / 12 | trainFromBuffer, cover/fastCover optimizers, finalizeDictionary, getDictHeaderSize |
-| Streaming — compress | 3 / 22 | `ZstdOutputStream` (`byte[]`/`java.io`) and `ZstdCompressStream` (zero-copy `MemorySegment`) — both drive `compressStream2` + buffer sizes |
-| Streaming — decompress | 3 / 15 | `ZstdInputStream` (`byte[]`/`java.io`) and `ZstdDecompressStream` (zero-copy `MemorySegment`) — both drive `decompressStream` + buffer sizes |
+| Streaming — compress | 4 / 22 | `ZstdOutputStream` (`byte[]`/`java.io`) and `ZstdCompressStream` (zero-copy `MemorySegment`) — both drive `compressStream2` + buffer sizes |
+| Streaming — decompress | 4 / 15 | `ZstdInputStream` (`byte[]`/`java.io`) and `ZstdDecompressStream` (zero-copy `MemorySegment`) — both drive `decompressStream` + buffer sizes |
 | Advanced parameters | 14 / 38 | all `ZSTD_cParameter` + `ZSTD_dParameter` via typed setters (`ZstdCompressSettings`, the decompress contexts and streams); `compress2`, `C/DCtx_setParameter`, `C/DCtx_reset`, `C/DCtx_loadDictionary`, `CCtx_refCDict`/`DCtx_refDDict`, `C/DCtx_refPrefix`, `c/dParam_getBounds`; multithreaded compression (ADR 0015) is set with `workers(n)` on the context and both compress streams. The `ZSTD_CCtx_params` bundle (the 10 unbound rows in this section's table below) is experimental (`ZSTDLIB_STATIC_API`, no stability guarantee — exported, but intentionally not surfaced) — see [ADR 0013](../adr/0013-binding-coverage-scope.md) |
 | Frame inspection | 11 / 13 | `ZstdFrame` + `ZstdCompressStream.progress()` (getFrameProgression); `_advanced` and the deprecated `getDecompressedSize` not bound |
 | Memory sizing | 9 / 14 | sizeof_C/DCtx, sizeof_C/DDict, estimate C/DCtx + C/DDict size, in-place decompression margin |
 | Low-level block | 0 / 12 | expert block/continue API not bound |
 | Sequences | 0 / 5 | sequence producer API not bound |
-| Misc / experimental | 0 / 10 | static-buffer init, param helpers, `copy*` not bound |
+| Misc / experimental | 0 / 11 | static-buffer init, param helpers, thread pools, `isDeterministicBuild` not bound |
 
 ## Bound symbols → Java
 
@@ -94,11 +94,11 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 ## Full symbol table
 
 The **Bound** column is this library; **zstd-jni** marks symbols referenced by
-zstd-jni's JNI sources (v1.5.7-11, `src/main/native/*.c`). The latter is
+zstd-jni's native sources (v1.6.0-1, `src/main/native/*.c`). The latter is
 symbol-exact, not functional equivalence: zstd-jni may expose an operation through
 a different symbol than this library — e.g. it routes one-shot compression through
 `ZSTD_compress2`, so `ZSTD_compress` reads `—` for it even though `Zstd.compress`
-works. zstd-jni references 53 of these symbols; this library binds 76. They
+works. zstd-jni references 57 of these symbols; this library binds 80. They
 overlap on the modern context/streaming API and diverge mainly on zstd-jni's
 sequence-producer hooks vs this library's frame-inspection and typed-error surface.
 
@@ -154,7 +154,7 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_compress_usingCDict` | ✅ | ✅ |
 | `ZSTD_compress_usingDict` | ✅ | — |
 | `ZSTD_createCDict` | ✅ | ✅ |
-| `ZSTD_createDDict` | ✅ | ✅ |
+| `ZSTD_createDDict` | ✅ | — |
 | `ZSTD_decompress_usingDDict` | ✅ | ✅ |
 | `ZSTD_decompress_usingDict` | ✅ | — |
 | `ZSTD_freeCDict` | ✅ | ✅ |
@@ -164,10 +164,10 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_compressBegin_usingCDict_advanced` | — ᵈ | — |
 | `ZSTD_compressBegin_usingDict` | — ᵈ | — |
 | `ZSTD_createCDict_advanced` | — | — |
-| `ZSTD_createCDict_advanced2` | — | — |
+| `ZSTD_createCDict_advanced2` | — | ✅ |
 | `ZSTD_createCDict_byReference` | — | ✅ |
-| `ZSTD_createDDict_advanced` | — | — |
-| `ZSTD_createDDict_byReference` | — | ✅ |
+| `ZSTD_createDDict_advanced` | — | ✅ |
+| `ZSTD_createDDict_byReference` | — | — |
 | `ZSTD_decompressBegin_usingDDict` | — | — |
 | `ZSTD_decompressBegin_usingDict` | — | — |
 | `ZSTD_getDictID_fromCDict` | ✅ | — |
@@ -244,14 +244,14 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | Symbol | Bound | zstd-jni |
 |---|:---:|:---:|
 | `ZSTD_CCtxParams_getParameter` | — | — |
-| `ZSTD_CCtxParams_init` | — | — |
+| `ZSTD_CCtxParams_init` | — | ✅ |
 | `ZSTD_CCtxParams_init_advanced` | — | — |
 | `ZSTD_CCtxParams_registerSequenceProducer` | — | — |
 | `ZSTD_CCtxParams_reset` | — | — |
 | `ZSTD_CCtxParams_setParameter` | — | — |
-| `ZSTD_CCtx_getParameter` | — | — |
+| `ZSTD_CCtx_getParameter` | — (test-only readback) | — |
 | `ZSTD_CCtx_loadDictionary` | ✅ | ✅ |
-| `ZSTD_CCtx_loadDictionary_advanced` | — | — |
+| `ZSTD_CCtx_loadDictionary_advanced` | — | ✅ |
 | `ZSTD_CCtx_loadDictionary_byReference` | — | — |
 | `ZSTD_CCtx_refCDict` | ✅ | ✅ |
 | `ZSTD_CCtx_refPrefix` | ✅ | — |
@@ -266,7 +266,7 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_CCtx_setPledgedSrcSize` | ✅ | ✅ |
 | `ZSTD_DCtx_getParameter` | — (test-only readback) | — |
 | `ZSTD_DCtx_loadDictionary` | ✅ | ✅ |
-| `ZSTD_DCtx_loadDictionary_advanced` | — | — |
+| `ZSTD_DCtx_loadDictionary_advanced` | — | ✅ |
 | `ZSTD_DCtx_loadDictionary_byReference` | — | — |
 | `ZSTD_DCtx_refDDict` | ✅ | ✅ |
 | `ZSTD_DCtx_refPrefix` | ✅ | — |
@@ -277,10 +277,10 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 | `ZSTD_DCtx_setParameter` | ✅ | ✅ |
 | `ZSTD_cParam_getBounds` | ✅ | — |
 | `ZSTD_compress2` | ✅ | ✅ |
-| `ZSTD_createCCtxParams` | — | — |
+| `ZSTD_createCCtxParams` | — | ✅ |
 | `ZSTD_dParam_getBounds` | ✅ | — |
 | `ZSTD_estimateCCtxSize_usingCCtxParams` | — | — |
-| `ZSTD_freeCCtxParams` | — | — |
+| `ZSTD_freeCCtxParams` | — | ✅ |
 
 ### Frame inspection (11/13)
 
@@ -342,21 +342,22 @@ sequence-producer hooks vs this library's frame-inspection and typed-error surfa
 |---|:---:|:---:|
 | `ZSTD_compressSequences` | — | — |
 | `ZSTD_compressSequencesAndLiterals` | — | — |
-| `ZSTD_generateSequences` | — ᵈ | ✅ |
+| `ZSTD_generateSequences` | — ᵈ | — |
 | `ZSTD_mergeBlockDelimiters` | — | — |
 | `ZSTD_registerSequenceProducer` | — | ✅ |
 
-### Misc / experimental (0/10)
+### Misc / experimental (0/11)
 
 | Symbol | Bound | zstd-jni |
 |---|:---:|:---:|
 | `ZSTD_adjustCParams` | — | — |
 | `ZSTD_checkCParams` | — | — |
-| `ZSTD_copyCCtx` | — ᵈ | — |
-| `ZSTD_copyDCtx` | — ᵈ | — |
+| `ZSTD_createThreadPool` | — | — |
+| `ZSTD_freeThreadPool` | — | — |
 | `ZSTD_getCParams` | — | — |
 | `ZSTD_getParams` | — | — |
 | `ZSTD_initStaticCCtx` | — | — |
 | `ZSTD_initStaticCDict` | — | — |
 | `ZSTD_initStaticDCtx` | — | — |
 | `ZSTD_initStaticDDict` | — | — |
+| `ZSTD_isDeterministicBuild` | — | — |

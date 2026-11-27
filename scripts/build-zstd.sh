@@ -73,10 +73,9 @@ CROSS=""
 echo "[build-zstd] Building zstd $CLASSIFIER$CROSS with zig cc (jobs=$JOBS)..."
 
 # Library sources: core (common/compress/decompress) plus the dictionary
-# builder (ZDICT_* API), plus the legacy decoders for format versions 0.4-0.7
-# (matching ZSTD_LEGACY_SUPPORT=4 below — see the CFLAGS comment).
-# deprecated/ (the old ZBUFF_* streaming wrapper, superseded by ZSTD_CCtx
-# streaming) stays excluded — unrelated to legacy *decoding*.
+# builder (ZDICT_* API). legacy/ (pre-1.0 frame decoders) is left out, like
+# upstream 1.6.0 and zstd-jni since 1.5.7-12; so is deprecated/ (the old ZBUFF_*
+# streaming wrapper).
 # huf_decompress_amd64.S is hand-written BMI2 Huffman-decode asm; its body is
 # entirely wrapped in `#if ZSTD_ENABLE_ASM_X86_64_BMI2` (gated on __x86_64__),
 # so it compiles to a no-op object on every non-x86_64 target and only kicks
@@ -85,11 +84,7 @@ echo "[build-zstd] Building zstd $CLASSIFIER$CROSS with zig cc (jobs=$JOBS)..."
 SRCS=$(find "$ZSTD_LIB/common" "$ZSTD_LIB/compress" "$ZSTD_LIB/decompress" \
             "$ZSTD_LIB/dictBuilder" -name '*.c' | sort)
 SRCS="$SRCS
-$ZSTD_LIB/decompress/huf_decompress_amd64.S
-$ZSTD_LIB/legacy/zstd_v04.c
-$ZSTD_LIB/legacy/zstd_v05.c
-$ZSTD_LIB/legacy/zstd_v06.c
-$ZSTD_LIB/legacy/zstd_v07.c"
+$ZSTD_LIB/decompress/huf_decompress_amd64.S"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -139,11 +134,7 @@ case "$CLASSIFIER" in
     *-aarch64) ARCH_FLAG="-mcpu=generic+crc" ;;
 esac
 
-# Decode (not encode) formats back to zstd v0.4, matching what zstd-jni
-# ships by default. v0.1-v0.3 stay off (ZSTD_LEGACY_SUPPORT>=4 skips their
-# zstd_v0{1,2,3}.c decoders per legacy/zstd_legacy.h) — those predate zstd's
-# 1.0 stabilization and are vanishingly unlikely to show up in the wild.
-CFLAGS="-O3 $ARCH_FLAG -DNDEBUG -DZSTD_MULTITHREAD=1 -DZSTD_LEGACY_SUPPORT=4 -DXXH_NAMESPACE=ZSTD_ $VIS_FLAG \
+CFLAGS="-O3 $ARCH_FLAG -DNDEBUG -DZSTD_MULTITHREAD=1 -DXXH_NAMESPACE=ZSTD_ $VIS_FLAG \
         $DLL_EXPORT_FLAG -I$ZSTD_LIB -I$ZSTD_LIB/common -fPIC"
 
 # xargs -P keeps all $JOBS slots saturated (a fixed-size batch-then-wait loop
