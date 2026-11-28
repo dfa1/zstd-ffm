@@ -6,6 +6,9 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Added
+- `ZstdByteSize.lengthOf(byte[])`, shorthand for `ZstdByteSize.of(bytes.length)`. ([#197](https://github.com/dfa1/zstd-ffm/pull/197))
+
 ### Changed
 - Bundled zstd upgraded to 1.6.0, a security release (CVE-2026-124851) fixing malformed-input bugs in
   streaming decompression, dictionary training and multithreaded compression. ([#191](https://github.com/dfa1/zstd-ffm/issues/191))
