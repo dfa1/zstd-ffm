@@ -73,7 +73,7 @@ class ZstdJniInteropTest {
     @MethodSource("payloadsAndLevels")
     void jniCompressJavaDecompress(int level, byte[] data) {
         byte[] frame = com.github.luben.zstd.Zstd.compress(data, level);
-        assertThat(Zstd.decompress(frame, ZstdByteSize.of(data.length))).isEqualTo(data);
+        assertThat(Zstd.decompress(frame, ZstdByteSize.of(data))).isEqualTo(data);
     }
 
     @ParameterizedTest
@@ -299,7 +299,7 @@ class ZstdJniInteropTest {
                 zout.setWorkers(2);
                 zout.write(data);
             }
-            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(data.length))).isEqualTo(data);
+            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(data))).isEqualTo(data);
         }
 
         @Test
@@ -341,7 +341,7 @@ class ZstdJniInteropTest {
 
             byte[] restored;
             try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
-                restored = ctx.decompress(frame, ZstdByteSize.of(sample.length), dict);
+                restored = ctx.decompress(frame, ZstdByteSize.of(sample), dict);
             }
             assertThat(restored).isEqualTo(sample);
         }
@@ -410,8 +410,8 @@ class ZstdJniInteropTest {
             byte[] ignored;
             try (ZstdDecompressContext on = Zstd.newDecompressContext();
                  ZstdDecompressContext off = Zstd.newDecompressContext().ignoreChecksum(true)) {
-                validated = on.decompress(frame, ZstdByteSize.of(data.length));
-                ignored = off.decompress(frame, ZstdByteSize.of(data.length));
+                validated = on.decompress(frame, ZstdByteSize.of(data));
+                ignored = off.decompress(frame, ZstdByteSize.of(data));
             }
 
             // Then both produce the original input
@@ -468,7 +468,7 @@ class ZstdJniInteropTest {
             // When decoding it with a magicless zstd-ffm context
             byte[] restored;
             try (ZstdDecompressContext sut = Zstd.newDecompressContext().magicless(true)) {
-                restored = sut.decompress(frame, ZstdByteSize.of(data.length));
+                restored = sut.decompress(frame, ZstdByteSize.of(data));
             }
 
             // Then the input comes back
@@ -562,8 +562,8 @@ class ZstdJniInteropTest {
             ThrowingCallable capped;
             try (ZstdDecompressContext uncapped = Zstd.newDecompressContext();
                  ZstdDecompressContext sut = Zstd.newDecompressContext().maxBlockSize(CAP)) {
-                restored = uncapped.decompress(frame, ZstdByteSize.of(data.length));
-                capped = () -> sut.decompress(frame, ZstdByteSize.of(data.length));
+                restored = uncapped.decompress(frame, ZstdByteSize.of(data));
+                capped = () -> sut.decompress(frame, ZstdByteSize.of(data));
 
                 // Then only the capped decoder rejects it
                 assertThat(restored).isEqualTo(data);

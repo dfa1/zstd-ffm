@@ -29,7 +29,7 @@ class ZstdSegmentTest {
                  ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
 
                 MemorySegment src = segmentOf(arena, original);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original)).value());
 
                 // When compressed into a caller-sized destination
                 long packedLen = cctx.compress(dst, src);
@@ -37,7 +37,7 @@ class ZstdSegmentTest {
 
                 // Then the frame header reports the original size, and it decodes back
                 ZstdByteSize outLen = Zstd.decompressedSize(frame);
-                assertThat(outLen).isEqualTo(ZstdByteSize.of(original.length));
+                assertThat(outLen).isEqualTo(ZstdByteSize.of(original));
 
                 MemorySegment out = arena.allocate(outLen.value());
                 long written = dctx.decompress(out, frame);
@@ -305,7 +305,7 @@ class ZstdSegmentTest {
             try (Arena arena = Arena.ofConfined();
                  ZstdCompressContext sut = Zstd.newCompressContext()) {
                 // Given a read-only view over writable native memory
-                MemorySegment backing = arena.allocate(Zstd.compressBound(ZstdByteSize.of(ORIGINAL.length)).value());
+                MemorySegment backing = arena.allocate(Zstd.compressBound(ZstdByteSize.of(ORIGINAL)).value());
                 MemorySegment src = segmentOf(arena, ORIGINAL);
 
                 // When compressing into the view

@@ -125,7 +125,7 @@ class ZstdCompressSettingsTest {
             // Then it is not a standard frame, and decodes with a magicless decoder
             assertThat(ZstdFrame.isZstdFrame(frame)).isFalse();
             try (ZstdDecompressContext dctx = Zstd.newDecompressContext().magicless(true)) {
-                assertThat(dctx.decompress(frame, ZstdByteSize.of(PAYLOAD.length))).isEqualTo(PAYLOAD);
+                assertThat(dctx.decompress(frame, ZstdByteSize.of(PAYLOAD))).isEqualTo(PAYLOAD);
             }
         }
 

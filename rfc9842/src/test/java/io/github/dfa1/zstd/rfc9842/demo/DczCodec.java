@@ -44,7 +44,7 @@ final class DczCodec {
             MemorySegment in = arena.allocate(payload.length);
             MemorySegment.copy(payload, 0, in, JAVA_BYTE, 0, payload.length);
 
-            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(payload.length));
+            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(payload));
             MemorySegment dst = arena.allocate(Rfc9842Frame.HEADER_SIZE + bound.value());
             MemorySegment frameOut = dst.asSlice(Rfc9842Frame.HEADER_SIZE, bound.value());
             long written = cctx.compress(frameOut, in, dictionary);

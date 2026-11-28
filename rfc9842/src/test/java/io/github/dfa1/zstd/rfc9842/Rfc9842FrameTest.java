@@ -50,7 +50,7 @@ class Rfc9842FrameTest {
         // And it still decompresses correctly through the existing dictionary APIs
         byte[] restored;
         try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
-            restored = dctx.decompress(unwrapped, ZstdByteSize.of(PAYLOAD.length), dict);
+            restored = dctx.decompress(unwrapped, ZstdByteSize.of(PAYLOAD), dict);
         }
         assertThat(restored).isEqualTo(PAYLOAD);
     }
@@ -186,7 +186,7 @@ class Rfc9842FrameTest {
                 // And it still decompresses correctly through the existing dictionary APIs
                 byte[] restored;
                 try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
-                    restored = dctx.decompress(toArray(unwrapped), ZstdByteSize.of(PAYLOAD.length), dict);
+                    restored = dctx.decompress(toArray(unwrapped), ZstdByteSize.of(PAYLOAD), dict);
                 }
                 assertThat(restored).isEqualTo(PAYLOAD);
             }

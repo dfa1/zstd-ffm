@@ -1,5 +1,6 @@
 package io.github.dfa1.zstd;
 
+import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
 /// A validated, non-negative byte size or count, replacing a naked `int`/`long`
@@ -35,6 +36,25 @@ public final class ZstdByteSize {
     /// @throws IllegalArgumentException if `value` is negative
     public static ZstdByteSize of(long value) {
         return new ZstdByteSize(value);
+    }
+
+    /// The length of `bytes`: shorthand for `ZstdByteSize.of(bytes.length)`, e.g.
+    /// `dctx.decompress(frame, ZstdByteSize.of(original))`.
+    ///
+    /// @param bytes the array to measure
+    /// @return a size of `bytes.length` bytes
+    /// @throws NullPointerException if `bytes` is `null`
+    public static ZstdByteSize of(byte[] bytes) {
+        return new ZstdByteSize(bytes.length);
+    }
+
+    /// The size of `segment`: shorthand for `ZstdByteSize.of(segment.byteSize())`.
+    ///
+    /// @param segment the segment to measure
+    /// @return a size of `segment.byteSize()` bytes
+    /// @throws NullPointerException if `segment` is `null`
+    public static ZstdByteSize of(MemorySegment segment) {
+        return new ZstdByteSize(segment.byteSize());
     }
 
     /// Narrows this size to an `int`, for callers that must size a `byte[]`.

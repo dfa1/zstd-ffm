@@ -257,7 +257,7 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
         Objects.requireNonNull(src, "src");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = Zstd.copyIn(arena, src);
-            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(src.length));
+            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(src));
             MemorySegment out = arena.allocate(bound.value());
             long written = compress2(out, bound.value(), in, src.length);
             return Zstd.copyOut(out, written);
@@ -289,7 +289,7 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
             MemorySegment in = Zstd.copyIn(arena, src);
             byte[] d = dict.raw();
             MemorySegment dseg = Zstd.copyIn(arena, d);
-            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(src.length));
+            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(src));
             MemorySegment out = arena.allocate(bound.value());
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS_USING_DICT.invokeExact(
                     ptr(), out, bound.value(), in, (long) src.length, dseg, (long) d.length, level.value()));
@@ -308,7 +308,7 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
         Objects.requireNonNull(dict, "dict");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = Zstd.copyIn(arena, src);
-            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(src.length));
+            ZstdByteSize bound = Zstd.compressBound(ZstdByteSize.of(src));
             MemorySegment out = arena.allocate(bound.value());
             long written = dict.withRetained(cdict -> NativeCall.checkReturnValue(
                     () -> (long) Bindings.COMPRESS_USING_CDICT.invokeExact(
@@ -363,7 +363,7 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
     /// @param src   the native source bytes to compress
     /// @return the zstd frame, a slice of an `arena`-owned segment
     public MemorySegment compress(Arena arena, MemorySegment src) {
-        MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(src.byteSize())).value());
+        MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(src)).value());
         long written = compress(dst, src);
         return dst.asSlice(0, written);
     }
@@ -376,7 +376,7 @@ public final class ZstdCompressContext extends NativeObject implements ZstdCompr
     /// @param dict  the pre-digested compression dictionary
     /// @return the zstd frame, a slice of an `arena`-owned segment
     public MemorySegment compress(Arena arena, MemorySegment src, ZstdCompressDictionary dict) {
-        MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(src.byteSize())).value());
+        MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(src)).value());
         long written = compress(dst, src, dict);
         return dst.asSlice(0, written);
     }

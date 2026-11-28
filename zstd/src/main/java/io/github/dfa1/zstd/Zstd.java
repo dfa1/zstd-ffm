@@ -70,7 +70,7 @@ public final class Zstd {
         Objects.requireNonNull(src, "src");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment in = copyIn(arena, src);
-            ZstdByteSize bound = compressBound(ZstdByteSize.of(src.length));
+            ZstdByteSize bound = compressBound(ZstdByteSize.of(src));
             MemorySegment out = arena.allocate(bound.value());
             long written = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS.invokeExact(
                     out, bound.value(), in, (long) src.length, level.value()));
