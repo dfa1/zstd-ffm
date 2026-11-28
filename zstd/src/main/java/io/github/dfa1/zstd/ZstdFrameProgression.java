@@ -4,20 +4,24 @@ import java.util.Objects;
 
 /// A live snapshot of a streaming compressor's progress, from
 /// `ZSTD_getFrameProgression`.
+///
+/// The byte counts are [ZstdByteSize]; `currentJobId` and `activeWorkers` stay
+/// `int`: a job id is a counter with no unit, and a worker count is reported by
+/// zstd, not chosen by the caller, so there is nothing to validate.
 public final class ZstdFrameProgression {
 
-    private final long ingested;
-    private final long consumed;
-    private final long produced;
-    private final long flushed;
+    private final ZstdByteSize ingested;
+    private final ZstdByteSize consumed;
+    private final ZstdByteSize produced;
+    private final ZstdByteSize flushed;
     private final int currentJobId;
     private final int activeWorkers;
 
     private ZstdFrameProgression(
-            long ingested,
-            long consumed,
-            long produced,
-            long flushed,
+            ZstdByteSize ingested,
+            ZstdByteSize consumed,
+            ZstdByteSize produced,
+            ZstdByteSize flushed,
             int currentJobId,
             int activeWorkers) {
         this.ingested = ingested;
@@ -38,10 +42,10 @@ public final class ZstdFrameProgression {
     /// @param activeWorkers number of worker threads currently active (0 when single-threaded)
     /// @return the new [ZstdFrameProgression]
     static ZstdFrameProgression of(
-            long ingested,
-            long consumed,
-            long produced,
-            long flushed,
+            ZstdByteSize ingested,
+            ZstdByteSize consumed,
+            ZstdByteSize produced,
+            ZstdByteSize flushed,
             int currentJobId,
             int activeWorkers) {
         return new ZstdFrameProgression(ingested, consumed, produced, flushed, currentJobId, activeWorkers);
@@ -50,28 +54,28 @@ public final class ZstdFrameProgression {
     /// Input bytes read and buffered so far.
     ///
     /// @return input bytes read and buffered so far
-    public long ingested() {
+    public ZstdByteSize ingested() {
         return ingested;
     }
 
     /// Input bytes actually compressed so far.
     ///
     /// @return input bytes actually compressed so far
-    public long consumed() {
+    public ZstdByteSize consumed() {
         return consumed;
     }
 
     /// Output bytes generated so far, including still-buffered.
     ///
     /// @return output bytes generated so far, including still-buffered
-    public long produced() {
+    public ZstdByteSize produced() {
         return produced;
     }
 
     /// Output bytes flushed out so far.
     ///
     /// @return output bytes flushed out so far
-    public long flushed() {
+    public ZstdByteSize flushed() {
         return flushed;
     }
 
@@ -96,10 +100,10 @@ public final class ZstdFrameProgression {
     @Override
     public boolean equals(Object o) {
         return o instanceof ZstdFrameProgression other
-                && ingested == other.ingested
-                && consumed == other.consumed
-                && produced == other.produced
-                && flushed == other.flushed
+                && ingested.equals(other.ingested)
+                && consumed.equals(other.consumed)
+                && produced.equals(other.produced)
+                && flushed.equals(other.flushed)
                 && currentJobId == other.currentJobId
                 && activeWorkers == other.activeWorkers;
     }
