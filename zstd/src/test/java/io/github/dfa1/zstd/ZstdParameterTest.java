@@ -63,7 +63,7 @@ class ZstdParameterTest {
             frame[frame.length / 2] ^= 0x01;
 
             // When decompressed
-            ThrowingCallable result = () -> Zstd.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+            ThrowingCallable result = () -> Zstd.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
 
             // Then the integrity check fails
             assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -79,7 +79,7 @@ class ZstdParameterTest {
             byte[] frame = withWrongChecksum(PAYLOAD);
             try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
                 // When decoding it with validation on
-                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
 
                 // Then the mismatch is reported as such
                 assertThatThrownBy(result)
@@ -96,7 +96,7 @@ class ZstdParameterTest {
             // When decoding it with validation off
             byte[] restored;
             try (ZstdDecompressContext sut = Zstd.newDecompressContext().ignoreChecksum(true)) {
-                restored = sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                restored = sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
             }
 
             // Then the payload comes back untouched
@@ -112,7 +112,7 @@ class ZstdParameterTest {
             // When decoding it with either setting
             byte[] restored;
             try (ZstdDecompressContext sut = Zstd.newDecompressContext().ignoreChecksum(ignore)) {
-                restored = sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                restored = sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
             }
 
             // Then it decodes the same
@@ -125,7 +125,7 @@ class ZstdParameterTest {
             byte[] frame = withWrongChecksum(PAYLOAD);
             try (ZstdDecompressContext sut = Zstd.newDecompressContext().ignoreChecksum(true).ignoreChecksum(false)) {
                 // When decoding a frame with a wrong checksum
-                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
 
                 // Then validation is back on
                 assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -139,7 +139,7 @@ class ZstdParameterTest {
             byte[] frame = Arrays.copyOf(full, full.length - 1);
             try (ZstdDecompressContext sut = Zstd.newDecompressContext().ignoreChecksum(true)) {
                 // When decoding it with checksum validation off
-                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
 
                 // Then the malformed frame is still rejected
                 assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -158,7 +158,7 @@ class ZstdParameterTest {
             // When decoding with a magicless decompressor
             byte[] restored;
             try (ZstdDecompressContext sut = Zstd.newDecompressContext().magicless(true)) {
-                restored = sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                restored = sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
             }
 
             // Then the input comes back
@@ -189,7 +189,7 @@ class ZstdParameterTest {
             byte[] frame = compressMagicless(PAYLOAD);
             try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
                 // When decoding it
-                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
 
                 // Then the missing magic number is rejected
                 assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -202,7 +202,7 @@ class ZstdParameterTest {
             byte[] frame = Zstd.compress(PAYLOAD);
             try (ZstdDecompressContext sut = Zstd.newDecompressContext().magicless(true)) {
                 // When decoding it
-                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
 
                 // Then the magic number is misread as a header and rejected
                 assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -220,7 +220,7 @@ class ZstdParameterTest {
             // When decoding with a decompressor also toggled back
             byte[] restored;
             try (ZstdDecompressContext sut = Zstd.newDecompressContext().magicless(true).magicless(false)) {
-                restored = sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                restored = sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
             }
 
             // Then the frame is standard and decodes
@@ -432,7 +432,7 @@ class ZstdParameterTest {
             byte[] restored;
             try (ZstdDecompressContext sut = Zstd.newDecompressContext()
                     .windowLogMax(windowLogMax)) {
-                restored = sut.decompress(frame, ZstdByteSize.of(content.length));
+                restored = sut.decompress(frame, ZstdByteSize.lengthOf(content));
             }
 
             // Then it decodes anyway: one-shot decoding never checks the limit
@@ -445,7 +445,7 @@ class ZstdParameterTest {
             byte[] frame = Zstd.compress(PAYLOAD);
             try (ZstdDecompressContext ctx = Zstd.newDecompressContext().windowLogMax(31)) {
                 // Then normal frames still decode
-                assertThat(ctx.decompress(frame, ZstdByteSize.of(PAYLOAD.length))).isEqualTo(PAYLOAD);
+                assertThat(ctx.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD))).isEqualTo(PAYLOAD);
             }
         }
 
@@ -522,7 +522,7 @@ class ZstdParameterTest {
 
             // Then the frame still round-trips through the same dictionary
             try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
-                assertThat(dctx.decompress(frame, ZstdByteSize.of(PAYLOAD.length), dict)).isEqualTo(PAYLOAD);
+                assertThat(dctx.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD), dict)).isEqualTo(PAYLOAD);
             }
         }
 
@@ -531,11 +531,11 @@ class ZstdParameterTest {
             // Given a decompression context reset between frames
             byte[] frame = Zstd.compress(PAYLOAD);
             try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
-                sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+                sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
                 sut.reset(ZstdResetDirective.SESSION_AND_PARAMETERS);
 
                 // Then the next frame still decodes
-                assertThat(sut.decompress(frame, ZstdByteSize.of(PAYLOAD.length))).isEqualTo(PAYLOAD);
+                assertThat(sut.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD))).isEqualTo(PAYLOAD);
             }
         }
 

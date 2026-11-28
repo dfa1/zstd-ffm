@@ -187,7 +187,7 @@ class GoldenCorpusTest {
             byte[] frame = com.github.luben.zstd.Zstd.compress(data, ZstdCompressionLevel.MAX.value());
 
             // Then
-            assertThat(Zstd.decompress(frame, ZstdByteSize.of(data.length))).isEqualTo(data);
+            assertThat(Zstd.decompress(frame, ZstdByteSize.lengthOf(data))).isEqualTo(data);
         }
     }
 
@@ -286,7 +286,7 @@ class GoldenCorpusTest {
             // When
             byte[] restored;
             try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
-                restored = ctx.decompress(frame, ZstdByteSize.of(data.length), ZstdDictionary.of(raw));
+                restored = ctx.decompress(frame, ZstdByteSize.lengthOf(data), ZstdDictionary.of(raw));
             }
 
             // Then

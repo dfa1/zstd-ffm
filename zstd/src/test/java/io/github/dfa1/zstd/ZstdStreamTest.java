@@ -82,7 +82,7 @@ class ZstdStreamTest {
             byte[] frame = streamCompress(original, ZstdCompressionLevel.of(6));
 
             // Then the one-shot decompressor reads it (frame stores no size -> give a bound)
-            assertThat(Zstd.decompress(frame, ZstdByteSize.of(original.length))).isEqualTo(original);
+            assertThat(Zstd.decompress(frame, ZstdByteSize.lengthOf(original))).isEqualTo(original);
         }
 
         @Test
@@ -145,7 +145,7 @@ class ZstdStreamTest {
 
             // Then the one-shot context decodes it with the same dictionary
             try (ZstdDecompressContext ctx = Zstd.newDecompressContext()) {
-                assertThat(ctx.decompress(sink.toByteArray(), ZstdByteSize.of(sample.length), dict)).isEqualTo(sample);
+                assertThat(ctx.decompress(sink.toByteArray(), ZstdByteSize.lengthOf(sample), dict)).isEqualTo(sample);
             }
         }
 
@@ -192,14 +192,14 @@ class ZstdStreamTest {
             // Given a stream told the exact total up front
             byte[] original = "pledged payload ".repeat(300).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.lengthOf(original))) {
                 zout.level(ZstdCompressionLevel.of(6));
                 zout.write(original);
             }
             byte[] frame = sink.toByteArray();
 
             // Then the frame header carries the size, so size-less decompress works
-            assertThat(ZstdFrame.header(frame).contentSize()).hasValue(ZstdByteSize.of(original.length));
+            assertThat(ZstdFrame.header(frame).contentSize()).hasValue(ZstdByteSize.lengthOf(original));
             assertThat(Zstd.decompress(frame)).isEqualTo(original);
         }
 
@@ -226,7 +226,7 @@ class ZstdStreamTest {
             // Given a frame that records its decompressed size
             byte[] original = "sized frame ".repeat(300).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.lengthOf(original))) {
                 zout.level(ZstdCompressionLevel.of(6));
                 zout.write(original);
             }
@@ -266,7 +266,7 @@ class ZstdStreamTest {
             // Given a streamed frame that pledged its total up front
             byte[] original = "pledge enables zero-copy ".repeat(500).getBytes(StandardCharsets.UTF_8);
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
-            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(original.length))) {
+            try (ZstdOutputStream zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.lengthOf(original))) {
                 zout.level(ZstdCompressionLevel.of(6));
                 zout.write(original);
             }

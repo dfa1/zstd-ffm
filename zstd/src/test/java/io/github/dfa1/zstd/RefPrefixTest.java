@@ -52,7 +52,7 @@ class RefPrefixTest {
                  ZstdCompressContext sut = Zstd.newCompressContext()) {
                 referenceThenClose(sut::refPrefix);
                 MemorySegment src = segmentOf(arena, DATA);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(DATA.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.lengthOf(DATA)).value());
 
                 // When compressing segment to segment
                 ThrowingCallable result = () -> sut.compress(dst, src);
@@ -141,7 +141,7 @@ class RefPrefixTest {
                 referenceThenClose(sut::refPrefix);
 
                 // When decoding
-                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.of(DATA.length));
+                ThrowingCallable result = () -> sut.decompress(frame, ZstdByteSize.lengthOf(DATA));
 
                 // Then it fails fast instead of reading freed memory
                 assertThatThrownBy(result)
@@ -173,11 +173,11 @@ class RefPrefixTest {
             byte[] frame = Zstd.compress(DATA);
             try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
                 referenceThenClose(sut::refPrefix);
-                ThrowingCallable rejected = () -> sut.decompress(frame, ZstdByteSize.of(DATA.length));
+                ThrowingCallable rejected = () -> sut.decompress(frame, ZstdByteSize.lengthOf(DATA));
                 assertThatThrownBy(rejected).isInstanceOf(IllegalStateException.class);
 
                 // When decoding again
-                byte[] restored = sut.decompress(frame, ZstdByteSize.of(DATA.length));
+                byte[] restored = sut.decompress(frame, ZstdByteSize.lengthOf(DATA));
 
                 // Then it decodes, with the dead prefix dropped
                 assertThat(restored).isEqualTo(DATA);
@@ -195,10 +195,10 @@ class RefPrefixTest {
             }
             byte[] plainFrame = Zstd.compress(DATA);
             try (ZstdDecompressContext sut = Zstd.newDecompressContext()) {
-                referenceThenClose(prefix -> sut.refPrefix(prefix).decompress(dictFrame, ZstdByteSize.of(DATA.length), dict));
+                referenceThenClose(prefix -> sut.refPrefix(prefix).decompress(dictFrame, ZstdByteSize.lengthOf(DATA), dict));
 
                 // When the next frame would use the still-pending prefix
-                ThrowingCallable result = () -> sut.decompress(plainFrame, ZstdByteSize.of(DATA.length));
+                ThrowingCallable result = () -> sut.decompress(plainFrame, ZstdByteSize.lengthOf(DATA));
 
                 // Then the closed prefix is caught
                 assertThatThrownBy(result).isInstanceOf(IllegalStateException.class);
@@ -216,7 +216,7 @@ class RefPrefixTest {
                 referenceThenClose(prefix -> {
                     sut.refPrefix(prefix);
                     switch (how) {
-                        case "used by a frame" -> sut.decompress(prefixedFrame, ZstdByteSize.of(PREFIX.length));
+                        case "used by a frame" -> sut.decompress(prefixedFrame, ZstdByteSize.lengthOf(PREFIX));
                         case "parameter reset" -> sut.reset(ZstdResetDirective.PARAMETERS);
                         case "cleared with null" -> sut.refPrefix(null);
                         case "loadDictionary(null)" -> sut.loadDictionary((ZstdDictionary) null);
@@ -226,7 +226,7 @@ class RefPrefixTest {
                 });
 
                 // When decoding the next frame
-                byte[] restored = sut.decompress(plainFrame, ZstdByteSize.of(DATA.length));
+                byte[] restored = sut.decompress(plainFrame, ZstdByteSize.lengthOf(DATA));
 
                 // Then nothing is rejected
                 assertThat(restored).isEqualTo(DATA);
@@ -241,7 +241,7 @@ class RefPrefixTest {
                 sut.level(ZstdCompressionLevel.of(19));
                 sut.refPrefix(segmentOf(prefixArena, PREFIX));
                 MemorySegment closedSrc = closedSegment();
-                MemorySegment dst = prefixArena.allocate(Zstd.compressBound(ZstdByteSize.of(DATA.length)).value());
+                MemorySegment dst = prefixArena.allocate(Zstd.compressBound(ZstdByteSize.lengthOf(DATA)).value());
                 ThrowingCallable refused = () -> sut.compress(dst, closedSrc);
                 assertThatThrownBy(refused).isInstanceOf(IllegalStateException.class);
 
@@ -268,7 +268,7 @@ class RefPrefixTest {
                 assertThatThrownBy(refused).isInstanceOf(IllegalStateException.class);
 
                 // When decoding a frame that needs the prefix, without referencing it again
-                ThrowingCallable result = () -> sut.decompress(prefixedFrame, ZstdByteSize.of(PREFIX.length));
+                ThrowingCallable result = () -> sut.decompress(prefixedFrame, ZstdByteSize.lengthOf(PREFIX));
 
                 // Then zstd no longer holds the prefix, so the frame cannot be decoded
                 assertThatThrownBy(result).isInstanceOf(ZstdException.class);
@@ -354,7 +354,7 @@ class RefPrefixTest {
             // Then the frame is written whole and decodes against the prefix
             assertThat(written).isEqualTo(frameSize);
             try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
-                assertThat(dctx.refPrefix(prefix).decompress(bytesOf(dst, written), ZstdByteSize.of(data.length)))
+                assertThat(dctx.refPrefix(prefix).decompress(bytesOf(dst, written), ZstdByteSize.lengthOf(data)))
                         .isEqualTo(data);
             }
         }
@@ -392,7 +392,7 @@ class RefPrefixTest {
              ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
             MemorySegment prefix = segmentOf(arena, prefixBytes);
             MemorySegment src = segmentOf(arena, dataBytes);
-            MemorySegment frame = arena.allocate(Zstd.compressBound(ZstdByteSize.of(dataBytes.length)).value());
+            MemorySegment frame = arena.allocate(Zstd.compressBound(ZstdByteSize.lengthOf(dataBytes)).value());
             MemorySegment out = arena.allocate(dataBytes.length);
 
             // When
@@ -464,7 +464,7 @@ class RefPrefixTest {
              ZstdCompressContext cctx = Zstd.newCompressContext()) {
             MemorySegment prefix = segmentOf(arena, "a prior version of the text".getBytes());
             MemorySegment src = segmentOf(arena, dataBytes);
-            MemorySegment frame = arena.allocate(Zstd.compressBound(ZstdByteSize.of(dataBytes.length)).value());
+            MemorySegment frame = arena.allocate(Zstd.compressBound(ZstdByteSize.lengthOf(dataBytes)).value());
 
             // When — set then clear the prefix before compressing
             cctx.refPrefix(prefix);
@@ -492,8 +492,8 @@ class RefPrefixTest {
             cctx.level(ZstdCompressionLevel.of(19));
             MemorySegment prefix = segmentOf(arena, random);
             MemorySegment src = segmentOf(arena, random);
-            MemorySegment first = arena.allocate(Zstd.compressBound(ZstdByteSize.of(random.length)).value());
-            MemorySegment second = arena.allocate(Zstd.compressBound(ZstdByteSize.of(random.length)).value());
+            MemorySegment first = arena.allocate(Zstd.compressBound(ZstdByteSize.lengthOf(random)).value());
+            MemorySegment second = arena.allocate(Zstd.compressBound(ZstdByteSize.lengthOf(random)).value());
 
             // When — first frame consumes the prefix; second is compressed with no re-set
             cctx.refPrefix(prefix);

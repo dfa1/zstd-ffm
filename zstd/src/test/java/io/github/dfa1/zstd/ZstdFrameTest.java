@@ -55,7 +55,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
 
             // Then its compressed size is the whole buffer
-            assertThat(ZstdFrame.compressedSize(frame)).isEqualTo(ZstdByteSize.of(frame.length));
+            assertThat(ZstdFrame.compressedSize(frame)).isEqualTo(ZstdByteSize.lengthOf(frame));
         }
 
         @Test
@@ -68,7 +68,7 @@ class ZstdFrameTest {
             both.write(second);
 
             // Then compressedSize reports where the second frame begins
-            assertThat(ZstdFrame.compressedSize(both.toByteArray())).isEqualTo(ZstdByteSize.of(first.length));
+            assertThat(ZstdFrame.compressedSize(both.toByteArray())).isEqualTo(ZstdByteSize.lengthOf(first));
         }
 
         @Test
@@ -111,7 +111,7 @@ class ZstdFrameTest {
             byte[] frame = Zstd.compress(PAYLOAD);
 
             // Then the exact decompressed size is the payload length
-            assertThat(ZstdFrame.decompressedSize(frame)).isEqualTo(ZstdByteSize.of(PAYLOAD.length));
+            assertThat(ZstdFrame.decompressedSize(frame)).isEqualTo(ZstdByteSize.lengthOf(PAYLOAD));
         }
 
         @Test
@@ -280,7 +280,7 @@ class ZstdFrameTest {
 
             // Then it is a standard frame storing the content size, no checksum, no dict
             assertThat(header.frameType()).isEqualTo(ZstdFrameType.STANDARD);
-            assertThat(header.contentSize()).hasValue(ZstdByteSize.of(PAYLOAD.length));
+            assertThat(header.contentSize()).hasValue(ZstdByteSize.lengthOf(PAYLOAD));
             assertThat(header.hasChecksum()).isFalse();
             assertThat(header.dictId()).isEqualTo(ZstdDictionaryId.NONE);
             assertThat(header.windowSize()).hasValueSatisfying(w -> assertThat(w.value()).isPositive());

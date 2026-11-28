@@ -106,7 +106,7 @@ class ZstdNativeFactoryTest {
             try (ZstdCompressContext cctx = Zstd.newCompressContext();
                  ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
                 byte[] frame = cctx.compress(payload, cdict);
-                return dctx.decompress(frame, ZstdByteSize.of(payload.length), dict);
+                return dctx.decompress(frame, ZstdByteSize.lengthOf(payload), dict);
             }
         }
     }
@@ -125,7 +125,7 @@ class ZstdNativeFactoryTest {
 
                 // Then
                 assertThat(sut.id()).isEqualTo(dict.id());
-                assertThat(dctx.decompress(frame, ZstdByteSize.of(payload.length), sut)).isEqualTo(payload);
+                assertThat(dctx.decompress(frame, ZstdByteSize.lengthOf(payload), sut)).isEqualTo(payload);
             }
         }
 
@@ -142,7 +142,7 @@ class ZstdNativeFactoryTest {
 
                     // Then
                     assertThat(sut.id()).isEqualTo(dict.id());
-                    assertThat(dctx.decompress(frame, ZstdByteSize.of(payload.length), sut)).isEqualTo(payload);
+                    assertThat(dctx.decompress(frame, ZstdByteSize.lengthOf(payload), sut)).isEqualTo(payload);
                 }
             }
         }
@@ -216,7 +216,7 @@ class ZstdNativeFactoryTest {
         private byte[] compressAll(ZstdCompressStream cs) {
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment src = segmentOf(arena, payload);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(payload.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.lengthOf(payload)).value());
                 ZstdStreamResult r = cs.compress(dst, src.asSlice(0, payload.length), ZstdEndDirective.END);
                 assertThat(r.isComplete()).isTrue();
                 return bytesOf(dst, r.bytesProduced());
@@ -248,7 +248,7 @@ class ZstdNativeFactoryTest {
             }
 
             // Then
-            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(payload.length))).isEqualTo(payload);
+            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.lengthOf(payload))).isEqualTo(payload);
         }
 
         @Test
@@ -263,7 +263,7 @@ class ZstdNativeFactoryTest {
             }
 
             // Then
-            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(payload.length))).isEqualTo(payload);
+            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.lengthOf(payload))).isEqualTo(payload);
         }
 
         @Test
@@ -342,7 +342,7 @@ class ZstdNativeFactoryTest {
             ByteArrayOutputStream sink = new ByteArrayOutputStream();
 
             // When
-            try (ZstdOutputStream sut = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(payload.length))) {
+            try (ZstdOutputStream sut = Zstd.newPledgedOutputStream(sink, ZstdByteSize.lengthOf(payload))) {
                 sut.level(LEVEL);
                 sut.write(payload);
             }
@@ -417,7 +417,7 @@ class ZstdNativeFactoryTest {
             try (sut) {
                 sut.write(payload);
             }
-            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(payload.length))).isEqualTo(payload);
+            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.lengthOf(payload))).isEqualTo(payload);
         }
     }
 

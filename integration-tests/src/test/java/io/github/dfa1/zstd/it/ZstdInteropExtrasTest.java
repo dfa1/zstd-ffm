@@ -212,7 +212,7 @@ class ZstdInteropExtrasTest {
 
             // Then
             assertThat(header.frameType()).isEqualTo(ZstdFrameType.STANDARD);
-            assertThat(header.contentSize()).hasValue(ZstdByteSize.of(DATA.length));
+            assertThat(header.contentSize()).hasValue(ZstdByteSize.lengthOf(DATA));
         }
 
         @Test

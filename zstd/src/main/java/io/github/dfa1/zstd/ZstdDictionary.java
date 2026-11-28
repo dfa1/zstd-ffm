@@ -325,7 +325,7 @@ public final class ZstdDictionary {
     ///
     /// @return the dictionary size in bytes
     public ZstdByteSize size() {
-        return ZstdByteSize.of(bytes.length);
+        return ZstdByteSize.lengthOf(bytes);
     }
 
     /// Internal: direct view of the bytes for native calls. Not exposed.

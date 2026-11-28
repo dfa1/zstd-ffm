@@ -38,7 +38,7 @@ class RefDictionaryTest {
 
         // Then the frame still decodes correctly against the original dictionary
         try (ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
-            byte[] restored = dctx.decompress(frame, ZstdByteSize.of(PAYLOAD.length), dict);
+            byte[] restored = dctx.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD), dict);
             assertThat(restored).isEqualTo(PAYLOAD);
         }
     }
@@ -58,7 +58,7 @@ class RefDictionaryTest {
 
         // When the dictionary is closed while the context still references it
         ddict.close();
-        byte[] restored = dctx.decompress(frame, ZstdByteSize.of(PAYLOAD.length));
+        byte[] restored = dctx.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD));
         dctx.close();
 
         // Then decompression still succeeds
@@ -320,7 +320,7 @@ class RefDictionaryTest {
             assertThatThrownBy(result)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("closed");
-            assertThat(retaining.decompress(frame, ZstdByteSize.of(PAYLOAD.length))).isEqualTo(PAYLOAD);
+            assertThat(retaining.decompress(frame, ZstdByteSize.lengthOf(PAYLOAD))).isEqualTo(PAYLOAD);
         }
     }
 
@@ -359,7 +359,7 @@ class RefDictionaryTest {
                 use("sizeOf()", (Consumer<ZstdDecompressDictionary>) ZstdDecompressDictionary::sizeOf),
                 use("decompress(byte[], size, dict)", (ZstdDecompressDictionary d) -> {
                     try (ZstdDecompressContext other = Zstd.newDecompressContext()) {
-                        other.decompress(Zstd.compress(PAYLOAD), ZstdByteSize.of(PAYLOAD.length), d);
+                        other.decompress(Zstd.compress(PAYLOAD), ZstdByteSize.lengthOf(PAYLOAD), d);
                     }
                 }),
                 use("refDictionary(dict)", (ZstdDecompressDictionary d) -> {

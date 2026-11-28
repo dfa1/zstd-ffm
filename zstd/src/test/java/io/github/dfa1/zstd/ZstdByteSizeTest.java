@@ -26,6 +26,29 @@ class ZstdByteSizeTest {
             // Then it carries that value
             assertThat(sut.value()).isEqualTo(value);
         }
+
+        @ParameterizedTest
+        @ValueSource(ints = {0, 1, 1024, 1 << 20})
+        void lengthOfMeasuresTheArray(int length) {
+            // Given an array of `length` bytes
+            byte[] bytes = new byte[length];
+
+            // When measured
+            ZstdByteSize sut = ZstdByteSize.lengthOf(bytes);
+
+            // Then it equals of(bytes.length)
+            assertThat(sut).isEqualTo(ZstdByteSize.of(length));
+        }
+
+        @Test
+        void lengthOfRejectsNull() {
+            // Given no array
+            // When measured
+            ThrowingCallable result = () -> ZstdByteSize.lengthOf(null);
+
+            // Then it fails fast
+            assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
+        }
     }
 
     @Nested
