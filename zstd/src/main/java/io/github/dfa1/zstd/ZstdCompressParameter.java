@@ -14,6 +14,7 @@ enum ZstdCompressParameter {
     TARGET_LENGTH(106, "targetLength"),
     STRATEGY(107, "strategy"),
     TARGET_C_BLOCK_SIZE(130, "targetCBlockSize"),
+    MAX_BLOCK_SIZE(1015, "maxBlockSize"),
     ENABLE_LONG_DISTANCE_MATCHING(160, "longDistanceMatching"),
     LDM_HASH_LOG(161, "ldmHashLog"),
     LDM_MIN_MATCH(162, "ldmMinMatch"),

@@ -189,6 +189,32 @@ class GoldenCorpusTest {
             // Then
             assertThat(Zstd.decompress(frame, ZstdByteSize.of(data.length))).isEqualTo(data);
         }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("inputs")
+        void roundTripsWithABlockSizeCapOnBothSides(String name, Path file) throws IOException {
+            // Given a golden input and both sides capped at the 1 KiB minimum
+            byte[] data = read(file);
+            ZstdByteSize cap = ZstdByteSize.ofKiB(1);
+
+            // When compressing and decoding it one-shot and streaming
+            byte[] frame;
+            byte[] oneShot;
+            byte[] streamed;
+            try (ZstdCompressContext cctx = Zstd.newCompressContext().maxBlockSize(cap);
+                 ZstdDecompressContext dctx = Zstd.newDecompressContext().maxBlockSize(cap)) {
+                frame = cctx.compress(data);
+                oneShot = dctx.decompress(frame, ZstdByteSize.of(data.length));
+            }
+            try (ZstdInputStream in = Zstd.newInputStream(new ByteArrayInputStream(frame)).maxBlockSize(cap)) {
+                streamed = in.readAllBytes();
+            }
+
+            // Then both restore the input, and zstd-jni reads the capped frame too
+            assertThat(oneShot).isEqualTo(data);
+            assertThat(streamed).isEqualTo(data);
+            assertThat(com.github.luben.zstd.Zstd.decompress(frame, data.length)).isEqualTo(data);
+        }
     }
 
     /// Malformed frames the C project guarantees fail to decode. zstd-ffm must

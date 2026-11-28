@@ -6,6 +6,10 @@ git tags, which trigger publication to Maven Central.
 
 ## [Unreleased]
 
+### Added
+- `maxBlockSize(ZstdByteSize)` (1 KiB–128 KiB, experimental upstream) on both settings: the compressor
+  caps its block size and the decoder rejects larger blocks, so capped streaming decoders use less memory. ([#160](https://github.com/dfa1/zstd-ffm/issues/160))
+
 ### Changed
 - Bundled zstd upgraded to 1.6.0, a security release (CVE-2026-124851) fixing malformed-input bugs in
   streaming decompression, dictionary training and multithreaded compression. ([#191](https://github.com/dfa1/zstd-ffm/issues/191))

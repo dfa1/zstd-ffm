@@ -12,10 +12,12 @@ import io.github.dfa1.zstd.ZstdDecompressContext;
 import io.github.dfa1.zstd.ZstdDecompressStream;
 import io.github.dfa1.zstd.ZstdDictionary;
 import io.github.dfa1.zstd.ZstdEndDirective;
+import io.github.dfa1.zstd.ZstdException;
 import io.github.dfa1.zstd.ZstdFrame;
 import io.github.dfa1.zstd.ZstdInputStream;
 import io.github.dfa1.zstd.ZstdOutputStream;
 import io.github.dfa1.zstd.ZstdStreamResult;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,6 +40,7 @@ import static io.github.dfa1.zstd.it.ItTestSupport.LEVELS;
 import static io.github.dfa1.zstd.it.ItTestSupport.compressible;
 import static io.github.dfa1.zstd.it.ItTestSupport.random;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /// Format-compatibility tests: frames produced by the reference zstd-jni binding
 /// must decode with zstd-ffm and vice versa. zstd-jni bundles a different zstd
@@ -526,6 +529,80 @@ class ZstdJniInteropTest {
             }
 
             // Then the input comes back
+            assertThat(restored).isEqualTo(data);
+        }
+    }
+
+    /// The block-size cap. zstd-jni exposes neither side's parameter, so it only
+    /// produces default (128 KiB-block) frames and consumes capped ones.
+    @Nested
+    class MaxBlockSize {
+
+        private static final ZstdByteSize CAP = ZstdByteSize.ofKiB(4);
+
+        /// Every payload is larger than [#CAP], so a default frame holds a block above it.
+        static Stream<byte[]> payloads() {
+            Random r = new Random(0x4D42_5A45L);
+            List<byte[]> cases = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                int size = (int) CAP.value() + 1 + r.nextInt(256 * 1024);
+                cases.add(i % 2 == 0 ? compressible(r, size) : random(r, size));
+            }
+            return cases.stream();
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void jniDefaultFramesAreRejectedByACappedDecoderOnly(byte[] data) {
+            // Given a default frame from zstd-jni
+            byte[] frame = com.github.luben.zstd.Zstd.compress(data);
+
+            // When decoding it with and without a 4 KiB cap
+            byte[] restored;
+            ThrowingCallable capped;
+            try (ZstdDecompressContext uncapped = Zstd.newDecompressContext();
+                 ZstdDecompressContext sut = Zstd.newDecompressContext().maxBlockSize(CAP)) {
+                restored = uncapped.decompress(frame, ZstdByteSize.of(data.length));
+                capped = () -> sut.decompress(frame, ZstdByteSize.of(data.length));
+
+                // Then only the capped decoder rejects it
+                assertThat(restored).isEqualTo(data);
+                assertThatThrownBy(capped).isInstanceOf(ZstdException.class);
+            }
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void jniDefaultStreamIsRejectedByACappedInputStream(byte[] data) throws Exception {
+            // Given a default stream from zstd-jni
+            ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            try (var zout = new com.github.luben.zstd.ZstdOutputStream(sink)) {
+                zout.write(data);
+            }
+
+            // When reading it through a zstd-ffm input stream capped at 4 KiB
+            try (ZstdInputStream sut = Zstd.newInputStream(new ByteArrayInputStream(sink.toByteArray()))
+                    .maxBlockSize(CAP)) {
+                ThrowingCallable result = sut::readAllBytes;
+
+                // Then the oversized block is rejected
+                assertThatThrownBy(result).isInstanceOf(ZstdException.class);
+            }
+        }
+
+        @ParameterizedTest
+        @MethodSource("payloads")
+        void javaCappedFramesDecodeWithJni(byte[] data) {
+            // Given a frame from zstd-ffm capped at 4 KiB
+            byte[] frame;
+            try (ZstdCompressContext sut = Zstd.newCompressContext().maxBlockSize(CAP)) {
+                frame = sut.compress(data);
+            }
+
+            // When decoding it with zstd-jni
+            byte[] restored = com.github.luben.zstd.Zstd.decompress(frame, data.length);
+
+            // Then the input comes back: a capped frame is a standard frame
             assertThat(restored).isEqualTo(data);
         }
     }

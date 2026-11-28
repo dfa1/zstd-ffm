@@ -66,7 +66,7 @@ rather than the deprecated `ZSTD_getDecompressedSize`.
 | `ZSTD_compressStream2`, `ZSTD_CStreamInSize`, `ZSTD_CStreamOutSize`, `ZSTD_CCtx_setParameter` | `ZstdOutputStream`, `ZstdCompressStream` |
 | `ZSTD_decompressStream`, `ZSTD_DStreamInSize`, `ZSTD_DStreamOutSize` | `ZstdInputStream`, `ZstdDecompressStream` |
 | `ZSTD_compress2`, `ZSTD_CCtx_setParameter` | `ZstdCompressContext.compress`; every `ZstdCompressSettings` setter, on the context and both compress streams |
-| `ZSTD_DCtx_setParameter` | `windowLogMax` / `ignoreChecksum` / `magicless` on `ZstdDecompressContext`, `ZstdDecompressStream` and `ZstdInputStream` |
+| `ZSTD_DCtx_setParameter` | `windowLogMax` / `ignoreChecksum` / `magicless` / `maxBlockSize` on `ZstdDecompressContext`, `ZstdDecompressStream` and `ZstdInputStream` |
 | `ZSTD_CCtx_setPledgedSrcSize` | `Zstd.newPledgedOutputStream` |
 | `ZSTD_CCtx_reset`, `ZSTD_DCtx_reset` | `ZstdCompressContext.reset` / `ZstdDecompressContext.reset` (`ZstdResetDirective`) |
 | `ZSTD_getDictID_fromCDict`, `ZSTD_getDictID_fromDDict` | `ZstdCompressDictionary.id()` / `ZstdDecompressDictionary.id()` |
