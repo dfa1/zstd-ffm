@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,6 +46,29 @@ class ZstdByteSizeTest {
             // Given no array
             // When measured
             ThrowingCallable result = () -> ZstdByteSize.of((byte[]) null);
+
+            // Then it fails fast
+            assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {0, 1, 1024})
+        void ofSegmentMeasuresItsByteSize(int length) {
+            // Given a segment over `length` longs, so its byte size is not its element count
+            MemorySegment segment = MemorySegment.ofArray(new long[length]);
+
+            // When measured
+            ZstdByteSize sut = ZstdByteSize.of(segment);
+
+            // Then it equals of(segment.byteSize())
+            assertThat(sut).isEqualTo(ZstdByteSize.of(8L * length));
+        }
+
+        @Test
+        void ofSegmentRejectsNull() {
+            // Given no segment
+            // When measured
+            ThrowingCallable result = () -> ZstdByteSize.of((MemorySegment) null);
 
             // Then it fails fast
             assertThatThrownBy(result).isInstanceOf(NullPointerException.class);
