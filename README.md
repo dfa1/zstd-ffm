@@ -53,7 +53,7 @@ byte[] message = ...;
 try (ZstdCompressContext cctx = Zstd.newCompressContext();
      ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
     byte[] frame = cctx.compress(message, dict);
-    byte[] back  = dctx.decompress(frame, ZstdByteSize.of(message.length), dict);
+    byte[] back  = dctx.decompress(frame, ZstdByteSize.of(message), dict);
 }
 ```
 

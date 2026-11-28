@@ -12,7 +12,7 @@ try (ZstdCompressContext cctx = Zstd.newCompressContext();
      ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
     cctx.level(ZstdCompressionLevel.of(19)); // configure inside the try, so a failing setter can't leak cctx
     byte[] packed   = cctx.compress(message);
-    byte[] restored = dctx.decompress(packed, ZstdByteSize.of(message.length));
+    byte[] restored = dctx.decompress(packed, ZstdByteSize.of(message));
 }
 ```
 
@@ -93,7 +93,7 @@ ZstdDictionary dict = ZstdDictionary.train(sampleRecords, ZstdByteSize.ofKiB(16)
 try (ZstdCompressContext cctx = Zstd.newCompressContext();
      ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
     byte[] packed   = cctx.compress(record, dict);
-    byte[] restored = dctx.decompress(packed, ZstdByteSize.of(record.length), dict);
+    byte[] restored = dctx.decompress(packed, ZstdByteSize.of(record), dict);
 }
 
 byte[] persisted = dict.toByteArray();               // store / ship the dictionary
@@ -108,7 +108,7 @@ try (ZstdCompressDictionary cdict = Zstd.newCompressDictionary(dict, ZstdCompres
      ZstdCompressContext cctx = Zstd.newCompressContext();
      ZstdDecompressContext dctx = Zstd.newDecompressContext()) {
     byte[] packed   = cctx.compress(record, cdict);
-    byte[] restored = dctx.decompress(packed, ZstdByteSize.of(record.length), ddict);
+    byte[] restored = dctx.decompress(packed, ZstdByteSize.of(record), ddict);
 }
 ```
 
@@ -267,7 +267,7 @@ can't size the arena (see [the explanation](explanation.md#why-a-streamed-frame-
 total up front and it stamps the content size into the header:
 
 ```java
-try (var zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(data.length))) {
+try (var zout = Zstd.newPledgedOutputStream(sink, ZstdByteSize.of(data))) {
     zout.level(ZstdCompressionLevel.of(6));
     zout.write(data);                                 // pledge must equal bytes written
 }

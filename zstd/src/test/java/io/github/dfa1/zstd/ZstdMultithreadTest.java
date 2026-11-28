@@ -100,7 +100,7 @@ class ZstdMultithreadTest {
 
                 // When compressing a payload large enough to engage the workers
                 MemorySegment src = segmentOf(arena, LARGE_PAYLOAD);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(LARGE_PAYLOAD.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(LARGE_PAYLOAD)).value());
                 ZstdStreamResult r = sut.compress(dst, src, ZstdEndDirective.END);
                 frame = bytesOf(dst, r.bytesProduced());
             }
@@ -126,7 +126,7 @@ class ZstdMultithreadTest {
             }
 
             // Then the frame decompresses back to the original
-            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(LARGE_PAYLOAD.length))).isEqualTo(LARGE_PAYLOAD);
+            assertThat(Zstd.decompress(sink.toByteArray(), ZstdByteSize.of(LARGE_PAYLOAD))).isEqualTo(LARGE_PAYLOAD);
         }
     }
 

@@ -33,7 +33,7 @@ class ZstdSegmentStreamTest {
                  ZstdDecompressStream ds = Zstd.newDecompressStream()) {
 
                 MemorySegment src = segmentOf(arena, original);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original)).value());
 
                 // When compressed in one END step
                 ZstdStreamResult c = cs.compress(dst, src, ZstdEndDirective.END);
@@ -103,7 +103,7 @@ class ZstdSegmentStreamTest {
                  ZstdCompressStream cs = Zstd.newCompressStream()) {
 
                 MemorySegment src = segmentOf(arena, original);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original)).value());
 
                 // fresh stream: nothing moved yet
                 assertThat(cs.progress().consumed()).isZero();
@@ -248,7 +248,7 @@ class ZstdSegmentStreamTest {
                 cs.level(ZstdCompressionLevel.of(3));
 
                 MemorySegment src = segmentOf(arena, sample);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(sample.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(sample)).value());
                 ZstdStreamResult c = cs.compress(dst, src, ZstdEndDirective.END);
 
                 MemorySegment out = arena.allocate(sample.length);
@@ -265,7 +265,7 @@ class ZstdSegmentStreamTest {
             try (Arena arena = Arena.ofConfined();
                  ZstdCompressStream sut = Zstd.newCompressStream(dict)) {
                 MemorySegment src = segmentOf(arena, sample);
-                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(sample.length)).value());
+                MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(sample)).value());
 
                 // When a frame is compressed
                 ZstdStreamResult c = sut.compress(dst, src, ZstdEndDirective.END);

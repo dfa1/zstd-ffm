@@ -37,6 +37,16 @@ public final class ZstdByteSize {
         return new ZstdByteSize(value);
     }
 
+    /// The length of `bytes`: shorthand for `ZstdByteSize.of(bytes.length)`, e.g.
+    /// `dctx.decompress(frame, ZstdByteSize.of(original))`.
+    ///
+    /// @param bytes the array to measure
+    /// @return a size of `bytes.length` bytes
+    /// @throws NullPointerException if `bytes` is `null`
+    public static ZstdByteSize of(byte[] bytes) {
+        return new ZstdByteSize(bytes.length);
+    }
+
     /// Narrows this size to an `int`, for callers that must size a `byte[]`.
     ///
     /// @return this size as an `int`
