@@ -208,8 +208,8 @@ class LargeMemoryMappedFileTest {
             do {
                 MemorySegment srcSlice = source.asSlice(srcOff, total - srcOff);
                 r = cs.compress(dst, srcSlice, ZstdEndDirective.END);
-                srcOff += r.bytesConsumed();
-                drain(dst, r.bytesProduced(), scratch, frame);
+                srcOff += r.bytesConsumed().value();
+                drain(dst, r.bytesProduced().value(), scratch, frame);
             } while (!r.isComplete());
         }
         return frame.toByteArray();
@@ -240,8 +240,8 @@ class LargeMemoryMappedFileTest {
             do {
                 MemorySegment srcSlice = src.asSlice(srcOff, frame.length - srcOff);
                 r = ds.decompress(dst, srcSlice);
-                srcOff += r.bytesConsumed();
-                outOff += verifyChunk(dst, r.bytesProduced(), outOff);
+                srcOff += r.bytesConsumed().value();
+                outOff += verifyChunk(dst, r.bytesProduced().value(), outOff);
             } while (srcOff < frame.length || !r.isComplete());
         }
         return outOff;

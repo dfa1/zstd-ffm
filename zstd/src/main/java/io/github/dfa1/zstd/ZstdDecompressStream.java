@@ -79,7 +79,8 @@ public final class ZstdDecompressStream extends NativeObject implements ZstdDeco
         srcPos.set(Bindings.SIZE_T, 0, 0L);
         long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.DECOMPRESS_STREAM_SIMPLE_ARGS.invokeExact(
                 ptr(), dst, dst.byteSize(), dstPos, src, src.byteSize(), srcPos));
-        return ZstdStreamResult.of(srcPos.get(Bindings.SIZE_T, 0), dstPos.get(Bindings.SIZE_T, 0), remaining);
+        return ZstdStreamResult.of(ZstdByteSize.of(srcPos.get(Bindings.SIZE_T, 0)),
+                ZstdByteSize.of(dstPos.get(Bindings.SIZE_T, 0)), ZstdByteSize.of(remaining));
     }
 
     /// Current native memory used by this stream's context, in bytes.

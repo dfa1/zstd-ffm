@@ -330,23 +330,23 @@ class SmokeTest {
             MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(src.byteSize())).value());
             ZstdStreamResult result = cs.compress(dst, src, ZstdEndDirective.END);
             check(result.isComplete(), "single-shot ZstdCompressStream.compress(END) did not complete");
-            check(result.bytesConsumed() == original.length, "ZstdCompressStream consumed byte count mismatch");
+            check(result.bytesConsumed().value() == original.length, "ZstdCompressStream consumed byte count mismatch");
             check(cs.sizeOf().value() > 0, "ZstdCompressStream.sizeOf() not positive");
 
             // Reads a native struct (ZSTD_frameProgression) through fixed field
             // offsets — worth checking per platform since padding/alignment is
             // ABI-sensitive, unlike the rest of this method's plain size_t returns.
             ZstdFrameProgression progression = cs.progress();
-            check(progression.produced().value() >= result.bytesProduced(),
+            check(progression.produced().value() >= result.bytesProduced().value(),
                     "ZstdFrameProgression.produced() smaller than bytes actually produced");
 
-            byte[] compressed = toByteArray(dst, result.bytesProduced());
+            byte[] compressed = toByteArray(dst, result.bytesProduced().value());
             try (ZstdDecompressStream ds = Zstd.newDecompressStream()) {
                 MemorySegment frameSeg = toNative(arena, compressed);
                 MemorySegment out = arena.allocate(original.length);
                 ZstdStreamResult decodeResult = ds.decompress(out, frameSeg);
                 check(decodeResult.isComplete(), "ZstdDecompressStream.decompress() did not complete");
-                checkArrayEquals(original, toByteArray(out, decodeResult.bytesProduced()),
+                checkArrayEquals(original, toByteArray(out, decodeResult.bytesProduced().value()),
                         "zero-copy streaming round-trip mismatch");
                 check(ds.sizeOf().value() > 0, "ZstdDecompressStream.sizeOf() not positive");
             }

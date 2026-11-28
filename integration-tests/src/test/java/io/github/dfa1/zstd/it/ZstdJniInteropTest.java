@@ -247,8 +247,8 @@ class ZstdJniInteropTest {
                 long n = Math.min(chunk, data.length - off);
                 boolean last = off + n == data.length;
                 r = cs.compress(dst, src.asSlice(off, n), last ? ZstdEndDirective.END : ZstdEndDirective.CONTINUE);
-                off += r.bytesConsumed();
-                sink.writeBytes(dst.asSlice(0, r.bytesProduced()).toArray(ValueLayout.JAVA_BYTE));
+                off += r.bytesConsumed().value();
+                sink.writeBytes(dst.asSlice(0, r.bytesProduced().value()).toArray(ValueLayout.JAVA_BYTE));
             } while (off < data.length || !r.isComplete());
             return sink.toByteArray();
         }
@@ -263,8 +263,8 @@ class ZstdJniInteropTest {
             do {
                 long n = Math.min(chunk, frame.length - off);
                 r = ds.decompress(dst, src.asSlice(off, n));
-                off += r.bytesConsumed();
-                sink.writeBytes(dst.asSlice(0, r.bytesProduced()).toArray(ValueLayout.JAVA_BYTE));
+                off += r.bytesConsumed().value();
+                sink.writeBytes(dst.asSlice(0, r.bytesProduced().value()).toArray(ValueLayout.JAVA_BYTE));
             } while (!r.isComplete());
             return sink.toByteArray();
         }

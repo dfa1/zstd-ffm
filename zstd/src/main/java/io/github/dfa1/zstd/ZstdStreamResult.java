@@ -4,17 +4,15 @@ import java.util.Objects;
 
 /// Outcome of one zero-copy streaming step.
 ///
-/// The components are raw `long`s rather than [ZstdByteSize]: on this zero-copy
-/// path the byte counts feed straight into [java.lang.foreign.MemorySegment#asSlice(long, long)]
-/// on every step of a streaming loop, so they are left unboxed by design to keep
-/// the loop allocation-free. [#remaining()] is zstd's hint of work left, not a size.
+/// Every component is a [ZstdByteSize]; call [ZstdByteSize#value()] to advance a
+/// source offset or slice the destination.
 public final class ZstdStreamResult {
 
-    private final long bytesConsumed;
-    private final long bytesProduced;
-    private final long remaining;
+    private final ZstdByteSize bytesConsumed;
+    private final ZstdByteSize bytesProduced;
+    private final ZstdByteSize remaining;
 
-    private ZstdStreamResult(long bytesConsumed, long bytesProduced, long remaining) {
+    private ZstdStreamResult(ZstdByteSize bytesConsumed, ZstdByteSize bytesProduced, ZstdByteSize remaining) {
         this.bytesConsumed = bytesConsumed;
         this.bytesProduced = bytesProduced;
         this.remaining = remaining;
@@ -29,7 +27,7 @@ public final class ZstdStreamResult {
     ///                      the frame is incomplete; `0` means the directive (flush/end) or
     ///                      frame is fully done
     /// @return the new [ZstdStreamResult]
-    static ZstdStreamResult of(long bytesConsumed, long bytesProduced, long remaining) {
+    static ZstdStreamResult of(ZstdByteSize bytesConsumed, ZstdByteSize bytesProduced, ZstdByteSize remaining) {
         return new ZstdStreamResult(bytesConsumed, bytesProduced, remaining);
     }
 
@@ -37,20 +35,20 @@ public final class ZstdStreamResult {
     ///
     /// @return `true` if `remaining` is zero
     public boolean isComplete() {
-        return remaining == 0;
+        return remaining.value() == 0;
     }
 
     /// Bytes read from the source segment.
     ///
     /// @return bytes read from the source segment
-    public long bytesConsumed() {
+    public ZstdByteSize bytesConsumed() {
         return bytesConsumed;
     }
 
     /// Bytes written to the destination segment.
     ///
     /// @return bytes written to the destination segment
-    public long bytesProduced() {
+    public ZstdByteSize bytesProduced() {
         return bytesProduced;
     }
 
@@ -59,7 +57,7 @@ public final class ZstdStreamResult {
     /// the directive (flush/end) or frame is fully done.
     ///
     /// @return the `remaining` component
-    public long remaining() {
+    public ZstdByteSize remaining() {
         return remaining;
     }
 
@@ -70,9 +68,9 @@ public final class ZstdStreamResult {
     @Override
     public boolean equals(Object o) {
         return o instanceof ZstdStreamResult other
-                && bytesConsumed == other.bytesConsumed
-                && bytesProduced == other.bytesProduced
-                && remaining == other.remaining;
+                && bytesConsumed.equals(other.bytesConsumed)
+                && bytesProduced.equals(other.bytesProduced)
+                && remaining.equals(other.remaining);
     }
 
     /// Hash code consistent with [#equals(Object)].

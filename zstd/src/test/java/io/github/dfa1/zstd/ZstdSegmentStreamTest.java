@@ -40,15 +40,15 @@ class ZstdSegmentStreamTest {
 
                 // Then everything is consumed and the frame is complete
                 assertThat(c.isComplete()).isTrue();
-                assertThat(c.bytesConsumed()).isEqualTo(original.length);
+                assertThat(c.bytesConsumed()).isEqualTo(ZstdByteSize.of(original.length));
 
-                MemorySegment frame = dst.asSlice(0, c.bytesProduced());
+                MemorySegment frame = dst.asSlice(0, c.bytesProduced().value());
                 MemorySegment out = arena.allocate(original.length);
                 ZstdStreamResult d = ds.decompress(out, frame);
 
                 assertThat(d.isComplete()).isTrue();
-                assertThat(d.bytesProduced()).isEqualTo(original.length);
-                assertThat(bytesOf(out, d.bytesProduced())).isEqualTo(original);
+                assertThat(d.bytesProduced()).isEqualTo(ZstdByteSize.of(original.length));
+                assertThat(bytesOf(out, d.bytesProduced().value())).isEqualTo(original);
             }
         }
     }
@@ -85,8 +85,8 @@ class ZstdSegmentStreamTest {
                     r = compress
                             ? cs.compress(dst, srcSlice, ZstdEndDirective.END)
                             : ds.decompress(dst, srcSlice);
-                    srcOff += r.bytesConsumed();
-                    collected.writeBytes(bytesOf(dst, r.bytesProduced()));
+                    srcOff += r.bytesConsumed().value();
+                    collected.writeBytes(bytesOf(dst, r.bytesProduced().value()));
                 } while (!r.isComplete());
                 return collected.toByteArray();
             }
@@ -126,7 +126,7 @@ class ZstdSegmentStreamTest {
                 ZstdFrameProgression result = sut.progress();
 
                 // Then the counters reflect the whole frame, fully flushed
-                ZstdByteSize frameSize = ZstdByteSize.of(step.bytesProduced());
+                ZstdByteSize frameSize = step.bytesProduced();
                 assertThat(step.isComplete()).isTrue();
                 assertThat(result.ingested()).isEqualTo(ZstdByteSize.of(original.length));
                 assertThat(result.consumed()).isEqualTo(ZstdByteSize.of(original.length));
@@ -195,7 +195,7 @@ class ZstdSegmentStreamTest {
 
                 // Then the whole payload comes back untouched
                 assertThat(result.isComplete()).isTrue();
-                assertThat(bytesOf(out, result.bytesProduced())).isEqualTo(PAYLOAD);
+                assertThat(bytesOf(out, result.bytesProduced().value())).isEqualTo(PAYLOAD);
             }
         }
 
@@ -215,7 +215,7 @@ class ZstdSegmentStreamTest {
 
                 // Then the whole payload comes back
                 assertThat(result.isComplete()).isTrue();
-                assertThat(bytesOf(out, result.bytesProduced())).isEqualTo(PAYLOAD);
+                assertThat(bytesOf(out, result.bytesProduced().value())).isEqualTo(PAYLOAD);
             }
         }
 
@@ -269,7 +269,7 @@ class ZstdSegmentStreamTest {
                 ZstdStreamResult c = cs.compress(dst, src, ZstdEndDirective.END);
 
                 MemorySegment out = arena.allocate(sample.length);
-                ds.decompress(out, dst.asSlice(0, c.bytesProduced()));
+                ds.decompress(out, dst.asSlice(0, c.bytesProduced().value()));
                 assertThat(bytesOf(out, sample.length)).isEqualTo(sample);
             }
         }
@@ -288,7 +288,7 @@ class ZstdSegmentStreamTest {
                 ZstdStreamResult c = sut.compress(dst, src, ZstdEndDirective.END);
 
                 // Then the frame header names the dictionary it was compressed against
-                assertThat(ZstdFrame.dictId(dst.asSlice(0, c.bytesProduced()))).isEqualTo(dict.id());
+                assertThat(ZstdFrame.dictId(dst.asSlice(0, c.bytesProduced().value()))).isEqualTo(dict.id());
             }
         }
     }
