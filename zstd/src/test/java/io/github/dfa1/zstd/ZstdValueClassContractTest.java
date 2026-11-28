@@ -120,9 +120,10 @@ class ZstdValueClassContractTest {
                         "ZstdBounds[lowerBound=-5, upperBound=22]"),
                 valueCase("ZstdStreamResult", () -> ZstdStreamResult.of(1, 2, 0), ZstdStreamResult.of(1, 2, 3),
                         "ZstdStreamResult[bytesConsumed=1, bytesProduced=2, remaining=0]"),
-                valueCase("ZstdFrameProgression", () -> ZstdFrameProgression.of(1, 2, 3, 4, 5, 6),
-                        ZstdFrameProgression.of(1, 2, 3, 4, 5, 7),
-                        "ZstdFrameProgression[ingested=1, consumed=2, produced=3, flushed=4, currentJobId=5,"
+                valueCase("ZstdFrameProgression", () -> progression(1, 2, 3, 4, 5, 6),
+                        progression(1, 2, 3, 4, 5, 7),
+                        "ZstdFrameProgression[ingested=ZstdByteSize[value=1], consumed=ZstdByteSize[value=2],"
+                                + " produced=ZstdByteSize[value=3], flushed=ZstdByteSize[value=4], currentJobId=5,"
                                 + " activeWorkers=6]"),
                 valueCase("ZstdFrameHeader",
                         () -> ZstdFrameHeader.of(size, null, size, ZstdFrameType.STANDARD,
@@ -144,7 +145,7 @@ class ZstdValueClassContractTest {
         ZstdByteSize none = null;
         ZstdFrameHeader header = ZstdFrameHeader.of(one, one, one, ZstdFrameType.STANDARD,
                 one, ZstdDictionaryId.NONE, true);
-        ZstdFrameProgression progression = ZstdFrameProgression.of(1, 2, 3, 4, 5, 6);
+        ZstdFrameProgression progression = progression(1, 2, 3, 4, 5, 6);
         ZstdBounds bounds = ZstdBounds.of(1, 2);
         ZstdStreamResult streamResult = ZstdStreamResult.of(1, 2, 3);
         ZstdVersion version = ZstdVersion.of(1, 2, 3);
@@ -163,14 +164,14 @@ class ZstdValueClassContractTest {
                         one, one, ZstdFrameType.STANDARD, one, ZstdDictionaryId.of(7), true)),
                 componentCase("ZstdFrameHeader.hasChecksum", header, ZstdFrameHeader.of(one,
                         one, one, ZstdFrameType.STANDARD, one, ZstdDictionaryId.NONE, false)),
-                componentCase("ZstdFrameProgression.ingested", progression, ZstdFrameProgression.of(9, 2, 3, 4, 5, 6)),
-                componentCase("ZstdFrameProgression.consumed", progression, ZstdFrameProgression.of(1, 9, 3, 4, 5, 6)),
-                componentCase("ZstdFrameProgression.produced", progression, ZstdFrameProgression.of(1, 2, 9, 4, 5, 6)),
-                componentCase("ZstdFrameProgression.flushed", progression, ZstdFrameProgression.of(1, 2, 3, 9, 5, 6)),
+                componentCase("ZstdFrameProgression.ingested", progression, progression(9, 2, 3, 4, 5, 6)),
+                componentCase("ZstdFrameProgression.consumed", progression, progression(1, 9, 3, 4, 5, 6)),
+                componentCase("ZstdFrameProgression.produced", progression, progression(1, 2, 9, 4, 5, 6)),
+                componentCase("ZstdFrameProgression.flushed", progression, progression(1, 2, 3, 9, 5, 6)),
                 componentCase("ZstdFrameProgression.currentJobId", progression,
-                        ZstdFrameProgression.of(1, 2, 3, 4, 9, 6)),
+                        progression(1, 2, 3, 4, 9, 6)),
                 componentCase("ZstdFrameProgression.activeWorkers", progression,
-                        ZstdFrameProgression.of(1, 2, 3, 4, 5, 9)),
+                        progression(1, 2, 3, 4, 5, 9)),
                 componentCase("ZstdBounds.lowerBound", bounds, ZstdBounds.of(0, 2)),
                 componentCase("ZstdBounds.upperBound", bounds, ZstdBounds.of(1, 3)),
                 componentCase("ZstdStreamResult.bytesConsumed", streamResult, ZstdStreamResult.of(9, 2, 3)),
@@ -187,5 +188,11 @@ class ZstdValueClassContractTest {
 
     private static Arguments valueCase(String name, Supplier<Object> factory, Object different, String toString) {
         return arguments(Named.of(name, factory), different, toString);
+    }
+
+    private static ZstdFrameProgression progression(
+            long ingested, long consumed, long produced, long flushed, int currentJobId, int activeWorkers) {
+        return ZstdFrameProgression.of(ZstdByteSize.of(ingested), ZstdByteSize.of(consumed),
+                ZstdByteSize.of(produced), ZstdByteSize.of(flushed), currentJobId, activeWorkers);
     }
 }

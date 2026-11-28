@@ -337,7 +337,7 @@ class SmokeTest {
             // offsets — worth checking per platform since padding/alignment is
             // ABI-sensitive, unlike the rest of this method's plain size_t returns.
             ZstdFrameProgression progression = cs.progress();
-            check(progression.produced() >= result.bytesProduced(),
+            check(progression.produced().value() >= result.bytesProduced(),
                     "ZstdFrameProgression.produced() smaller than bytes actually produced");
 
             byte[] compressed = toByteArray(dst, result.bytesProduced());

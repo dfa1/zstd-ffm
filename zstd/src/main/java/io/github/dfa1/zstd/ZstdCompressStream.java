@@ -116,10 +116,10 @@ public final class ZstdCompressStream extends NativeObject implements ZstdCompre
             MemorySegment p = (MemorySegment) Bindings.GET_FRAME_PROGRESSION.invokeExact(
                     (SegmentAllocator) scratch, ptr());
             return ZstdFrameProgression.of(
-                    (long) FP_INGESTED.get(p, 0L),
-                    (long) FP_CONSUMED.get(p, 0L),
-                    (long) FP_PRODUCED.get(p, 0L),
-                    (long) FP_FLUSHED.get(p, 0L),
+                    ZstdByteSize.of((long) FP_INGESTED.get(p, 0L)),
+                    ZstdByteSize.of((long) FP_CONSUMED.get(p, 0L)),
+                    ZstdByteSize.of((long) FP_PRODUCED.get(p, 0L)),
+                    ZstdByteSize.of((long) FP_FLUSHED.get(p, 0L)),
                     (int) FP_CURRENT_JOB_ID.get(p, 0L),
                     (int) FP_ACTIVE_WORKERS.get(p, 0L));
         } catch (Throwable t) {

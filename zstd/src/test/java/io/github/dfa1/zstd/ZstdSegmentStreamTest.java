@@ -97,25 +97,42 @@ class ZstdSegmentStreamTest {
     class Progress {
 
         @Test
-        void tracksByteCounters() {
+        void freshStreamReportsNothingMoved() {
+            // Given
+            try (ZstdCompressStream sut = Zstd.newCompressStream()) {
+
+                // When
+                ZstdFrameProgression result = sut.progress();
+
+                // Then
+                assertThat(result.ingested()).isEqualTo(ZstdByteSize.of(0));
+                assertThat(result.consumed()).isEqualTo(ZstdByteSize.of(0));
+                assertThat(result.produced()).isEqualTo(ZstdByteSize.of(0));
+                assertThat(result.flushed()).isEqualTo(ZstdByteSize.of(0));
+            }
+        }
+
+        @Test
+        void tracksByteCountersAfterEnd() {
+            // Given
             byte[] original = "progress payload ".repeat(500).getBytes(StandardCharsets.UTF_8);
             try (Arena arena = Arena.ofConfined();
-                 ZstdCompressStream cs = Zstd.newCompressStream()) {
-
+                 ZstdCompressStream sut = Zstd.newCompressStream()) {
                 MemorySegment src = segmentOf(arena, original);
                 MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(original.length)).value());
+                ZstdStreamResult step = sut.compress(dst, src, ZstdEndDirective.END);
 
-                // fresh stream: nothing moved yet
-                assertThat(cs.progress().consumed()).isZero();
+                // When
+                ZstdFrameProgression result = sut.progress();
 
-                ZstdStreamResult r = cs.compress(dst, src, ZstdEndDirective.END);
-
-                // after a complete END step the counters reflect the whole frame
-                ZstdFrameProgression p = cs.progress();
-                assertThat(p.consumed()).isEqualTo(original.length);
-                assertThat(p.ingested()).isEqualTo(original.length);
-                assertThat(p.flushed()).isEqualTo(r.bytesProduced());
-                assertThat(p.activeWorkers()).isZero(); // no workers configured
+                // Then the counters reflect the whole frame, fully flushed
+                ZstdByteSize frameSize = ZstdByteSize.of(step.bytesProduced());
+                assertThat(step.isComplete()).isTrue();
+                assertThat(result.ingested()).isEqualTo(ZstdByteSize.of(original.length));
+                assertThat(result.consumed()).isEqualTo(ZstdByteSize.of(original.length));
+                assertThat(result.produced()).isEqualTo(frameSize);
+                assertThat(result.flushed()).isEqualTo(frameSize);
+                assertThat(result.activeWorkers()).isZero(); // no workers configured
             }
         }
     }
