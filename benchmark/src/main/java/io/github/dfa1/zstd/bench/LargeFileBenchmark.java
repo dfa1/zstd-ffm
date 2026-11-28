@@ -167,8 +167,8 @@ public class LargeFileBenchmark {
             do {
                 MemorySegment srcSlice = source.asSlice(srcOff, total - srcOff);
                 r = cs.compress(dst, srcSlice, ZstdEndDirective.END);
-                srcOff += r.bytesConsumed();
-                dstView.clear().limit((int) r.bytesProduced());
+                srcOff += r.bytesConsumed().value();
+                dstView.clear().limit(r.bytesProduced().toArraySize());
                 while (dstView.hasRemaining()) {
                     out.write(dstView);
                 }

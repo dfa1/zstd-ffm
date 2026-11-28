@@ -21,8 +21,8 @@ import java.lang.invoke.VarHandle;
 ///     ZstdStreamResult r;
 ///     do {
 ///         r = cs.compress(dst, src.asSlice(srcOff), ZstdEndDirective.END);
-///         srcOff += r.bytesConsumed();
-///         sink.write(dst.asSlice(0, r.bytesProduced()));
+///         srcOff += r.bytesConsumed().value();
+///         sink.write(dst.asSlice(0, r.bytesProduced().value()));
 ///     } while (!r.isComplete());
 /// }
 /// }
@@ -104,7 +104,8 @@ public final class ZstdCompressStream extends NativeObject implements ZstdCompre
         srcPos.set(Bindings.SIZE_T, 0, 0L);
         long remaining = NativeCall.checkReturnValue(() -> (long) Bindings.COMPRESS_STREAM2_SIMPLE_ARGS.invokeExact(
                 ptr(), dst, dst.byteSize(), dstPos, src, src.byteSize(), srcPos, directive.value()));
-        return ZstdStreamResult.of(srcPos.get(Bindings.SIZE_T, 0), dstPos.get(Bindings.SIZE_T, 0), remaining);
+        return ZstdStreamResult.of(ZstdByteSize.of(srcPos.get(Bindings.SIZE_T, 0)),
+                ZstdByteSize.of(dstPos.get(Bindings.SIZE_T, 0)), ZstdByteSize.of(remaining));
     }
 
     /// A live snapshot of how much this stream has ingested, compressed, produced,

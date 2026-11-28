@@ -15,6 +15,8 @@ git tags, which trigger publication to Maven Central.
   than 0.17 did. ([#191](https://github.com/dfa1/zstd-ffm/issues/191))
 - **Breaking:** `ZstdFrameProgression.ingested()`, `consumed()`, `produced()` and `flushed()` return
   `ZstdByteSize` instead of `long`; call `.value()` for the raw count. ([#167](https://github.com/dfa1/zstd-ffm/issues/167))
+- **Breaking:** `ZstdStreamResult.bytesConsumed()`, `bytesProduced()` and `remaining()` return
+  `ZstdByteSize` instead of `long`; call `.value()` to advance offsets and slice buffers. (PR_LINK)
 
 ### Removed
 - **Breaking:** pre-1.0 zstd frames (formats v0.4–v0.7, from 2015–2016) no longer decode, as in zstd 1.6.0

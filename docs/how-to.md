@@ -206,7 +206,7 @@ bounded memory, no heap bounce (unlike `ZstdOutputStream` / `ZstdInputStream`, w
 copy through `byte[]` to fit `java.io`).
 
 Each step processes as much of `src` as fits in `dst` and reports a
-`ZstdStreamResult` (`bytesConsumed`, `bytesProduced`, `remaining`). Advance the
+`ZstdStreamResult` (`bytesConsumed`, `bytesProduced`, `remaining`, each a `ZstdByteSize`). Advance the
 source, drain `dst`, and for compression finish with `ZstdEndDirective.END` until
 `isComplete()`:
 
@@ -217,8 +217,8 @@ try (ZstdCompressStream cs = Zstd.newCompressStream()) {
     ZstdStreamResult r;
     do {
         r = cs.compress(dst, src.asSlice(off), ZstdEndDirective.END);
-        off += r.bytesConsumed();
-        sink.write(dst.asSlice(0, r.bytesProduced()));
+        off += r.bytesConsumed().value();
+        sink.write(dst.asSlice(0, r.bytesProduced().value()));
     } while (!r.isComplete());
 }
 ```
@@ -241,8 +241,8 @@ try (ZstdCompressStream cs = Zstd.newCompressStream()) {
     ZstdStreamResult r;
     do {
         r = cs.compress(out, in.asSlice(off), ZstdEndDirective.FLUSH);
-        off += r.bytesConsumed();
-        channel.write(pooledDst.slice(0, (int) r.bytesProduced()));
+        off += r.bytesConsumed().value();
+        channel.write(pooledDst.slice(0, r.bytesProduced().toArraySize()));
     } while (!r.isComplete());                             // input consumed and fully flushed
 }
 ```

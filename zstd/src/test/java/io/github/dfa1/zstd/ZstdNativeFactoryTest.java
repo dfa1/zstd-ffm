@@ -219,7 +219,7 @@ class ZstdNativeFactoryTest {
                 MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(payload.length)).value());
                 ZstdStreamResult r = cs.compress(dst, src.asSlice(0, payload.length), ZstdEndDirective.END);
                 assertThat(r.isComplete()).isTrue();
-                return bytesOf(dst, r.bytesProduced());
+                return bytesOf(dst, r.bytesProduced().value());
             }
         }
 
@@ -229,7 +229,7 @@ class ZstdNativeFactoryTest {
                 MemorySegment dst = arena.allocate(payload.length);
                 ZstdStreamResult r = ds.decompress(dst, src.asSlice(0, frame.length));
                 assertThat(r.isComplete()).isTrue();
-                return bytesOf(dst, r.bytesProduced());
+                return bytesOf(dst, r.bytesProduced().value());
             }
         }
     }

@@ -102,7 +102,7 @@ class ZstdMultithreadTest {
                 MemorySegment src = segmentOf(arena, LARGE_PAYLOAD);
                 MemorySegment dst = arena.allocate(Zstd.compressBound(ZstdByteSize.of(LARGE_PAYLOAD.length)).value());
                 ZstdStreamResult r = sut.compress(dst, src, ZstdEndDirective.END);
-                frame = bytesOf(dst, r.bytesProduced());
+                frame = bytesOf(dst, r.bytesProduced().value());
             }
 
             // Then the frame decompresses back to the original

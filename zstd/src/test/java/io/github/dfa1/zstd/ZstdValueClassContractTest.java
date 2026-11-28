@@ -118,8 +118,9 @@ class ZstdValueClassContractTest {
                         "ZstdDictionaryId[raw=-1]"),
                 valueCase("ZstdBounds", () -> ZstdBounds.of(-5, 22), ZstdBounds.of(-5, 23),
                         "ZstdBounds[lowerBound=-5, upperBound=22]"),
-                valueCase("ZstdStreamResult", () -> ZstdStreamResult.of(1, 2, 0), ZstdStreamResult.of(1, 2, 3),
-                        "ZstdStreamResult[bytesConsumed=1, bytesProduced=2, remaining=0]"),
+                valueCase("ZstdStreamResult", () -> streamResult(1, 2, 0), streamResult(1, 2, 3),
+                        "ZstdStreamResult[bytesConsumed=ZstdByteSize[value=1], bytesProduced=ZstdByteSize[value=2],"
+                                + " remaining=ZstdByteSize[value=0]]"),
                 valueCase("ZstdFrameProgression", () -> progression(1, 2, 3, 4, 5, 6),
                         progression(1, 2, 3, 4, 5, 7),
                         "ZstdFrameProgression[ingested=ZstdByteSize[value=1], consumed=ZstdByteSize[value=2],"
@@ -147,7 +148,7 @@ class ZstdValueClassContractTest {
                 one, ZstdDictionaryId.NONE, true);
         ZstdFrameProgression progression = progression(1, 2, 3, 4, 5, 6);
         ZstdBounds bounds = ZstdBounds.of(1, 2);
-        ZstdStreamResult streamResult = ZstdStreamResult.of(1, 2, 3);
+        ZstdStreamResult streamResult = streamResult(1, 2, 3);
         ZstdVersion version = ZstdVersion.of(1, 2, 3);
         return Stream.of(
                 componentCase("ZstdFrameHeader.contentSize", header, ZstdFrameHeader.of(none, one, one,
@@ -174,9 +175,9 @@ class ZstdValueClassContractTest {
                         progression(1, 2, 3, 4, 5, 9)),
                 componentCase("ZstdBounds.lowerBound", bounds, ZstdBounds.of(0, 2)),
                 componentCase("ZstdBounds.upperBound", bounds, ZstdBounds.of(1, 3)),
-                componentCase("ZstdStreamResult.bytesConsumed", streamResult, ZstdStreamResult.of(9, 2, 3)),
-                componentCase("ZstdStreamResult.bytesProduced", streamResult, ZstdStreamResult.of(1, 9, 3)),
-                componentCase("ZstdStreamResult.remaining", streamResult, ZstdStreamResult.of(1, 2, 9)),
+                componentCase("ZstdStreamResult.bytesConsumed", streamResult, streamResult(9, 2, 3)),
+                componentCase("ZstdStreamResult.bytesProduced", streamResult, streamResult(1, 9, 3)),
+                componentCase("ZstdStreamResult.remaining", streamResult, streamResult(1, 2, 9)),
                 componentCase("ZstdVersion.major", version, ZstdVersion.of(9, 2, 3)),
                 componentCase("ZstdVersion.minor", version, ZstdVersion.of(1, 9, 3)),
                 componentCase("ZstdVersion.patch", version, ZstdVersion.of(1, 2, 9)));
@@ -188,6 +189,11 @@ class ZstdValueClassContractTest {
 
     private static Arguments valueCase(String name, Supplier<Object> factory, Object different, String toString) {
         return arguments(Named.of(name, factory), different, toString);
+    }
+
+    private static ZstdStreamResult streamResult(long bytesConsumed, long bytesProduced, long remaining) {
+        return ZstdStreamResult.of(ZstdByteSize.of(bytesConsumed), ZstdByteSize.of(bytesProduced),
+                ZstdByteSize.of(remaining));
     }
 
     private static ZstdFrameProgression progression(
