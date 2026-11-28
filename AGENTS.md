@@ -82,8 +82,8 @@ Never mutate `~/.m2/repository` by hand either.
 - Cover happy path, negative cases (invalid input / errors), and corners (empty, zero, max,
   boundaries). Unit tests must be fast — no file I/O, network, or sleep; mock or use in-memory data.
 - **Integration tests are ground truth** (no formal spec): interop with the `zstd-jni` reference
-  binding (luben, the zstd C library via JNI) and the vendored golden corpus under
-  `third_party/zstd/tests/` (`golden-compression`, `golden-decompression`,
+  binding (luben; it binds the zstd C library through FFM on JDK 22+, JNI before) and the
+  vendored golden corpus under `third_party/zstd/tests/` (`golden-compression`, `golden-decompression`,
   `golden-decompression-errors`, `golden-dictionaries`). Write one for every encoding round-trip
   and file-format boundary.
 - JUnit 5 + Mockito (BDDMockito) + AssertJ. Class under test named `sut`. Every test has

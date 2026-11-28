@@ -5,52 +5,50 @@ in both heap (`byte[]`) and zero-copy (`MemorySegment`) modes. Source lives in
 the [`benchmark/`](../benchmark) module; see its
 [README](../benchmark/README.md) to reproduce.
 
-> **Out of date.** These results predate zstd 1.6.0 and were measured against
-> zstd-jni 1.5.7-11, which was JNI-only. Since 1.5.7-22, zstd-jni runs on FFM on
-> JDK 22+ (multi-release jar), so on JDK 25 the "zstd-jni" column no longer
-> describes what its users get. A re-run of [Reproduce](#reproduce) on an idle
-> machine is pending: both sides on zstd 1.6.0, with zstd-jni on FFM (the default)
-> and on JNI (forced) as a baseline.
-
 | Contestant | Binding | Modes |
 |------------|---------|-------|
 | **zstd-ffm** (this project) | FFM (no JNI) | `byte[]` and zero-copy `MemorySegment` |
-| **zstd-jni** (`com.github.luben`) | JNI | `byte[]` **and** zero-copy direct `ByteBuffer` |
+| **zstd-jni** (`com.github.luben`) | FFM on JDK 22+ (multi-release jar), JNI before | `byte[]` **and** zero-copy direct `ByteBuffer` |
 | **aircompressor** (`io.airlift:aircompressor-v3`) | pure Java | caller-buffer `byte[]` |
 
 ## TL;DR
 
 - **Best vs best** (our `MemorySegment` vs zstd-jni's own zero-copy direct
-  `ByteBuffer`, same zstd 1.5.7 both sides): **allocation is a tie** — both are
-  ~0 B/op. The throughput edge is **per-call overhead**: clearest on small,
-  call-overhead-dominated payloads (+10–23%) and **converging to a tie** when
-  compute or bandwidth dominates (large decompress, 64 MiB). This is the honest
-  FFM-vs-JNI shape — biggest where the payload is smallest. See
+  `ByteBuffer`, both on FFM, same zstd 1.6.0): **allocation is a tie** (both
+  ~0 B/op) and **throughput is mostly a tie**. Since zstd-jni 1.5.7-22 runs on
+  FFM on JDK 22+, the per-call overhead gap we used to lead with is largely gone:
+  we are +5.8% on small decompress and +7.4% on large compress, and tie on
+  large decompress and small compress (zstd-jni 1.1% ahead, inside its error
+  bar). See
   [Golden corpus: best vs best](#golden-corpus-best-vs-best).
+- **vs zstd-jni on JNI** (forced with `-Djdk.util.jar.enableMultiRelease=false`,
+  what JDK 8–21 users get): the old shape holds — +22% on small decompress,
+  +3–8% elsewhere.
 - **vs the allocating `byte[]` APIs:** the `MemorySegment` path is
   **allocation-free** (flat ~0 B/op at any size) while `byte[]` / JNI-`byte[]`
   allocate ~the output size **every call** (67–79 MB/op at 64 MiB). Real, but it
   compares our zero-copy path against their *heap* API — not their zero-copy one.
-  The allocation win is over the convenient API, not over JNI per se.
 
-The honest headline: against zstd-jni's *best* path we **match on allocation and
-lead modestly on call overhead**; against the convenient `byte[]` APIs the
-zero-copy path additionally eliminates per-op heap allocation.
+The honest headline: on JDK 25, zstd-jni's best path and ours are the same
+mechanism (an FFM downcall into the same zstd), so performance is no longer a
+reason to pick one over the other. Pick on API: `MemorySegment`-first,
+dictionaries, typed settings, no C of our own.
 
 ## Environment
 
-- Apple M5, 32 GB. P-core L2 16 MiB (Apple Silicon: shared SLC, no classic L3).
-  The 64 MiB payload is the cache-busting case.
-- JDK 25 (Azul). zstd-jni 1.5.7-11 (bundles zstd 1.5.7, matching our build at the time;
-  not re-run since the zstd 1.6.0 upgrade),
-  aircompressor-v3 3.6, JMH 1.37.
-- Level 3 (zstd default).
-- **Golden corpus** run: 3 forks × 3 warmup × 5 measurement, `-prof gc`, error
-  bars are 99.9% CIs.
-- **Synthetic** tables below: deterministic ~3x-compressible text, and a quick,
-  low-iteration run (1 fork, 2 warmup, 3 measurement) — directional, not
-  publication-grade; the 64 MiB rows have wide intervals. Rerun with JMH defaults
-  before quoting those.
+- **Golden corpus** run: Apple M5 Max (6 P + 12 E cores), 128 GB, macOS 27.2.
+  P-core L2 16 MiB (Apple Silicon: shared SLC, no classic L3).
+  OpenJDK 25.0.5 (Homebrew). zstd 1.6.0 on both sides (our build, and zstd-jni
+  1.6.0-1), JMH 1.37, level 3 (zstd default). 2 forks × 3 warmup × 5
+  measurement × 2 s, `-prof gc`, error bars are 99.9% CIs. No other heavy
+  processes; load average ~1.5 on 18 cores during the run. An earlier run with
+  3 forks × 10 s iterations on a busier machine landed within ~1% of every
+  number below, so the shorter iterations cost no meaningful precision.
+- **Synthetic** tables below: an older, quick run on an Apple M5 (32 GB), Azul
+  JDK 25, zstd 1.5.7, zstd-jni 1.5.7-11 (JNI-only), aircompressor-v3 3.6; 1 fork,
+  2 warmup, 3 measurement — directional, not publication-grade; the 64 MiB rows
+  have wide intervals. Not re-run since; the allocation shape is
+  version-independent, the throughput columns are not.
 
 ## Golden corpus: best vs best
 
@@ -60,39 +58,48 @@ per call — our `MemorySegment` (`compressJavaSegment` / `decompressJavaSegment
 vs zstd-jni's direct-`ByteBuffer` API (`compressJniByteBuffer` /
 `decompressJniByteBuffer`). Inputs are real fixtures from zstd's own
 [golden corpus](../third_party/zstd/tests/golden-compression), not synthetic
-text, so the small/structured cases exercise per-call boundary overhead — exactly
-where FFM-vs-JNI differs. Both sides link **the same zstd 1.5.7**, so any gap is
-binding overhead, not codec version.
-
-This run is publication-grade for the cut shown (3 forks × 3 warmup × 5
-measurement, `-prof gc`), on the environment below.
+text, so the small/structured cases exercise per-call boundary overhead. Both
+sides link **zstd 1.6.0**, so any gap is binding or build, not codec version.
+zstd-jni runs twice: on FFM (its default on JDK 22+) and forced onto JNI as a
+baseline.
 
 ### Throughput (ops/ms, higher is better)
 
-| file (size) | JavaSegment | JniByteBuffer | edge |
-|-------------|------------:|--------------:|-----:|
-| compress `http` (1.2 KiB) | **353.6** ±3.0 | 322.1 ±22.9 | +9.8% |
-| compress `large-literal` (200 KiB) | **46.1** ±1.4 | 42.2 ±0.3 | +9.4% |
-| decompress `http` | **922.7** ±5.9 | 750.8 ±0.9 | +22.9% |
-| decompress `large-literal` | 56.1 ±0.7 | 55.6 ±0.4 | +0.9% (tie) |
+| file (size) | JavaSegment | zstd-jni FFM | edge | zstd-jni JNI | edge |
+|-------------|------------:|-------------:|-----:|-------------:|-----:|
+| compress `http` (1.2 KiB) | 372.8 ±0.7 | 377.1 ±7.8 | −1.1% (tie) | 356.3 ±1.3 | +4.6% |
+| compress `large-literal` (200 KiB) | **49.2** ±0.1 | 45.8 ±0.1 | +7.4% | 45.4 ±0.1 | +8.4% |
+| decompress `http` | **1000.6** ±2.2 | 945.4 ±4.1 | +5.8% | 821.4 ±2.9 | +21.8% |
+| decompress `large-literal` | 199.5 ±2.4 | 199.4 ±4.3 | +0.1% (tie) | 192.8 ±2.1 | +3.5% |
 
 ### Allocation (`gc.alloc.rate.norm`, B/op)
 
-| | JavaSegment | JniByteBuffer |
-|-|------------:|--------------:|
-| every case | ~0.00 | ~0.00 |
+| | JavaSegment | zstd-jni FFM | zstd-jni JNI |
+|-|------------:|-------------:|-------------:|
+| every case | ~0.00 | ~0.00 | ~0.00 |
 
-**Reading it:** we lead ~+9–10% on compress and +23% on small decompress (the
-call-overhead-dominated cases), tie on large decompress (bandwidth-bound), and
-**match exactly on allocation** — both genuinely zero-copy. Being
-"allocation-free vs JNI" holds only against JNI's `byte[]` API; against its
-zero-copy path the allocation advantage is gone, and the speed edge is the
-expected FFM call-overhead margin, largest at the smallest payloads.
+**Reading it:**
+
+- **FFM vs FFM is close to a wash.** Small decompress keeps a +6% edge, small
+  compress and large decompress tie. Both are a single downcall per operation;
+  what remains is the Java code around it.
+- **The large-compress +7.4% is not call overhead:** zstd-jni scores the same on
+  FFM and JNI (45.8 vs 45.4), so the gap sits in the codec itself — most likely
+  how each side builds `libzstd` (we compile with `zig cc` and
+  `-DZSTD_DISABLE_ASM`) or the context parameters it sets. Not investigated.
+- **FFM vs JNI** shows what zstd-jni's own switch to FFM bought: +15% on small
+  decompress (821.4 → 945.4), +5.8% on small compress, ~flat on large payloads.
+- **Allocation is identical** across all three: every path is genuinely
+  zero-copy. "Allocation-free vs zstd-jni" holds only against its `byte[]` API.
+
+These numbers are not comparable with the previous run (zstd 1.5.7, Apple M5):
+the hardware, JDK and zstd version all changed.
 
 ## Throughput (ops/ms, higher is better)
 
-> The tables below use the **synthetic** payloads and compare against
-> zstd-jni's *allocating* `byte[]` API (`zstdJni`), not its zero-copy path. They
+> The tables below use the **synthetic** payloads, from the older zstd 1.5.7 run
+> (see [Environment](#environment)), and compare against
+> zstd-jni's *allocating* `byte[]` API (`zstdJni`, then JNI-only), not its zero-copy path. They
 > show the `MemorySegment`-vs-`byte[]` allocation story; for the fair
 > zero-copy-vs-zero-copy comparison see
 > [Golden corpus: best vs best](#golden-corpus-best-vs-best) above.
@@ -383,12 +390,12 @@ Linux and Windows are open follow-up (same caveat as the `madvise` hint).
 # golden corpus, best vs best (our MemorySegment vs zstd-jni direct ByteBuffer)
 java --enable-native-access=ALL-UNNAMED -jar benchmark/target/benchmarks.jar \
   "GoldenCorpusBenchmark.*(Segment|JniByteBuffer)" \
-  -p file=http,large-literal-and-match-lengths -f 3 -wi 3 -i 5 -prof gc
+  -p file=http,large-literal-and-match-lengths -f 2 -wi 3 -w 2s -i 5 -r 2s -prof gc
 
 # same, with zstd-jni forced to its JNI implementation (FFM is its default on JDK 22+)
 java --enable-native-access=ALL-UNNAMED -jar benchmark/target/benchmarks.jar \
   "GoldenCorpusBenchmark.*JniByteBuffer" \
-  -p file=http,large-literal-and-match-lengths -f 3 -wi 3 -i 5 -prof gc \
+  -p file=http,large-literal-and-match-lengths -f 2 -wi 3 -w 2s -i 5 -r 2s -prof gc \
   -jvmArgsAppend "-Djdk.util.jar.enableMultiRelease=false"
 
 # synthetic throughput + allocation, all sizes

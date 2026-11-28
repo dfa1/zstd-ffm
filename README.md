@@ -8,18 +8,23 @@
 ![Java](https://img.shields.io/badge/Java-25%2B-orange.svg)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 
-**zstd-ffm** is an **FFM-based alternative to the excellent
-[zstd-jni](https://github.com/luben/zstd-jni)** for early adopters on **JDK 25+**.
-It wraps [Zstandard](https://github.com/facebook/zstd) through the **Foreign
-Function & Memory (FFM) API** — no JNI, no `sun.misc.Unsafe`, no hand-written C
-(JDK 25 is the first LTS with stable `java.lang.foreign`).
+**zstd-ffm** is a pure-Java [Zstandard](https://github.com/facebook/zstd) binding
+for **JDK 25+**, built on the **Foreign Function & Memory (FFM) API** — no JNI, no
+`sun.misc.Unsafe`, and no C of its own: the only native code is `libzstd`, compiled
+straight from the upstream sources (JDK 25 is the first LTS with stable
+`java.lang.foreign`). Where the excellent [zstd-jni](https://github.com/luben/zstd-jni)
+is the broad, battle-tested choice, zstd-ffm leans into:
 
-It leans into two things FFM makes natural:
-
+- **A `MemorySegment`-first API** — compress/decompress off-heap buffers (an mmap'd
+  slice in, an arena buffer out) with no heap copy and no per-call allocation, with
+  thin `byte[]` overloads for heap callers.
 - **Dictionary compression**, trained straight from your own data — the big win on
   small, repetitive records (logs, market-data ticks, JSON/Avro rows, FIX messages).
-- A **zero-copy `MemorySegment` API** — compress/decompress off-heap buffers (an
-  mmap'd slice in, an arena buffer out) with no heap copy and no per-call allocation.
+- **Typed values instead of naked numbers** — sizes, levels, dictionary ids and
+  per-parameter setters validate once, so illegal settings don't compile or don't
+  construct.
+- **Per-platform native jars and a JPMS module** — depend on one classifier or on
+  `zstd-platform` for all six, and `requires io.github.dfa1.zstd`.
 
 ## Quickstart
 
@@ -74,13 +79,12 @@ Run with `--enable-native-access=ALL-UNNAMED`. Full walkthrough in the
 
 ## Performance
 
-Against zstd-jni's own zero-copy direct-`ByteBuffer` path, the `MemorySegment`
-path is **up to ~23% faster on small payloads** (FFM's lower per-call overhead,
-golden-corpus fixtures, JMH) and ties once codec work dominates; both allocate
-~0 B/op. Methodology, every table, and the honest ties:
+On JDK 25, zstd-jni also binds zstd through FFM (since 1.5.7-22), and the two
+are **close to a tie** against its zero-copy direct-`ByteBuffer` path: within
+−1% to +7% across golden-corpus fixtures (JMH, zstd 1.6.0 on both sides), both
+~0 B/op. Against zstd-jni forced onto JNI, the `MemorySegment` path is up to
+~22% faster on small payloads. Methodology, every table, and the caveats:
 [docs/benchmarks.md](docs/benchmarks.md).
-These numbers are against zstd-jni 1.5.7-11 (JNI); newer zstd-jni runs on FFM on
-JDK 22+, and a re-run is pending.
 
 ## Install
 
