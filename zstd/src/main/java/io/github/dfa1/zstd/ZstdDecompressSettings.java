@@ -1,5 +1,7 @@
 package io.github.dfa1.zstd;
 
+import java.util.Objects;
+
 /// The decompression settings shared by [ZstdDecompressContext],
 /// [ZstdDecompressStream] and [ZstdInputStream].
 ///
@@ -35,6 +37,28 @@ public sealed interface ZstdDecompressSettings<S extends ZstdDecompressSettings<
     default S windowLogMax(int windowLogMax) {
         return apply(ZstdDecompressParameter.WINDOW_LOG_MAX,
                 ZstdDecompressParameter.WINDOW_LOG_MAX.checked(windowLogMax));
+    }
+
+    /// Rejects any block whose uncompressed content is larger than
+    /// `maxBlockSize`, from 1 KiB to 128 KiB; zero, the default, restores the
+    /// 128 KiB maximum. A larger block fails with [ZstdException].
+    ///
+    /// [ZstdInputStream] and [ZstdDecompressStream] then size their buffers for
+    /// the cap instead of 128 KiB, saving memory when many are alive at once.
+    /// One-shot [ZstdDecompressContext] decoding enforces the cap too, but saves
+    /// nothing.
+    ///
+    /// **Experimental** in upstream zstd. It rejects otherwise valid frames, so
+    /// use it only on frames written with a matching
+    /// [ZstdCompressSettings#maxBlockSize(ZstdByteSize)].
+    ///
+    /// @param maxBlockSize the largest accepted block size, or zero for the default
+    /// @return `this`, for chaining
+    /// @throws IllegalArgumentException if `maxBlockSize` is neither zero nor within zstd's bounds
+    default S maxBlockSize(ZstdByteSize maxBlockSize) {
+        Objects.requireNonNull(maxBlockSize, "maxBlockSize");
+        return apply(ZstdDecompressParameter.MAX_BLOCK_SIZE,
+                ZstdDecompressParameter.MAX_BLOCK_SIZE.checked(maxBlockSize.value()));
     }
 
     /// Skips validation of each frame's content checksum (written with

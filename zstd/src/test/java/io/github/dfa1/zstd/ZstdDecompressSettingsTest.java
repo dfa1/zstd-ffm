@@ -36,6 +36,8 @@ class ZstdDecompressSettingsTest {
                 setting("ignoreChecksum(true)", s -> s.ignoreChecksum(true),
                         ZstdDecompressParameter.FORCE_IGNORE_CHECKSUM, 1),
                 setting("magicless(true)", s -> s.magicless(true), ZstdDecompressParameter.FORMAT, 1),
+                setting("maxBlockSize(4 KiB)", s -> s.maxBlockSize(ZstdByteSize.ofKiB(4)),
+                        ZstdDecompressParameter.MAX_BLOCK_SIZE, 4096),
                 setting("windowLogMax(28)", s -> s.windowLogMax(28), ZstdDecompressParameter.WINDOW_LOG_MAX, 28),
                 setting("windowLogMax(lower)", s -> s.windowLogMax(WINDOW_LOG_MAX_LOWER),
                         ZstdDecompressParameter.WINDOW_LOG_MAX, WINDOW_LOG_MAX_LOWER));

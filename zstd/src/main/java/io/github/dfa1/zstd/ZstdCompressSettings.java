@@ -182,6 +182,25 @@ public sealed interface ZstdCompressSettings<S extends ZstdCompressSettings<S>>
                 ZstdCompressParameter.TARGET_C_BLOCK_SIZE.checked(targetCBlockSize.value()));
     }
 
+    /// Caps the uncompressed size of each block the compressor emits, from 1 KiB
+    /// to 128 KiB; zero, the default, restores the 128 KiB maximum.
+    ///
+    /// Smaller blocks cost ratio. The point is pairing with
+    /// [ZstdDecompressSettings#maxBlockSize(ZstdByteSize)] on a decoder you
+    /// control, so a streaming decoder can size its buffers for the cap.
+    ///
+    /// **Experimental** in upstream zstd, which documents it as only meant for
+    /// testing.
+    ///
+    /// @param maxBlockSize the largest block size, or zero for the default
+    /// @return `this`, for chaining
+    /// @throws IllegalArgumentException if `maxBlockSize` is neither zero nor within zstd's bounds
+    default S maxBlockSize(ZstdByteSize maxBlockSize) {
+        Objects.requireNonNull(maxBlockSize, "maxBlockSize");
+        return apply(ZstdCompressParameter.MAX_BLOCK_SIZE,
+                ZstdCompressParameter.MAX_BLOCK_SIZE.checked(maxBlockSize.value()));
+    }
+
     /// Sets the size of the long-distance matcher's hash table, as a power of two.
     /// Only applies with [#longDistanceMatching(boolean)].
     ///

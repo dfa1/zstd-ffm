@@ -6,7 +6,8 @@ enum ZstdDecompressParameter {
 
     WINDOW_LOG_MAX(100, "windowLogMax"),
     FORMAT(1000, "magicless"),
-    FORCE_IGNORE_CHECKSUM(1002, "ignoreChecksum");
+    FORCE_IGNORE_CHECKSUM(1002, "ignoreChecksum"),
+    MAX_BLOCK_SIZE(1005, "maxBlockSize");
 
     private final int value;
     private final String setter;
